@@ -11,6 +11,7 @@ interface Props {
 const INITIAL_HUD: ArenaHudState = {
   hp: 0, maxHp: 0, xp: 0, xpToNext: 1, level: 1, elapsed: 0, fps: 0,
   enemyCount: 0, bossState: 'none', bossHp: 0, bossMaxHp: 0,
+  killCount: 0, gameOver: false,
 }
 
 function formatTime(sec: number): string {
@@ -76,10 +77,23 @@ export default function ArenaScreen({ config, onExit }: Props) {
           <div className="arena-level">Lv.{hud.level}</div>
         </div>
         <div className="arena-fps">FPS {hud.fps} ｜ 敵 {hud.enemyCount}</div>
-        <button className="arena-exit-btn" onClick={onExit}>✕ 離開測試</button>
+        {!hud.gameOver && <button className="arena-exit-btn" onClick={onExit}>✕ 返回</button>}
       </div>
 
-      {levelUpOpen && <DiceUpgradeOverlay onComplete={handleCardChosen} />}
+      {levelUpOpen && !hud.gameOver && <DiceUpgradeOverlay onComplete={handleCardChosen} />}
+
+      {hud.gameOver && (
+        <div className="arena-gameover-overlay">
+          <div className="arena-gameover-title">陣亡</div>
+          <div className="arena-gameover-stats">
+            <div className="arena-gameover-row"><span>存活時間</span><strong>{formatTime(hud.elapsed)}</strong></div>
+            <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
+            <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
+            {hud.bossState === 'defeated' && <div className="arena-gameover-boss">👑 擊敗了 Boss</div>}
+          </div>
+          <button className="arena-gameover-btn" onClick={onExit}>返回主選單</button>
+        </div>
+      )}
     </div>
   )
 }

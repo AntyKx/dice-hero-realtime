@@ -15,6 +15,8 @@ export interface ArenaHudState {
   bossState: 'none' | 'alive' | 'defeated'
   bossHp: number
   bossMaxHp: number
+  killCount: number
+  gameOver: boolean
 }
 
 export interface ArenaConfig {
@@ -86,6 +88,8 @@ export class ArenaGame {
   private spawnTimer = 0
   private bossSpawned = false
   private bossState: 'none' | 'alive' | 'defeated' = 'none'
+  private killCount = 0
+  private gameOver = false
 
   private pointerActive = false
   private pointerTarget = { x: 0, y: 0 }
@@ -301,11 +305,19 @@ export class ArenaGame {
       if (dist < contactRadius && e.contactTimer <= 0) {
         e.contactTimer = ENEMY_CONTACT_COOLDOWN
         this.player.hp = Math.max(0, this.player.hp - e.damage)
+        if (this.player.hp <= 0) { this.triggerGameOver(); return }
       }
     }
     if (this.enemies.some(e => !e.alive)) {
       this.enemies = this.enemies.filter(e => e.alive)
     }
+  }
+
+  private triggerGameOver() {
+    if (this.gameOver) return
+    this.gameOver = true
+    this.emitHud()
+    this.app?.ticker.stop()
   }
 
   private findNearestEnemy(): EnemyInstance | null {
@@ -393,6 +405,7 @@ export class ArenaGame {
       e.alive = false
       e.sprite.visible = false
       this.enemySpritePool.release(e.sprite)
+      this.killCount++
       this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
       if (e.isBoss) this.bossState = 'defeated'
     }
@@ -495,6 +508,8 @@ export class ArenaGame {
       bossState: this.bossState,
       bossHp: boss?.hp ?? 0,
       bossMaxHp: boss?.maxHp ?? 0,
+      killCount: this.killCount,
+      gameOver: this.gameOver,
     })
   }
 

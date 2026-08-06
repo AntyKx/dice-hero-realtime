@@ -807,3 +807,4 @@ export type GamePhase =
   | { type: 'leaderboard'; dungeonId?: string }
   | { type: 'gm' }
   | { type: 'arena_test' } // M1 即時制垂直切片測試場景，見 REALTIME_PIVOT_PLAN.md
+  | { type: 'arena_run'; heroId: string } // 正式即時制冒險入口，見 REALTIME_PIVOT_PLAN.md M3

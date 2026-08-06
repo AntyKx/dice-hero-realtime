@@ -370,30 +370,10 @@ export default function App() {
       startDungeon(config.dungeonId, config.heroId, config.difficulty)
       return
     }
-    const { heroId, routeType, campaign } = config
-    const equip = getActiveEquipment(heroId)
-    const eqBonus = computeEquipBonus(equip)
-    const talentBon = getActiveTalentBonus(heroId)
-    const newRun = createRun(heroId, eqBonus.hpBonus + talentBon.hpBonus, routeType, campaign)
-    if (meta.activeFateLevel >= 4) {
-      const curse = getRandomCurse()
-      const m = newRun.party[0]
-      const mult = curse.effect.maxHpMult ?? 1
-      const newMaxHp = Math.max(10, Math.round(m.maxHp * mult))
-      newRun.party[0] = { ...m, maxHp: newMaxHp, hp: Math.min(m.hp, newMaxHp) }
-      newRun.curses = [curse.id]
-      // Lv9: second curse
-      if (meta.activeFateLevel >= 9) {
-        const curse2 = getRandomCurse()
-        const m2 = newRun.party[0]
-        const mult2 = curse2.effect.maxHpMult ?? 1
-        const newMaxHp2 = Math.max(10, Math.round(m2.maxHp * mult2))
-        newRun.party[0] = { ...m2, maxHp: newMaxHp2, hp: Math.min(m2.hp, newMaxHp2) }
-        newRun.curses = [...newRun.curses, curse2.id]
-      }
-    }
-    setRun(newRun)
-    setPhase({ type: 'map' })
+    // 即時制轉向：主線一律進 arena_run，不用 RunState/map/battle 那套回合制流程。
+    // 篇章/路線選擇目前對即時制內容沒有實質影響（內容還沒依篇章分化），先忽略，
+    // 只留 AdventureReadyScreen 的英雄選擇這部分。見 REALTIME_PIVOT_PLAN.md M3。
+    setPhase({ type: 'arena_run', heroId: config.heroId })
   }
 
   // kept for compatibility — only used internally now
@@ -1318,6 +1298,23 @@ export default function App() {
           moveSpeed: 260,
         }}
         onExit={() => setPhase({ type: 'gm' })}
+      />
+    )
+  }
+
+  if (phase.type === 'arena_run') {
+    const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
+    return (
+      <ArenaScreen
+        config={{
+          heroId: hero.id,
+          heroName: hero.name,
+          maxHp: hero.hp,
+          atkDamage: Math.round(hero.atk * 0.6),
+          atkCooldown: 0.45,
+          moveSpeed: 260,
+        }}
+        onExit={() => setPhase({ type: 'main_menu' })}
       />
     )
   }
