@@ -1,5 +1,6 @@
 import { Application, Assets, Graphics, Sprite, Texture } from 'pixi.js'
 import { Pool } from './Pool'
+import type { ArenaCard } from './cards'
 
 export interface ArenaHudState {
   hp: number
@@ -86,7 +87,17 @@ export class ArenaGame {
 
   private cfg: ArenaConfig
 
-  constructor(cfg: ArenaConfig, private onHudChange: (s: ArenaHudState) => void) {
+  // 升級卡疊加的即時屬性加成，套用點見 applyCard()
+  private bonusDamage = 0
+  private atkCooldownMult = 1
+  private moveSpeedMult = 1
+  private pickupRangeMult = 1
+
+  constructor(
+    cfg: ArenaConfig,
+    private onHudChange: (s: ArenaHudState) => void,
+    private onLevelUp: () => void,
+  ) {
     this.cfg = cfg
     this.projectilePool = new Pool<Graphics>(
       () => new Graphics(),
@@ -211,7 +222,7 @@ export class ArenaGame {
     const dy = this.pointerTarget.y - p.y
     const dist = Math.hypot(dx, dy)
     if (this.pointerActive && dist > POINTER_DEADZONE) {
-      const step = Math.min(dist, this.cfg.moveSpeed * dt)
+      const step = Math.min(dist, this.cfg.moveSpeed * this.moveSpeedMult * dt)
       p.x += (dx / dist) * step
       p.y += (dy / dist) * step
     }
@@ -247,7 +258,7 @@ export class ArenaGame {
     if (!this.enemy) return
     this.player.atkTimer -= dt
     if (this.player.atkTimer > 0) return
-    this.player.atkTimer = this.cfg.atkCooldown
+    this.player.atkTimer = this.cfg.atkCooldown * this.atkCooldownMult
     this.fireProjectileAt(this.enemy.x, this.enemy.y)
   }
 
@@ -267,7 +278,7 @@ export class ArenaGame {
       y: this.player.y,
       vx: (dx / dist) * PROJECTILE_SPEED,
       vy: (dy / dist) * PROJECTILE_SPEED,
-      damage: this.cfg.atkDamage,
+      damage: this.cfg.atkDamage + this.bonusDamage,
       alive: true,
     })
   }
@@ -333,7 +344,7 @@ export class ArenaGame {
       const dx = this.player.x - g.x
       const dy = this.player.y - g.y
       const dist = Math.hypot(dx, dy)
-      if (dist < PICKUP_RANGE) {
+      if (dist < PICKUP_RANGE * this.pickupRangeMult) {
         const step = Math.min(dist, MAGNET_SPEED * dt)
         if (dist > 1) { g.x += (dx / dist) * step; g.y += (dy / dist) * step }
         g.gfx.x = g.x
@@ -357,11 +368,40 @@ export class ArenaGame {
     if (this.xp >= needed) {
       this.xp -= needed
       this.level++
+      this.emitHud()
+      this.pauseForLevelUp()
     }
   }
 
   private xpToNext(): number {
     return 40 + (this.level - 1) * 20
+  }
+
+  private pauseForLevelUp() {
+    this.app?.ticker.stop()
+    this.onLevelUp()
+  }
+
+  /** 測試用：跳過等待真的吃夠 XP，直接觸發升級流程。 */
+  forceLevelUp(): void {
+    this.level++
+    this.emitHud()
+    this.pauseForLevelUp()
+  }
+
+  /** 套用玩家在 DiceUpgradeOverlay 選的卡，並恢復戰鬥。 */
+  applyCard(card: ArenaCard): void {
+    const e = card.effect
+    if (e.flatDamage) this.bonusDamage += e.flatDamage
+    if (e.atkCooldownMult) this.atkCooldownMult *= e.atkCooldownMult
+    if (e.moveSpeedBonus) this.moveSpeedMult *= 1 + e.moveSpeedBonus
+    if (e.pickupRangeBonus) this.pickupRangeMult *= 1 + e.pickupRangeBonus
+    if (e.maxHpBonus) {
+      this.player.maxHp += e.maxHpBonus
+      this.player.hp += e.maxHpBonus
+    }
+    this.emitHud()
+    this.app?.ticker.start()
   }
 
   private emitHud() {

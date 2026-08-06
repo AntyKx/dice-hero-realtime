@@ -157,10 +157,26 @@ idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩
   骨架、投射物方向、Boss/敵人 spawn 邏輯），測不出跟真實時間有關的手感與
   效能。需要在真正前景的瀏覽器或手機上實測才能過這關，見 §8.1
 
-### M2 — 骰子抽牌整合（3～5 天）← **關鍵驗證點**
-- 升級觸發 `DiceUpgradeOverlay` → 既有 `RewardScreen` 三選一
-- 20 張測試卡（沿用現有 `buffCards.ts` 內容）
-- ✅ 驗收：連玩 10 局，擲骰→三選一的節奏感覺對，不覺得打斷即時戰鬥的流暢度
+### M2 — 骰子抽牌整合（3～5 天）← **關鍵驗證點** ✅ 骨架完成（2026-08-06）
+- 新增 `src/arena/cards.ts`：**沒有**沿用 `buffCards.ts`（那 456 行是回合制專用
+  效果，rerollBonus/damagePerRank/freezeOnHighCombo 等語意上套不進即時戰鬥，
+  硬轉會變成一層脆弱的翻譯層）。改成一組全新、小而乾淨、直接對應 ArenaGame
+  即時屬性的 13 張卡（flatDamage/atkCooldownMult/moveSpeedBonus/maxHpBonus/
+  pickupRangeBonus），足夠驗證「擲骰→三選一」這個節奏本身，內容深度留給 M3
+- `DiceUpgradeOverlay.tsx`：升級觸發 → `app.ticker.stop()` 暫停戰鬥 → 擲骰動畫
+  （重用現有 `DieFace` SVG 元件）→ 骰值加權三選一（重用 `.reward-card` 等
+  既有 CSS，樣式跟回合制的 RewardScreen 一致）→ 選卡套用效果 → `ticker.start()`
+  恢復戰鬥
+- `pickThreeCards()` 的加權邏輯有 `src/arena/cards.test.ts` 4 個 vitest 單元測試
+  覆蓋（不受瀏覽器分頁節流影響，可靠）
+- `ArenaGame` 新增 `forceLevelUp()` debug 方法 + `ArenaScreen` 暴露
+  `window.__arena`，繞開 §8.1 的 rAF 節流限制，讓「升級→暫停→擲骰→三選一→
+  套用→恢復」整條路徑能在自動化瀏覽器裡可靠測試（已用 javascript_tool 呼叫
+  驗證整條流程跑通，含 HUD 等級數字正確更新）。GM 模式已經是密碼保護的
+  dev-only 入口，留著這個 hook 對之後的手動 QA 也有用，不算多餘的debug 殘留
+- ✅ 已驗證：擲骰動畫、稀有度加權、卡片套用、暫停/恢復機制都正確
+- ⚠️ 尚未驗證（跟 M1 同樣的限制）：連續玩多局「節奏感覺對不對、會不會覺得
+  打斷流暢度」這種主觀手感，需要使用者在真正前景的瀏覽器/手機上實測
 
 ### M3 — 波次與內容（1.5～2 週）
 - `SpawnDirector` 波次表、5～8 種敵人行為、1～2 隻 Boss

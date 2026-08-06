@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArenaGame, type ArenaConfig, type ArenaHudState } from './ArenaGame'
+import DiceUpgradeOverlay from './DiceUpgradeOverlay'
+import type { ArenaCard } from './cards'
 
 interface Props {
   config: ArenaConfig
@@ -16,16 +18,25 @@ function formatTime(sec: number): string {
 
 export default function ArenaScreen({ config, onExit }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const gameRef = useRef<ArenaGame | null>(null)
   const [hud, setHud] = useState<ArenaHudState>(INITIAL_HUD)
+  const [levelUpOpen, setLevelUpOpen] = useState(false)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const game = new ArenaGame(config, setHud)
+    const game = new ArenaGame(config, setHud, () => setLevelUpOpen(true))
+    gameRef.current = game
     game.init(el)
-    return () => game.destroy()
+    ;(window as unknown as { __arena?: ArenaGame }).__arena = game
+    return () => { gameRef.current = null; game.destroy() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleCardChosen = (card: ArenaCard) => {
+    gameRef.current?.applyCard(card)
+    setLevelUpOpen(false)
+  }
 
   const hpPct = hud.maxHp > 0 ? Math.max(0, Math.min(100, (hud.hp / hud.maxHp) * 100)) : 0
   const xpPct = hud.xpToNext > 0 ? Math.max(0, Math.min(100, (hud.xp / hud.xpToNext) * 100)) : 0
@@ -52,6 +63,8 @@ export default function ArenaScreen({ config, onExit }: Props) {
         <div className="arena-fps">FPS {hud.fps}</div>
         <button className="arena-exit-btn" onClick={onExit}>✕ 離開測試</button>
       </div>
+
+      {levelUpOpen && <DiceUpgradeOverlay onComplete={handleCardChosen} />}
     </div>
   )
 }
