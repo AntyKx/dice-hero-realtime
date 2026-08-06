@@ -9,7 +9,12 @@ npm run dev                  # 開發伺服器 http://localhost:5173
 npm run build                # TypeScript 編譯 + Vite 打包
 npm run preview              # 預覽 dist/
 node scripts/remove-bg.mjs   # 批次移除 public/assets/spritesheets/ 內所有 PNG 的白色背景
-npx wrangler pages deploy dist --project-name diceherorpg  # 部署到 Cloudflare Pages
+npx wrangler pages deploy dist --project-name diceherorpg --branch=DiceHeroRpg  # 部署到 Cloudflare Pages Production
+# ⚠️ 一定要帶 --branch=DiceHeroRpg！這個 Pages 專案的 Production 分支名稱是
+# "DiceHeroRpg"（歷史因素，跟本機 git 分支 master 無關）。省略這個參數時
+# wrangler 會用本機 git 分支（master）當部署分支，落地變成 Preview，
+# 正式站 https://diceherorpg.pages.dev 完全不會更新，但指令不會報錯，
+# 很容易誤以為部署成功。
 ```
 
 無測試框架，無 lint 指令。
