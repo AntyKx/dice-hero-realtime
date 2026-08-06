@@ -1316,8 +1316,6 @@ export default function App() {
           atkDamage: Math.round(hero.atk * 0.6),
           atkCooldown: 0.45,
           moveSpeed: 260,
-          enemyId: 'goblin',
-          enemyName: '哥布林',
         }}
         onExit={() => setPhase({ type: 'gm' })}
       />

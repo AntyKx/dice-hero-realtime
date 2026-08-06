@@ -1,6 +1,7 @@
 import { Application, Assets, Graphics, Sprite, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
+import { ENEMY_TYPES, BOSS_TYPE, BOSS_SPAWN_SEC, pickEnemyType, spawnIntervalSec, maxConcurrentEnemies, type EnemyTypeDef } from './enemies'
 
 export interface ArenaHudState {
   hp: number
@@ -10,6 +11,10 @@ export interface ArenaHudState {
   level: number
   elapsed: number
   fps: number
+  enemyCount: number
+  bossState: 'none' | 'alive' | 'defeated'
+  bossHp: number
+  bossMaxHp: number
 }
 
 export interface ArenaConfig {
@@ -19,8 +24,6 @@ export interface ArenaConfig {
   atkDamage: number
   atkCooldown: number // 秒/次
   moveSpeed: number    // px/秒
-  enemyId: string
-  enemyName: string
 }
 
 interface Projectile {
@@ -41,6 +44,19 @@ interface Gem {
   alive: boolean
 }
 
+interface EnemyInstance {
+  sprite: Sprite
+  x: number
+  y: number
+  hp: number
+  maxHp: number
+  speed: number
+  damage: number
+  contactTimer: number
+  isBoss: boolean
+  alive: boolean
+}
+
 const PROJECTILE_SPEED = 620
 const PROJECTILE_RADIUS = 6
 const ENEMY_CONTACT_RADIUS = 34
@@ -48,11 +64,11 @@ const ENEMY_CONTACT_DAMAGE = 8
 const ENEMY_CONTACT_COOLDOWN = 0.7
 const ENEMY_BASE_HP = 30
 const ENEMY_BASE_SPEED = 90
-const ENEMY_RESPAWN_DELAY = 1.2
 const PICKUP_RANGE = 90
 const MAGNET_SPEED = 380
 const GEM_RADIUS = 7
 const GEM_XP_VALUE = 10
+const BOSS_GEM_XP_VALUE = GEM_XP_VALUE * 8
 const POINTER_DEADZONE = 6
 const ARENA_MARGIN = 40
 const HUD_EMIT_INTERVAL = 150 // ms，HUD 不用每 frame 更新
@@ -62,12 +78,14 @@ export class ArenaGame {
   private destroyed = false
 
   private playerSprite: Sprite | null = null
-  private enemySprite: Sprite | null = null
-  private enemyTexture: Texture | null = null
+  private enemyTextures: Record<string, Texture> = {}
 
   private player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0 }
-  private enemy: { x: number; y: number; hp: number; maxHp: number; speed: number; contactTimer: number } | null = null
-  private respawnTimer = 0
+  private enemies: EnemyInstance[] = []
+  private enemySpritePool: Pool<Sprite>
+  private spawnTimer = 0
+  private bossSpawned = false
+  private bossState: 'none' | 'alive' | 'defeated' = 'none'
 
   private pointerActive = false
   private pointerTarget = { x: 0, y: 0 }
@@ -107,6 +125,10 @@ export class ArenaGame {
       () => new Graphics(),
       g => { g.clear(); g.visible = true },
     )
+    this.enemySpritePool = new Pool<Sprite>(
+      () => new Sprite(),
+      s => { s.visible = true; s.tint = 0xffffff },
+    )
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -135,12 +157,13 @@ export class ArenaGame {
     app.stage.on('pointerup', () => { this.pointerActive = false })
     app.stage.on('pointerupoutside', () => { this.pointerActive = false })
 
-    const [heroTex, enemyTex] = await Promise.all([
+    const allEnemyTypes = [...ENEMY_TYPES, BOSS_TYPE]
+    const [heroTex, ...enemyTexList] = await Promise.all([
       Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/idle_0.png`),
-      Assets.load(`/assets/frames/enemies/${this.cfg.enemyId}/idle_0.png`),
+      ...allEnemyTypes.map(t => Assets.load(`/assets/frames/enemies/${t.id}/idle_0.png`)),
     ])
     if (this.destroyed) return
-    this.enemyTexture = enemyTex
+    allEnemyTypes.forEach((t, i) => { this.enemyTextures[t.id] = enemyTexList[i] })
 
     this.player = { x: app.screen.width / 2, y: app.screen.height / 2, hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0 }
     this.pointerTarget = { x: this.player.x, y: this.player.y }
@@ -153,8 +176,6 @@ export class ArenaGame {
     app.stage.addChild(playerSprite)
     this.playerSprite = playerSprite
 
-    this.spawnEnemy()
-
     app.ticker.add(ticker => this.update(ticker.deltaMS))
   }
 
@@ -163,8 +184,28 @@ export class ArenaGame {
     sprite.scale.set(scale)
   }
 
-  private spawnEnemy() {
-    if (!this.app || !this.enemyTexture) return
+  private updateSpawning(dt: number) {
+    if (!this.app) return
+
+    if (!this.bossSpawned && this.elapsed >= BOSS_SPAWN_SEC) {
+      this.bossSpawned = true
+      this.bossState = 'alive'
+      this.spawnEnemyOfType(BOSS_TYPE)
+    }
+
+    this.spawnTimer -= dt
+    if (this.spawnTimer <= 0) {
+      this.spawnTimer = spawnIntervalSec(this.elapsed)
+      if (this.enemies.length < maxConcurrentEnemies(this.elapsed)) {
+        this.spawnEnemyOfType(pickEnemyType(this.elapsed))
+      }
+    }
+  }
+
+  private spawnEnemyOfType(type: EnemyTypeDef) {
+    if (!this.app) return
+    const tex = this.enemyTextures[type.id]
+    if (!tex) return
     const { width, height } = this.app.screen
     const edge = Math.floor(Math.random() * 4)
     const pos = edge === 0 ? { x: Math.random() * width, y: -40 }
@@ -172,20 +213,30 @@ export class ArenaGame {
       : edge === 2 ? { x: Math.random() * width, y: height + 40 }
       : { x: -40, y: Math.random() * height }
 
-    const level = Math.max(1, this.level)
-    const hp = Math.round(ENEMY_BASE_HP * (1 + (level - 1) * 0.18))
-    this.enemy = { x: pos.x, y: pos.y, hp, maxHp: hp, speed: ENEMY_BASE_SPEED, contactTimer: 0 }
+    const levelMult = 1 + (Math.max(1, this.level) - 1) * 0.18
+    const hp = Math.round(ENEMY_BASE_HP * type.hpMult * levelMult)
 
-    if (!this.enemySprite) {
-      const sprite = new Sprite(this.enemyTexture)
-      sprite.anchor.set(0.5)
-      this.setSpriteHeight(sprite, 70)
-      this.app.stage.addChild(sprite)
-      this.enemySprite = sprite
-    }
-    this.enemySprite.visible = true
-    this.enemySprite.x = pos.x
-    this.enemySprite.y = pos.y
+    const sprite = this.enemySpritePool.acquire()
+    sprite.texture = tex
+    sprite.anchor.set(0.5)
+    this.setSpriteHeight(sprite, type.spriteHeight)
+    if (type.isBoss) sprite.tint = 0xffb0b0
+    sprite.x = pos.x
+    sprite.y = pos.y
+    if (!sprite.parent) this.app.stage.addChild(sprite)
+
+    this.enemies.push({
+      sprite,
+      x: pos.x,
+      y: pos.y,
+      hp,
+      maxHp: hp,
+      speed: ENEMY_BASE_SPEED * type.speedMult,
+      damage: ENEMY_CONTACT_DAMAGE * type.damageMult,
+      contactTimer: 0,
+      isBoss: !!type.isBoss,
+      alive: true,
+    })
   }
 
   private update(deltaMS: number) {
@@ -203,7 +254,8 @@ export class ArenaGame {
     }
 
     this.updatePlayerMovement(dt)
-    this.updateEnemy(dt)
+    this.updateSpawning(dt)
+    this.updateEnemies(dt)
     this.updateAutoAttack(dt)
     this.updateProjectiles(dt)
     this.updateGems(dt)
@@ -233,33 +285,48 @@ export class ArenaGame {
     this.playerSprite.y = p.y
   }
 
-  private updateEnemy(dt: number) {
-    const e = this.enemy
-    if (!e) {
-      this.respawnTimer -= dt
-      if (this.respawnTimer <= 0) this.spawnEnemy()
-      return
-    }
-    const dx = this.player.x - e.x
-    const dy = this.player.y - e.y
-    const dist = Math.hypot(dx, dy) || 1
-    e.x += (dx / dist) * e.speed * dt
-    e.y += (dy / dist) * e.speed * dt
-    if (this.enemySprite) { this.enemySprite.x = e.x; this.enemySprite.y = e.y }
+  private updateEnemies(dt: number) {
+    for (const e of this.enemies) {
+      if (!e.alive) continue
+      const dx = this.player.x - e.x
+      const dy = this.player.y - e.y
+      const dist = Math.hypot(dx, dy) || 1
+      e.x += (dx / dist) * e.speed * dt
+      e.y += (dy / dist) * e.speed * dt
+      e.sprite.x = e.x
+      e.sprite.y = e.y
 
-    e.contactTimer -= dt
-    if (dist < ENEMY_CONTACT_RADIUS && e.contactTimer <= 0) {
-      e.contactTimer = ENEMY_CONTACT_COOLDOWN
-      this.player.hp = Math.max(0, this.player.hp - ENEMY_CONTACT_DAMAGE)
+      const contactRadius = e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS
+      e.contactTimer -= dt
+      if (dist < contactRadius && e.contactTimer <= 0) {
+        e.contactTimer = ENEMY_CONTACT_COOLDOWN
+        this.player.hp = Math.max(0, this.player.hp - e.damage)
+      }
+    }
+    if (this.enemies.some(e => !e.alive)) {
+      this.enemies = this.enemies.filter(e => e.alive)
     }
   }
 
+  private findNearestEnemy(): EnemyInstance | null {
+    let best: EnemyInstance | null = null
+    let bestDist = Infinity
+    for (const e of this.enemies) {
+      if (!e.alive) continue
+      const d = Math.hypot(e.x - this.player.x, e.y - this.player.y)
+      if (d < bestDist) { bestDist = d; best = e }
+    }
+    return best
+  }
+
   private updateAutoAttack(dt: number) {
-    if (!this.enemy) return
+    if (this.enemies.length === 0) return
     this.player.atkTimer -= dt
     if (this.player.atkTimer > 0) return
+    const target = this.findNearestEnemy()
+    if (!target) return
     this.player.atkTimer = this.cfg.atkCooldown * this.atkCooldownMult
-    this.fireProjectileAt(this.enemy.x, this.enemy.y)
+    this.fireProjectileAt(target.x, target.y)
   }
 
   private fireProjectileAt(tx: number, ty: number) {
@@ -297,11 +364,14 @@ export class ArenaGame {
         this.killProjectile(p)
         continue
       }
-      if (this.enemy) {
-        const dist = Math.hypot(this.enemy.x - p.x, this.enemy.y - p.y)
-        if (dist < ENEMY_CONTACT_RADIUS * 0.6) {
-          this.damageEnemy(p.damage)
+      for (const e of this.enemies) {
+        if (!e.alive) continue
+        const hitRadius = (e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS) * 0.6
+        const dist = Math.hypot(e.x - p.x, e.y - p.y)
+        if (dist < hitRadius) {
+          this.damageEnemy(e, p.damage)
           this.killProjectile(p)
+          break
         }
       }
     }
@@ -316,26 +386,26 @@ export class ArenaGame {
     this.projectilePool.release(p.gfx)
   }
 
-  private damageEnemy(amount: number) {
-    const e = this.enemy
-    if (!e) return
+  private damageEnemy(e: EnemyInstance, amount: number) {
+    if (!e.alive) return
     e.hp -= amount
     if (e.hp <= 0) {
-      this.spawnGem(e.x, e.y)
-      this.enemy = null
-      if (this.enemySprite) this.enemySprite.visible = false
-      this.respawnTimer = ENEMY_RESPAWN_DELAY
+      e.alive = false
+      e.sprite.visible = false
+      this.enemySpritePool.release(e.sprite)
+      this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
+      if (e.isBoss) this.bossState = 'defeated'
     }
   }
 
-  private spawnGem(x: number, y: number) {
+  private spawnGem(x: number, y: number, value: number) {
     if (!this.app) return
     const gfx = this.gemPool.acquire()
     gfx.circle(0, 0, GEM_RADIUS).fill({ color: 0x4ade80 })
     gfx.x = x
     gfx.y = y
     if (!gfx.parent) this.app.stage.addChild(gfx)
-    this.gems.push({ gfx, x, y, value: GEM_XP_VALUE, alive: true })
+    this.gems.push({ gfx, x, y, value, alive: true })
   }
 
   private updateGems(dt: number) {
@@ -364,10 +434,17 @@ export class ArenaGame {
 
   private gainXp(amount: number) {
     this.xp += amount
-    const needed = this.xpToNext()
-    if (this.xp >= needed) {
-      this.xp -= needed
+    // while（不是 if）：一次拿到大量 XP（例如 Boss 掉落的大寶石）要能一口氣
+    // 跨過好幾個等級門檻，不能因為只檢查一次就悄悄漏掉升級。目前一次 gainXp
+    // 只會跳出一次升級提示（見下方 leveledUp），多級一次疊完，不會連續跳
+    // 好幾個 DiceUpgradeOverlay——那個排隊機制留給之後真的需要時再做。
+    let leveledUp = false
+    while (this.xp >= this.xpToNext()) {
+      this.xp -= this.xpToNext()
       this.level++
+      leveledUp = true
+    }
+    if (leveledUp) {
       this.emitHud()
       this.pauseForLevelUp()
     }
@@ -405,6 +482,7 @@ export class ArenaGame {
   }
 
   private emitHud() {
+    const boss = this.enemies.find(e => e.isBoss && e.alive)
     this.onHudChange({
       hp: this.player.hp,
       maxHp: this.player.maxHp,
@@ -413,6 +491,10 @@ export class ArenaGame {
       level: this.level,
       elapsed: this.elapsed,
       fps: this.fps,
+      enemyCount: this.enemies.length,
+      bossState: this.bossState,
+      bossHp: boss?.hp ?? 0,
+      bossMaxHp: boss?.maxHp ?? 0,
     })
   }
 

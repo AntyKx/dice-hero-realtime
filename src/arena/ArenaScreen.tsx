@@ -8,7 +8,10 @@ interface Props {
   onExit: () => void
 }
 
-const INITIAL_HUD: ArenaHudState = { hp: 0, maxHp: 0, xp: 0, xpToNext: 1, level: 1, elapsed: 0, fps: 0 }
+const INITIAL_HUD: ArenaHudState = {
+  hp: 0, maxHp: 0, xp: 0, xpToNext: 1, level: 1, elapsed: 0, fps: 0,
+  enemyCount: 0, bossState: 'none', bossHp: 0, bossMaxHp: 0,
+}
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -40,6 +43,7 @@ export default function ArenaScreen({ config, onExit }: Props) {
 
   const hpPct = hud.maxHp > 0 ? Math.max(0, Math.min(100, (hud.hp / hud.maxHp) * 100)) : 0
   const xpPct = hud.xpToNext > 0 ? Math.max(0, Math.min(100, (hud.xp / hud.xpToNext) * 100)) : 0
+  const bossPct = hud.bossMaxHp > 0 ? Math.max(0, Math.min(100, (hud.bossHp / hud.bossMaxHp) * 100)) : 0
 
   return (
     <div className="arena-screen">
@@ -54,13 +58,24 @@ export default function ArenaScreen({ config, onExit }: Props) {
           </div>
           <div className="arena-timer">{formatTime(hud.elapsed)}</div>
         </div>
+
+        {hud.bossState === 'alive' && (
+          <div className="arena-boss-bar">
+            <div className="arena-boss-fill" style={{ width: `${bossPct}%` }} />
+            <span className="arena-boss-text">巨龍　{hud.bossHp} / {hud.bossMaxHp}</span>
+          </div>
+        )}
+        {hud.bossState === 'defeated' && (
+          <div className="arena-boss-defeated">👑 Boss 擊敗！</div>
+        )}
+
         <div className="arena-hud-bottom">
           <div className="arena-xp-bar">
             <div className="arena-xp-fill" style={{ width: `${xpPct}%` }} />
           </div>
           <div className="arena-level">Lv.{hud.level}</div>
         </div>
-        <div className="arena-fps">FPS {hud.fps}</div>
+        <div className="arena-fps">FPS {hud.fps} ｜ 敵 {hud.enemyCount}</div>
         <button className="arena-exit-btn" onClick={onExit}>✕ 離開測試</button>
       </div>
 

@@ -4306,6 +4306,41 @@ h1, h2, h3, p { margin: 0; }
   color: #6888a8;
 }
 
+.arena-boss-bar {
+  position: relative;
+  height: 22px;
+  border-radius: 10px;
+  background: rgba(10, 16, 30, 0.75);
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.arena-boss-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8a1830, #ff4d6d);
+  transition: width 0.15s ease-out;
+}
+.arena-boss-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.arena-boss-defeated {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffd94a;
+  text-shadow: 0 0 12px rgba(255, 217, 74, 0.6);
+}
+
 .arena-exit-btn {
   pointer-events: auto;
   position: absolute;
