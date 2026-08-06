@@ -1,0 +1,190 @@
+# 骰子英雄 → 即時制 Survivor-like 轉向規畫
+
+> 決策紀錄（2026-08-06）：
+> 1. 動畫全面走 2D sprite，放棄 `Model3DTest.tsx` 的 3D GLTF 實驗路線
+> 2. 戰鬥從回合制擲骰，改成即時制走位＋自動攻擊（參考 DQ 破戒／吸血鬼倖存者）
+> 3. 骰子降級為「升級/波次時的抽牌機制」，不再是逐回合的操作核心
+> 4. 先簡化到最核心玩法，裝備/天賦/副本/排行榜用 feature flag 藏起來，不刪
+>
+> 取代 `D:\CLAUDE專案\三選一\PLAN.md`（原本規畫從零用 Godot 做）——
+> 改為在既有 17,000 行專案上演化，能重用的邏輯資產遠大於重寫成本。
+
+---
+
+## 0. 這次轉向改變了什麼、沒改變什麼
+
+**沒改變**：TS/React/Vite/Cloudflare Pages 部署管線、`GamePhase` 狀態機架構、
+存檔/排行榜後端、三選一的設計哲學。
+
+**改變的只有「戰鬥怎麼進行」**。回合制單體對戰 → 即時制對抗波次怪群。
+這一塊是重寫，其餘畫面（地圖、獎勵、選單）不受影響。
+
+---
+
+## 1. 資產盤點：留下 vs 重寫
+
+| 檔案 | 行數 | 處置 |
+|---|---|---|
+| `buffCards.ts` | 456 | **留下**，觸發時機從「戰後」改成「升級/波次結束」 |
+| `relics.ts` | 531 | **留下**，原封不動 |
+| `talents.ts` | 450 | 留下，先用 feature flag 隱藏（見 §4） |
+| `equipment.ts` | 1,685 | 留下，先用 feature flag 隱藏；數值套用點要接到新的 StatBlock |
+| `scoring.ts` + Cloudflare Functions 排行榜 | — | 留下，先隱藏，分數公式之後要重寫（存活時間/擊殺數為主） |
+| `mapGen.ts` / `dungeon.ts` | 810 | 節點地圖的「巨觀結構」概念留下：每個節點 = 一場即時戰鬥（一波）；15 層副本先隱藏 |
+| `data.ts`（HEROES/ENEMIES/SpriteMeta） | 215 | 留下，**但要擴充**：現有 6 格單列（idle/attack/skill/hurt）沒有方向性移動幀，即時走位需要至少 4 方向或左右翻轉的行走循環 |
+| `RewardScreen.tsx` | 102 | 留下，改造成「擲骰 → 三選一卡牌」的入口畫面（見 §3） |
+| `App.tsx` GamePhase | — | 新增 `{ type: 'arena_battle', waveConfig }` phase，取代 `battle` 在新模式下的角色 |
+| `BattleScreen.tsx` | 6,017 | **不重用**，回合制 UI 邏輯（保留骰/重骰/牌型判定）在即時制下無意義。整支砍掉，新建 `ArenaScreen` |
+| `gameLogic.ts`（`evaluateDice`/`computeHeroAction`） | 170 | 牌型判定邏輯不重用；純數值計算部分（傷害公式）可抽出來給新引擎用 |
+| `EquipmentScreen.tsx` | 1,147 | 隱藏期間不用碰 |
+| `three` / `@react-three/fiber` / `@react-three/drei` | — | **移除依賴**，`Model3DTest.tsx` 一併刪除 |
+
+**淨效果**：約 5,700 行純邏輯/資料留用，約 6,000 行戰鬥 UI 重寫，新增約
+2,000～3,000 行即時制引擎程式碼。比從零開始（Godot 方案）省下的是卡池設計、
+遺物平衡、meta 進度、後端這些已經調過的內容資產。
+
+---
+
+## 2. 技術決策
+
+| 項目 | 決定 | 理由 |
+|---|---|---|
+| 戰鬥渲染 | **PixiJS**（`@pixi/react` 包一層，跟現有 React 畫面共存） | DOM/CSS 扛不住同屏 50～100+ 動態 sprite＋投射物＋粒子；換渲染層不等於換技術棧，TS/React/Vite/Cloudflare/Capacitor 全部留用 |
+| 其他畫面 | 繼續 React DOM | 地圖、獎勵卡、選單不需要 canvas |
+| 移動控制 | 觸控拖曳（虛擬搖桿或任意處拖曳） | 直向手遊標準操作，單手可玩 |
+| 碰撞 | 手動空間分割（grid-based spatial hash），不用 Pixi 內建物理 | 怪多時 O(n²) 判定會先死 |
+| 物件池 | 敵人/投射物/傷害數字/掉落物全部池化 | 同上，避免頻繁 GC |
+| 資料驅動 | `data.ts` 的 HEROES/ENEMIES 結構延續，新增 `WaveConfig`/`SpawnPattern` | 波次表資料化，方便之後用 Cloudflare Functions 做遠端調平衡 |
+
+---
+
+## 3. 骰子的新角色：波次/升級抽牌
+
+**設計**：即時戰鬥全程自動攻擊＋玩家走位，不再有任何回合制操作。骰子被
+重新定位成「決定強化池品質」的儀式化動畫，出現在兩個時機：
+
+1. **升級**（吃夠 XP）— 螢幕暫停，播放擲骰動畫，骰面點數換算成稀有度加權
+   （例如骰到 6 大幅提高 Epic/Legendary 機率），接著跳出既有的三選一卡片 UI
+2. **波次結算**（每波怪清完）— 同樣邏輯，用來發遺物或裝備（裝備先隱藏，
+   v1 只發遺物）
+
+實作上：`getRandomCards()`/`getRandomRelics()` 已經支援 `tier`/`role` 參數，
+只需要新增一個「骰子加權」輸入，不用改函式核心邏輯。`RewardScreen.tsx`
+的三選一 UI 幾乎整套照搬，只在最前面插一段擲骰動畫。
+
+這保留了「骰子英雄」的品牌識別度與你已經做好的抽卡機制，同時讓即時戰鬥
+本身維持吸血鬼倖存者式的純粹（不被回合制操作打斷節奏）。
+
+---
+
+## 4. v1 簡化範圍（feature flag，不刪除）
+
+保留（v1 核心玩法）：
+- 即時走位 + 自動攻擊
+- 骰子抽牌三選一（buffCards + relics）
+- 節點地圖（每節點 = 一波，簡化成線性或簡單分支）
+- Boss 波
+
+先關閉（`FEATURE_FLAGS` 常數控制，程式碼保留）：
+- 裝備系統（8 部位/套裝/詞綴/傳奇/鍛造）
+- 天賦樹
+- 4 個 15 層副本
+- 排行榜（分數公式要等新玩法穩定才重寫，先關閉上傳）
+- 藥水/詛咒/事件（先關閉，之後看要不要以「即時戰鬥中的拾取物」形式回歸）
+
+```ts
+// src/featureFlags.ts
+export const FEATURE_FLAGS = {
+  equipment: false,
+  talents: false,
+  dungeons: false,
+  leaderboard: false,
+  potionsAndCurses: false,
+} as const
+```
+
+---
+
+## 5. 新引擎需要的模組（原專案沒有，要新寫）
+
+| 模組 | 說明 |
+|---|---|
+| `arena/PlayerController` | 拖曳輸入 → 位移，邊界限制 |
+| `arena/AutoAttack` | 依 `attackSpeed`/`range` 找目標、冷卻計時、開火 |
+| `arena/SpawnDirector` | 波次表驅動，時間到就從邊緣生怪，難度隨時間曲線成長 |
+| `arena/EnemyAI` | 追擊型/遠程型/衝鋒型幾種基礎行為 |
+| `arena/ProjectilePool` / `EnemyPool` / `DamageNumberPool` | 物件池 |
+| `arena/PickupSystem` | XP 寶石、磁吸範圍、金幣、拾取合併 |
+| `arena/CollisionGrid` | 空間分割碰撞判定 |
+| `arena/Juice`（頓幀/震屏/閃白） | 打擊感 |
+| `arena/DiceUpgradeOverlay` | 升級時的擲骰動畫 + 呼叫既有 `RewardScreen` 邏輯 |
+
+---
+
+## 6. 美術資產缺口
+
+現有 sprite sheet 是單列 6 格（idle_0/1、attack_0/1、skill_0、hurt_0），
+**沒有移動方向幀**。即時走位至少需要：
+
+- 一組行走循環（2～4 幀即可，用左右翻轉省掉左右兩份）
+- 如果敵人要有「面向玩家」的表現，敵人也要一份
+
+如果你原本規畫的美術量沒算進這個，這是要新增的產能，建議先用現有
+idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩後再補行走幀。
+
+---
+
+## 7. 里程碑
+
+### M0 — 清理與骨架（0.5～1 天）
+- 移除 `three`/`@react-three/*` 依賴與 `Model3DTest.tsx`
+- `git init`（目前無版控，這是動大手術前的前提）
+- 拿掉 `styles.css:14` 的 `min-width:1280px`
+- 建 `FEATURE_FLAGS`，把裝備/天賦/副本/排行榜入口用 flag 包起來（先關閉但不刪程式碼）
+- 裝 `pixi.js` + `@pixi/react`
+
+### M1 — 即時戰鬥垂直切片（1 週）
+- `ArenaScreen` 取代 `battle` phase：玩家走位、一種自動武器、一種追擊怪、
+  XP 寶石掉落磁吸
+- ✅ 驗收：能撐 60 秒不掉幀（實機測），走位手感過關
+
+### M2 — 骰子抽牌整合（3～5 天）← **關鍵驗證點**
+- 升級觸發 `DiceUpgradeOverlay` → 既有 `RewardScreen` 三選一
+- 20 張測試卡（沿用現有 `buffCards.ts` 內容）
+- ✅ 驗收：連玩 10 局，擲骰→三選一的節奏感覺對，不覺得打斷即時戰鬥的流暢度
+
+### M3 — 波次與內容（1.5～2 週）
+- `SpawnDirector` 波次表、5～8 種敵人行為、1～2 隻 Boss
+- 遺物系統接回（波次結算掉落）
+- 節點地圖簡化版接上 `ArenaScreen`
+- ✅ 驗收：完整跑完一局（6～8 分鐘），同屏 100+ 敵人在中階手機維持流暢
+
+### M4 — 變現（1 週）
+- Capacitor 包裝（Android/iOS）
+- 廣告復活：`@capacitor-community/admob` Rewarded Ad，死亡時觸發，每局限 1～2 次
+- 內購：`@revenuecat/purchases-capacitor`，去廣告 + 角色解鎖
+- ✅ 驗收：實機測完整「死亡→看廣告→復活」與「購買→解鎖」流程
+
+### M5 — 打磨與功能回歸評估
+- 打擊感（頓幀/震屏/粒子）
+- 視情況決定裝備/天賦/副本/排行榜是否要接回新玩法，或永久移除
+- 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
+
+---
+
+## 8. 風險
+
+| 風險 | 對策 |
+|---|---|
+| Pixi + React 整合的心智負擔（兩套渲染模型並存） | 嚴格切分：canvas 內只有 Pixi 管，UI 疊層只有 React 管，兩者只透過 state/props 溝通，不要互相操作對方的節點 |
+| 骰子抽牌節奏跟即時戰鬥「合不合」只是假設 | M2 是強制驗收點，不好就調整節奏（例如改成不暫停、用小視窗疊加），別急著往 M3 堆內容 |
+| 隱藏的系統之後想接回，發現數值模型不相容 | `equipment.ts`/`talents.ts` 的加成最後都要落在同一組 `StatBlock`，現在重寫戰鬥引擎時就把屬性計算做成獨立模組，之後回歸系統只要接這一層 |
+| 效能只在開發機測過 | M1、M3 都要求實機驗收，不要拖到最後 |
+
+---
+
+## 9. 下一步
+
+1. 確認這份規畫方向沒問題
+2. 執行 M0（依賴清理、feature flag、git init、裝 Pixi）
+3. 進 M1 垂直切片

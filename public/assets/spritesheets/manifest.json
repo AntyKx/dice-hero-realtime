@@ -1,0 +1,302 @@
+{
+  "knight": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/knight.png",
+    "frameWidth": 173,
+    "frameHeight": 178,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "mage": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/mage.png",
+    "frameWidth": 173,
+    "frameHeight": 184,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "priest": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/priest.png",
+    "frameWidth": 173,
+    "frameHeight": 184,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "rogue": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/rogue.png",
+    "frameWidth": 175,
+    "frameHeight": 167,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "princess": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/princess.png",
+    "frameWidth": 173,
+    "frameHeight": 174,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "archer": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/archer.png",
+    "frameWidth": 177,
+    "frameHeight": 166,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "dwarf": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/dwarf.png",
+    "frameWidth": 180,
+    "frameHeight": 183,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "bard": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/bard.png",
+    "frameWidth": 169,
+    "frameHeight": 180,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "beastmaster": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/beastmaster.png",
+    "frameWidth": 180,
+    "frameHeight": 161,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "engineer": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/engineer.png",
+    "frameWidth": 175,
+    "frameHeight": 175,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "goblin": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/goblin.png",
+    "frameWidth": 171,
+    "frameHeight": 166,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "orc": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/orc.png",
+    "frameWidth": 177,
+    "frameHeight": 192,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "skeleton": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/skeleton.png",
+    "frameWidth": 166,
+    "frameHeight": 184,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "slimeking": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/slimeking.png",
+    "frameWidth": 172,
+    "frameHeight": 134,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "mimic": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/mimic.png",
+    "frameWidth": 170,
+    "frameHeight": 128,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "ice_witch": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/ice_witch.png",
+    "frameWidth": 173,
+    "frameHeight": 180,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "lightning_lancer": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/lightning_lancer.png",
+    "frameWidth": 176,
+    "frameHeight": 179,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "golem": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/golem.png",
+    "frameWidth": 179,
+    "frameHeight": 179,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "dark_knight": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/dark_knight.png",
+    "frameWidth": 179,
+    "frameHeight": 175,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "dragon": {
+    "group": "enemies",
+    "sheet": "/assets/spritesheets/enemies/dragon.png",
+    "frameWidth": 179,
+    "frameHeight": 164,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+name = "diceherorpg"
+pages_build_output_dir = "dist"
+
+[[kv_namespaces]]
+binding = "SAVES"
+id = "fbd329992644481c946bee8eab5ede82"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dicehero-db"
+database_id = "e199dc67-989d-4e40-b888-ea2ac15f6f2e"
