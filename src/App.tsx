@@ -65,6 +65,7 @@ import EquipmentDropScreen from './screens/EquipmentDropScreen'
 import HeroPortraitModal from './components/HeroPortraitModal'
 import PlayerNameModal from './components/PlayerNameModal'
 import GmScreen from './screens/GmScreen'
+import ArenaScreen from './arena/ArenaScreen'
 
 const APP_VERSION = __APP_BUILD__
 
@@ -1301,7 +1302,26 @@ export default function App() {
   }
 
   if (phase.type === 'gm') {
-    return <GmScreen meta={meta} onUpdateMeta={updateMeta} onBack={() => setPhase({ type: 'main_menu' })} />
+    return <GmScreen meta={meta} onUpdateMeta={updateMeta} onBack={() => setPhase({ type: 'main_menu' })} onArenaTest={() => setPhase({ type: 'arena_test' })} />
+  }
+
+  if (phase.type === 'arena_test') {
+    const hero = HEROES.find(h => h.id === 'knight') ?? HEROES[0]
+    return (
+      <ArenaScreen
+        config={{
+          heroId: hero.id,
+          heroName: hero.name,
+          maxHp: hero.hp,
+          atkDamage: Math.round(hero.atk * 0.6),
+          atkCooldown: 0.45,
+          moveSpeed: 260,
+          enemyId: 'goblin',
+          enemyName: '哥布林',
+        }}
+        onExit={() => setPhase({ type: 'gm' })}
+      />
+    )
   }
 
   if (phase.type === 'equipment_manage') {

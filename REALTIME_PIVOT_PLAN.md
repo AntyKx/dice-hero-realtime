@@ -143,10 +143,19 @@ idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩
 - 建 `FEATURE_FLAGS`，把裝備/天賦/副本/排行榜入口用 flag 包起來（先關閉但不刪程式碼）
 - 裝 `pixi.js` + `@pixi/react`
 
-### M1 — 即時戰鬥垂直切片（1 週）
-- `ArenaScreen` 取代 `battle` phase：玩家走位、一種自動武器、一種追擊怪、
-  XP 寶石掉落磁吸
-- ✅ 驗收：能撐 60 秒不掉幀（實機測），走位手感過關
+### M1 — 即時戰鬥垂直切片（1 週）✅ 骨架完成（2026-08-06）
+- `ArenaGame`（純 `pixi.js`，imperative）+ `ArenaScreen`（React 外殼/HUD）+
+  `arena_test` phase，掛在 GM 模式（版本號 → 密碼 `dice9999`）底下的
+  「🕹 即時戰鬥測試」入口，先不接進正式地圖/獎勵流程
+- 玩家拖曳走位、一把自動攻擊武器、一種追擊怪（knight vs goblin，用現有
+  `/assets/frames/` 個別幀圖，未做行走動畫）、擊殺掉 XP 寶石、磁吸拾取
+- `Pool<T>` 物件池套用在投射物與掉落物
+- ✅ `npm run build`（`tsc -b` 對 pixi.js v8 實際型別）通過
+- ⚠️ **驗收「60 秒不掉幀、走位手感」尚未完成** —— claude-in-chrome 自動化
+  瀏覽器測試時該分頁 `document.hidden === true`，rAF 被瀏覽器節流到幾乎
+  不跑，只能驗證「渲染/資源載入/事件有沒有接上」（sprite 正確顯示、HUD
+  骨架、投射物方向、Boss/敵人 spawn 邏輯），測不出跟真實時間有關的手感與
+  效能。需要在真正前景的瀏覽器或手機上實測才能過這關，見 §8.1
 
 ### M2 — 骰子抽牌整合（3～5 天）← **關鍵驗證點**
 - 升級觸發 `DiceUpgradeOverlay` → 既有 `RewardScreen` 三選一
@@ -171,6 +180,23 @@ idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
 ---
+
+## 8.1 自動化瀏覽器測試的已知限制
+
+用 claude-in-chrome 測 `ArenaScreen` 時，該分頁常常是
+`document.visibilityState === 'hidden'`（即使 `hasFocus()` 是 true）。
+PixiJS 的 ticker 走 `requestAnimationFrame`，瀏覽器對隱藏分頁會把 rAF
+節流到幾乎不跑，導致：
+- `wait()` 期間畫面完全沒有進度（HUD 數字凍結、entity 不動）
+- 只有在 `screenshot`/`left_click` 等會強制合成畫面的操作前後，才會擠出
+  一兩個 frame 的動畫
+- `left_click_drag` 這種合成手勢不會在過程中持續產生真實時間，測不出
+  「拖曳走位」的實際手感
+
+**結論**：這個環境的自動化瀏覽器只能驗證「初始渲染/資源載入/事件是否有接上」
+這一層，**測不出跟真實時間有關的東西**（走位手感、掉幀與否、60 秒續航）。
+這類驗證要嘛請使用者在自己真正在前景的瀏覽器/手機上測，要嘛之後考慮加一個
+「debug 強制步進 N frame」的按鈕繞開 rAF 節流。
 
 ## 8. 風險
 

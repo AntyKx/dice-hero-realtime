@@ -10,13 +10,14 @@ interface Props {
   meta: MetaState
   onUpdateMeta: (fn: (m: MetaState) => MetaState) => void
   onBack: () => void
+  onArenaTest: () => void
 }
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
-export default function GmScreen({ meta, onUpdateMeta, onBack }: Props) {
+export default function GmScreen({ meta, onUpdateMeta, onBack, onArenaTest }: Props) {
   const [password, setPassword] = useState('')
   const [unlocked, setUnlocked] = useState(false)
   const [error, setError] = useState(false)
@@ -88,6 +89,10 @@ export default function GmScreen({ meta, onUpdateMeta, onBack }: Props) {
       </header>
 
       <div className="gm-warning">⚠ 測試用，變更會直接寫入存檔</div>
+
+      <button className="gm-apply-btn" style={{ marginBottom: 12 }} onClick={onArenaTest}>
+        🕹 即時戰鬥測試（M1 垂直切片，knight vs goblin）
+      </button>
 
       <div className="gm-hero-list">
         {HEROES.map(hero => {

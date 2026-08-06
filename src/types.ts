@@ -806,3 +806,4 @@ export type GamePhase =
   | { type: 'dungeon_score'; dungeonId: string; heroId: string; clearRecord: DungeonClearRecord; rankings: import('./scoring').RankPositions; goldEarned: number; expEarned: number }
   | { type: 'leaderboard'; dungeonId?: string }
   | { type: 'gm' }
+  | { type: 'arena_test' } // M1 即時制垂直切片測試場景，見 REALTIME_PIVOT_PLAN.md
