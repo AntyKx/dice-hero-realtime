@@ -2,6 +2,7 @@ import { Application, Assets, Graphics, Sprite, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
 import { ENEMY_TYPES, BOSS_TYPE, BOSS_SPAWN_SEC, pickEnemyType, spawnIntervalSec, maxConcurrentEnemies, type EnemyTypeDef } from './enemies'
+import { pickRelicChoices, type ArenaRelic } from './relics'
 
 export interface ArenaHudState {
   hp: number
@@ -35,6 +36,8 @@ interface Projectile {
   vx: number
   vy: number
   damage: number
+  pierceLeft: number
+  hit: Set<EnemyInstance>
   alive: boolean
 }
 
@@ -115,10 +118,22 @@ export class ArenaGame {
   private moveSpeedMult = 1
   private pickupRangeMult = 1
 
+  // Boss 戰利品（遺物）疊加的機制，套用點見 applyRelic()
+  private ownedRelicIds: string[] = []
+  private pierceBonus = 0
+  private extraProjectiles = 0
+  private lifestealPct = 0
+  private thornsPct = 0
+  private hpRegenPctPerSec = 0
+  private shieldIntervalSec = 0
+  private shieldTimer = 0
+  private shieldCharges = 0
+
   constructor(
     cfg: ArenaConfig,
     private onHudChange: (s: ArenaHudState) => void,
     private onLevelUp: () => void,
+    private onBossLoot: (choices: ArenaRelic[]) => void,
   ) {
     this.cfg = cfg
     this.projectilePool = new Pool<Graphics>(
@@ -257,6 +272,7 @@ export class ArenaGame {
       this.fpsFrames = 0
     }
 
+    this.updatePassives(dt)
     this.updatePlayerMovement(dt)
     this.updateSpawning(dt)
     this.updateEnemies(dt)
@@ -268,6 +284,21 @@ export class ArenaGame {
     if (this.hudEmitTimer >= HUD_EMIT_INTERVAL) {
       this.hudEmitTimer = 0
       this.emitHud()
+    }
+  }
+
+  /** 遺物的持續性效果：護盾充能、生命回復。 */
+  private updatePassives(dt: number) {
+    if (this.player.hp <= 0) return
+    if (this.hpRegenPctPerSec > 0) {
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * this.hpRegenPctPerSec * dt)
+    }
+    if (this.shieldIntervalSec > 0) {
+      this.shieldTimer += dt
+      if (this.shieldTimer >= this.shieldIntervalSec) {
+        this.shieldTimer -= this.shieldIntervalSec
+        this.shieldCharges = Math.min(1, this.shieldCharges + 1)
+      }
     }
   }
 
@@ -304,7 +335,12 @@ export class ArenaGame {
       e.contactTimer -= dt
       if (dist < contactRadius && e.contactTimer <= 0) {
         e.contactTimer = ENEMY_CONTACT_COOLDOWN
-        this.player.hp = Math.max(0, this.player.hp - e.damage)
+        if (this.shieldCharges > 0) {
+          this.shieldCharges--
+        } else {
+          this.player.hp = Math.max(0, this.player.hp - e.damage)
+        }
+        if (this.thornsPct > 0) this.damageEnemy(e, e.damage * this.thornsPct)
         if (this.player.hp <= 0) { this.triggerGameOver(); return }
       }
     }
@@ -345,21 +381,29 @@ export class ArenaGame {
     if (!this.app) return
     const dx = tx - this.player.x
     const dy = ty - this.player.y
-    const dist = Math.hypot(dx, dy) || 1
-    const gfx = this.projectilePool.acquire()
-    gfx.circle(0, 0, PROJECTILE_RADIUS).fill({ color: 0xffd94a })
-    gfx.x = this.player.x
-    gfx.y = this.player.y
-    if (!gfx.parent) this.app.stage.addChild(gfx)
-    this.projectiles.push({
-      gfx,
-      x: this.player.x,
-      y: this.player.y,
-      vx: (dx / dist) * PROJECTILE_SPEED,
-      vy: (dy / dist) * PROJECTILE_SPEED,
-      damage: this.cfg.atkDamage + this.bonusDamage,
-      alive: true,
-    })
+    const baseAngle = Math.atan2(dy, dx)
+    const shots = 1 + this.extraProjectiles
+    for (let i = 0; i < shots; i++) {
+      // 多發時左右扇形展開，單發時角度不變
+      const spread = shots > 1 ? (i - (shots - 1) / 2) * 0.18 : 0
+      const angle = baseAngle + spread
+      const gfx = this.projectilePool.acquire()
+      gfx.circle(0, 0, PROJECTILE_RADIUS).fill({ color: 0xffd94a })
+      gfx.x = this.player.x
+      gfx.y = this.player.y
+      if (!gfx.parent) this.app.stage.addChild(gfx)
+      this.projectiles.push({
+        gfx,
+        x: this.player.x,
+        y: this.player.y,
+        vx: Math.cos(angle) * PROJECTILE_SPEED,
+        vy: Math.sin(angle) * PROJECTILE_SPEED,
+        damage: this.cfg.atkDamage + this.bonusDamage,
+        pierceLeft: this.pierceBonus,
+        hit: new Set(),
+        alive: true,
+      })
+    }
   }
 
   private updateProjectiles(dt: number) {
@@ -377,12 +421,16 @@ export class ArenaGame {
         continue
       }
       for (const e of this.enemies) {
-        if (!e.alive) continue
+        if (!e.alive || p.hit.has(e)) continue
         const hitRadius = (e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS) * 0.6
         const dist = Math.hypot(e.x - p.x, e.y - p.y)
         if (dist < hitRadius) {
           this.damageEnemy(e, p.damage)
-          this.killProjectile(p)
+          if (this.lifestealPct > 0) {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + p.damage * this.lifestealPct)
+          }
+          p.hit.add(e)
+          if (p.pierceLeft > 0) { p.pierceLeft-- } else { this.killProjectile(p) }
           break
         }
       }
@@ -407,8 +455,32 @@ export class ArenaGame {
       this.enemySpritePool.release(e.sprite)
       this.killCount++
       this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
-      if (e.isBoss) this.bossState = 'defeated'
+      if (e.isBoss) {
+        this.bossState = 'defeated'
+        this.pauseForBossLoot()
+      }
     }
+  }
+
+  private pauseForBossLoot() {
+    this.app?.ticker.stop()
+    this.onBossLoot(pickRelicChoices(this.ownedRelicIds, 3))
+  }
+
+  /** 套用玩家在 RelicLootOverlay 選的遺物，並恢復戰鬥。 */
+  applyRelic(relic: ArenaRelic): void {
+    const e = relic.effect
+    if (e.pierceBonus) this.pierceBonus += e.pierceBonus
+    if (e.extraProjectiles) this.extraProjectiles += e.extraProjectiles
+    if (e.lifestealPct) this.lifestealPct += e.lifestealPct
+    if (e.thornsPct) this.thornsPct += e.thornsPct
+    if (e.hpRegenPctPerSec) this.hpRegenPctPerSec += e.hpRegenPctPerSec
+    if (e.shieldIntervalSec) this.shieldIntervalSec = this.shieldIntervalSec > 0
+      ? Math.min(this.shieldIntervalSec, e.shieldIntervalSec)
+      : e.shieldIntervalSec
+    this.ownedRelicIds.push(relic.id)
+    this.emitHud()
+    this.app?.ticker.start()
   }
 
   private spawnGem(x: number, y: number, value: number) {
@@ -497,7 +569,7 @@ export class ArenaGame {
   private emitHud() {
     const boss = this.enemies.find(e => e.isBoss && e.alive)
     this.onHudChange({
-      hp: this.player.hp,
+      hp: Math.round(this.player.hp),
       maxHp: this.player.maxHp,
       xp: this.xp,
       xpToNext: this.xpToNext(),

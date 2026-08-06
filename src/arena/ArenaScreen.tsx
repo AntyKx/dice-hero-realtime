@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArenaGame, type ArenaConfig, type ArenaHudState } from './ArenaGame'
 import DiceUpgradeOverlay from './DiceUpgradeOverlay'
+import RelicLootOverlay from './RelicLootOverlay'
 import type { ArenaCard } from './cards'
+import type { ArenaRelic } from './relics'
 
 interface Props {
   config: ArenaConfig
@@ -25,11 +27,12 @@ export default function ArenaScreen({ config, onExit }: Props) {
   const gameRef = useRef<ArenaGame | null>(null)
   const [hud, setHud] = useState<ArenaHudState>(INITIAL_HUD)
   const [levelUpOpen, setLevelUpOpen] = useState(false)
+  const [bossLootChoices, setBossLootChoices] = useState<ArenaRelic[] | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const game = new ArenaGame(config, setHud, () => setLevelUpOpen(true))
+    const game = new ArenaGame(config, setHud, () => setLevelUpOpen(true), choices => setBossLootChoices(choices))
     gameRef.current = game
     game.init(el)
     ;(window as unknown as { __arena?: ArenaGame }).__arena = game
@@ -40,6 +43,11 @@ export default function ArenaScreen({ config, onExit }: Props) {
   const handleCardChosen = (card: ArenaCard) => {
     gameRef.current?.applyCard(card)
     setLevelUpOpen(false)
+  }
+
+  const handleRelicChosen = (relic: ArenaRelic) => {
+    gameRef.current?.applyRelic(relic)
+    setBossLootChoices(null)
   }
 
   const hpPct = hud.maxHp > 0 ? Math.max(0, Math.min(100, (hud.hp / hud.maxHp) * 100)) : 0
@@ -81,6 +89,7 @@ export default function ArenaScreen({ config, onExit }: Props) {
       </div>
 
       {levelUpOpen && !hud.gameOver && <DiceUpgradeOverlay onComplete={handleCardChosen} />}
+      {bossLootChoices && !hud.gameOver && <RelicLootOverlay choices={bossLootChoices} onComplete={handleRelicChosen} />}
 
       {hud.gameOver && (
         <div className="arena-gameover-overlay">

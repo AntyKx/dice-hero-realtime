@@ -4466,3 +4466,15 @@ h1, h2, h3, p { margin: 0; }
   font-weight: 700;
 }
 
+/* Boss 戰利品遺物卡：跟升級卡的 common/rare/epic 三色刻意區分，統一金色系
+   強調「稀有、機制不同」，不是同一套稀有度階梯往上疊 */
+.arena-relic-card {
+  border-color: rgba(255, 217, 74, 0.55) !important;
+}
+.arena-relic-card:hover {
+  border-color: #ffd94a !important;
+}
+.arena-relic-tag {
+  color: #ffd94a !important;
+}
+
