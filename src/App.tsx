@@ -38,6 +38,7 @@ import {
   computeChallengesCompleted, saveLeaderboardRecord, saveLeaderboardRecordCloud,
 } from './scoring'
 import type { RankPositions } from './scoring'
+import { FEATURE_FLAGS } from './featureFlags'
 import BattleScreen from './screens/BattleScreen'
 import MapScreen from './screens/MapScreen'
 import DungeonSelectScreen from './screens/DungeonSelectScreen'
@@ -823,6 +824,7 @@ export default function App() {
   }
 
   const transitionWithDrop = (nextPhase: GamePhase, isElite: boolean, isBoss: boolean, heroId: string) => {
+    if (!FEATURE_FLAGS.equipment) { setPhase(nextPhase); return }
     const heroRole = HEROES.find(h => h.id === heroId)?.role
     const drop = tryGenerateDrop(isElite, isBoss, heroRole, getEffFateLevel())
     if (drop) {

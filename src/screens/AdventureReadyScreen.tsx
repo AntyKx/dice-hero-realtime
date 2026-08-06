@@ -7,6 +7,7 @@ import { DUNGEON_DEFS, DIFFICULTY_CONFIG, type DungeonDifficulty } from '../dung
 import { getHeroStarTitle, computeTalentBonus, HERO_TALENT_TREES } from '../talents'
 import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { Equipment } from '../types'
+import { FEATURE_FLAGS } from '../featureFlags'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -139,17 +140,19 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
         <button className="ghost" onClick={onBack}>← 返回</button>
       </header>
 
-      {/* ── 主標籤 ── */}
-      <div className="ar-mode-tabs">
-        <button className={`ar-tab${modeTab === 'main' ? ' active' : ''}`}
-          onClick={() => setModeTab('main')}>
-          ⚔️ 主線冒險
-        </button>
-        <button className={`ar-tab${modeTab === 'dungeon' ? ' active' : ''}`}
-          onClick={() => setModeTab('dungeon')}>
-          🏰 地城副本
-        </button>
-      </div>
+      {/* ── 主標籤（v1 即時制範圍先隱藏地城副本，見 FEATURE_FLAGS） ── */}
+      {FEATURE_FLAGS.dungeons && (
+        <div className="ar-mode-tabs">
+          <button className={`ar-tab${modeTab === 'main' ? ' active' : ''}`}
+            onClick={() => setModeTab('main')}>
+            ⚔️ 主線冒險
+          </button>
+          <button className={`ar-tab${modeTab === 'dungeon' ? ' active' : ''}`}
+            onClick={() => setModeTab('dungeon')}>
+            🏰 地城副本
+          </button>
+        </div>
+      )}
 
       <div className="ar-body">
         {/* ── 左欄：模式選項 ── */}
@@ -496,8 +499,8 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
           }
           onStart={() => handlePortraitStart(portraitHero.id)}
           onClose={() => setPortraitHero(null)}
-          onViewTalent={() => { setPortraitHero(null); setTalentViewHero(portraitHero); setActiveTalentByTier({}) }}
-          onViewEquip={() => { setPortraitHero(null); setEquipViewHero(portraitHero) }}
+          onViewTalent={FEATURE_FLAGS.talents ? () => { setPortraitHero(null); setTalentViewHero(portraitHero); setActiveTalentByTier({}) } : undefined}
+          onViewEquip={FEATURE_FLAGS.equipment ? () => { setPortraitHero(null); setEquipViewHero(portraitHero) } : undefined}
         />
       )}
 

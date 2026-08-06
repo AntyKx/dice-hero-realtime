@@ -9,6 +9,7 @@ import CompendiumScreen from './CompendiumScreen'
 import { getPlayerName } from '../scoring'
 import WorldCupModal from '../components/WorldCupModal'
 import { type WcMatch, fetchWorldCupMatches, findResolvable, findNextPredictable } from '../worldCup'
+import { FEATURE_FLAGS } from '../featureFlags'
 
 const BUILD_VERSION = __APP_BUILD__
 
@@ -138,15 +139,17 @@ export default function MainMenuScreen({
           <span className="mm-btn-chevron">›</span>
         </button>
 
-        {/* 英雄 & 裝備 */}
-        <button className="mm-btn mm-btn-secondary" onClick={onEquipment}>
-          <span className="mm-btn-icon">🛡️</span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">英雄 &amp; 裝備</div>
-            <div className="mm-btn-sub">管理裝備配置，強化你的英雄</div>
-          </div>
-          <span className="mm-stardust-badge">⭐ {meta.stardust}</span>
-        </button>
+        {/* 英雄 & 裝備（v1 即時制範圍先隱藏，見 FEATURE_FLAGS） */}
+        {FEATURE_FLAGS.equipment && (
+          <button className="mm-btn mm-btn-secondary" onClick={onEquipment}>
+            <span className="mm-btn-icon">🛡️</span>
+            <div className="mm-btn-body">
+              <div className="mm-btn-title">英雄 &amp; 裝備</div>
+              <div className="mm-btn-sub">管理裝備配置，強化你的英雄</div>
+            </div>
+            <span className="mm-stardust-badge">⭐ {meta.stardust}</span>
+          </button>
+        )}
 
         {/* 世界盃競猜 */}
         <button className="mm-btn mm-btn-secondary" onClick={openWorldCup}>

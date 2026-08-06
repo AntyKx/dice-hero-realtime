@@ -6,6 +6,7 @@ import { getRandomRelics, getRelicById } from '../relics'
 import type { Relic } from '../types'
 import { HEROES } from '../data'
 import { ALL_POTIONS, POTION_PRICE, getPotionById } from '../potions'
+import { FEATURE_FLAGS } from '../featureFlags'
 
 interface Props {
   run: RunState
@@ -285,30 +286,32 @@ export default function ShopScreen({ run, onLeave }: Props) {
         </div>
       )}
 
-      {/* ── 藥水 ── */}
-      <div className="shop-section">
-        <h3>藥水（攜帶上限 {MAX_POTIONS}，目前 {potions.length}）</h3>
-        <div className="shop-items">
-          {shopPotions.map((pid, i) => {
-            const p = getPotionById(pid)!
-            const price = POTION_PRICE[pid] ?? 50
-            const slotKey = `potion_${i}`
-            const cantBuy = gold < price || bought.has(slotKey) || potions.length >= MAX_POTIONS
-            return (
-              <button
-                key={slotKey}
-                className={`shop-item ${cantBuy ? 'cant-afford' : ''}`}
-                onClick={() => buyPotion(pid, slotKey)}
-                disabled={cantBuy}
-              >
-                <div className="si-name">{p.icon} {p.name}</div>
-                <div className="si-desc">{p.desc}</div>
-                <div className="si-cost">💰 {price}{bought.has(slotKey) ? '（已購）' : ''}</div>
-              </button>
-            )
-          })}
+      {/* ── 藥水（v1 即時制範圍先隱藏，見 FEATURE_FLAGS） ── */}
+      {FEATURE_FLAGS.potionsAndCurses && (
+        <div className="shop-section">
+          <h3>藥水（攜帶上限 {MAX_POTIONS}，目前 {potions.length}）</h3>
+          <div className="shop-items">
+            {shopPotions.map((pid, i) => {
+              const p = getPotionById(pid)!
+              const price = POTION_PRICE[pid] ?? 50
+              const slotKey = `potion_${i}`
+              const cantBuy = gold < price || bought.has(slotKey) || potions.length >= MAX_POTIONS
+              return (
+                <button
+                  key={slotKey}
+                  className={`shop-item ${cantBuy ? 'cant-afford' : ''}`}
+                  onClick={() => buyPotion(pid, slotKey)}
+                  disabled={cantBuy}
+                >
+                  <div className="si-name">{p.icon} {p.name}</div>
+                  <div className="si-desc">{p.desc}</div>
+                  <div className="si-cost">💰 {price}{bought.has(slotKey) ? '（已購）' : ''}</div>
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── 購買預覽 ── */}
       {hpGained > 0 && (

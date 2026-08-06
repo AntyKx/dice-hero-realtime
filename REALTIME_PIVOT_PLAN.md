@@ -49,7 +49,7 @@
 
 | 項目 | 決定 | 理由 |
 |---|---|---|
-| 戰鬥渲染 | **PixiJS**（`@pixi/react` 包一層，跟現有 React 畫面共存） | DOM/CSS 扛不住同屏 50～100+ 動態 sprite＋投射物＋粒子；換渲染層不等於換技術棧，TS/React/Vite/Cloudflare/Capacitor 全部留用 |
+| 戰鬥渲染 | **PixiJS**（純 `pixi.js`，不用 `@pixi/react`） | DOM/CSS 扛不住同屏 50～100+ 動態 sprite＋投射物＋粒子；換渲染層不等於換技術棧，TS/React/Vite/Cloudflare/Capacitor 全部留用。`@pixi/react` 8.x 要求 React 19（本專案是 React 18），改用 imperative 的 `PIXI.Application`，在一個 React 元件內用 `useRef`+`useEffect` 掛載/卸載，剛好對應「canvas 內只有 Pixi 管、UI 疊層只有 React 管」的切分原則 |
 | 其他畫面 | 繼續 React DOM | 地圖、獎勵卡、選單不需要 canvas |
 | 移動控制 | 觸控拖曳（虛擬搖桿或任意處拖曳） | 直向手遊標準操作，單手可玩 |
 | 碰撞 | 手動空間分割（grid-based spatial hash），不用 Pixi 內建物理 | 怪多時 O(n²) 判定會先死 |
