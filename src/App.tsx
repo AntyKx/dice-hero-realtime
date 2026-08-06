@@ -1263,7 +1263,7 @@ export default function App() {
     return (
       <MainMenuScreen
         meta={meta}
-        savedRun={(() => { const s = loadSavedRun(); return (s?.phase.type === 'battle' && s.phase.dungeonId) ? null : s })()}
+        savedRun={FEATURE_FLAGS.turnBasedMainline ? (() => { const s = loadSavedRun(); return (s?.phase.type === 'battle' && s.phase.dungeonId) ? null : s })() : null}
         onStartAdventure={() => setPhase({ type: 'adventure_ready' })}
         onEquipment={() => setPhase({ type: 'equipment_manage' })}
 

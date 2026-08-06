@@ -8,4 +8,9 @@ export const FEATURE_FLAGS = {
   dungeons: false,
   leaderboard: false,
   potionsAndCurses: false,
+  // 回合制主線（地圖/戰鬥/獎勵）已被 arena_run 取代——新開局一律進即時戰鬥，
+  // 這條路徑現在只有「繼續冒險」讀到轉向前的舊存檔時才會用到，故一併關閉
+  // 入口。底層 saveRun/loadSavedRun/SAVE_PHASES 邏輯不動，之後真的要幫
+  // arena_run 做中途存檔可以重新利用。
+  turnBasedMainline: false,
 } as const

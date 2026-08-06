@@ -158,7 +158,21 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
         {/* ── 左欄：模式選項 ── */}
         <div className="ar-options">
 
-          {modeTab === 'main' && (
+          {modeTab === 'main' && !FEATURE_FLAGS.turnBasedMainline && (
+            <div className="ar-arena-info">
+              <div className="ar-label">即時戰鬥</div>
+              <p className="ar-arena-info-desc">
+                拖曳角色走位閃避怪物，攻擊會自動鎖定最近的敵人。升級與擊敗
+                Boss 時戰鬥會暫停，讓你選擇強化。撐得越久、殺得越多，
+                獎勵越豐厚。
+              </p>
+            </div>
+          )}
+
+          {/* 篇章/路線/命運等級：回合制主線的選項，即時制內容還沒依此分化，
+              先隱藏（見 FEATURE_FLAGS.turnBasedMainline），邏輯與畫面保留，
+              之後要幫即時制做內容分化時可以直接重新打開。 */}
+          {modeTab === 'main' && FEATURE_FLAGS.turnBasedMainline && (
             <>
               {/* 篇章選擇 */}
               <div className="ar-label">選擇篇章</div>

@@ -2944,6 +2944,8 @@ h1, h2, h3, p { margin: 0; }
 
 /* Fate level */
 .ar-fate-desc { font-size: 0.75rem; color: #c0a860; margin: 0 0 5px; }
+
+.ar-arena-info-desc { font-size: 0.78rem; color: #8aadcc; line-height: 1.6; margin: 0; }
 .ar-fate-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .ar-fate-btn {
   padding: 3px 9px; border-radius: 8px; font-size: 0.72rem; font-weight: 700;
