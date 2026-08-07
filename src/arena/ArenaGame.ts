@@ -136,12 +136,21 @@ const DOOR_RADIUS = 42
 const HIDDEN_GOLD_MIN = 50
 const HIDDEN_GOLD_MAX = 120
 
+// 戰鬥場景背景圖（2026-08 加入）：依篇章對應美術主題，每個主題 3 張變化，
+// 每次換區隨機挑一張。裂隙前兆/深海遺城目前沒有專屬美術，先借用雪原場景。
+const CAMPAIGN_BG_THEME: Record<string, string> = {
+  main: 'forest', ash_kingdom: 'castle', rift_omen: 'snowfield', deep_sea: 'snowfield',
+}
+const BG_VARIANTS_PER_THEME = 3
+
 export class ArenaGame {
   private app: Application | null = null
   private destroyed = false
 
   private playerSprite: Sprite | null = null
   private enemyTextures: Record<string, Texture> = {}
+  private bgSprite: Sprite | null = null
+  private bgTextures: Texture[] = []
 
   private player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0 }
   private moveDir = { x: 0, y: 0 } // -1~1 連續值，類比搖桿輸入，取代舊的拖曳移動
@@ -262,12 +271,22 @@ export class ArenaGame {
     container.appendChild(app.canvas)
 
     const allEnemyTypes = [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
-    const [heroTex, ...enemyTexList] = await Promise.all([
+    const bgTheme = CAMPAIGN_BG_THEME[this.campaign] ?? 'forest'
+    const bgPaths = Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${bgTheme}_${i + 1}.jpg`)
+    const [heroTex, bgTexList, ...enemyTexList] = await Promise.all([
       Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/idle_0.png`),
+      Promise.all(bgPaths.map(p => Assets.load(p))),
       ...allEnemyTypes.map(t => Assets.load(`/assets/frames/enemies/${t.id}/idle_0.png`)),
     ])
     if (this.destroyed) return
     allEnemyTypes.forEach((t, i) => { this.enemyTextures[t.id] = enemyTexList[i] })
+    this.bgTextures = bgTexList
+
+    const bgSprite = new Sprite(this.bgTextures[0])
+    bgSprite.anchor.set(0.5)
+    app.stage.addChild(bgSprite)
+    this.bgSprite = bgSprite
+    this.layoutBackground()
 
     this.player = { x: app.screen.width / 2, y: app.screen.height - ARENA_MARGIN - 40, hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0 }
 
@@ -290,6 +309,24 @@ export class ArenaGame {
     sprite.scale.set(scale)
   }
 
+  /** 背景圖鋪滿整個畫面（等同 CSS background-size:cover），置中裁切多餘部分。 */
+  private layoutBackground() {
+    if (!this.app || !this.bgSprite) return
+    const { width, height } = this.app.screen
+    const tex = this.bgSprite.texture
+    const scale = Math.max(width / tex.width, height / tex.height)
+    this.bgSprite.scale.set(scale)
+    this.bgSprite.x = width / 2
+    this.bgSprite.y = height / 2
+  }
+
+  /** 換區時隨機挑一張同主題的背景變化圖，換個場景感覺。 */
+  private randomizeBackground() {
+    if (!this.bgSprite || this.bgTextures.length === 0) return
+    this.bgSprite.texture = this.bgTextures[Math.floor(Math.random() * this.bgTextures.length)]
+    this.layoutBackground()
+  }
+
   private getZoneNode(id: number): ArenaZoneNode | undefined {
     return this.dungeon.find(n => n.id === id)
   }
@@ -304,6 +341,7 @@ export class ArenaGame {
     this.altarGfx = null
     this.altarPos = null
     this.altarTriggered = false
+    this.randomizeBackground()
 
     switch (node.type) {
       case 'battle': {

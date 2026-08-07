@@ -443,6 +443,20 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
     真的畫了專屬即時制美術，直接在 `enemies.ts` 對應篇章換掉即可
   - 主選單「出發準備」的篇章選擇區塊拿掉 `FEATURE_FLAGS.turnBasedMainline`
     的門檻，永久顯示；路線/命運等級因為即時制沒有對應概念，繼續藏著
+- ✅ **戰鬥場景背景圖**（2026-08-07）：使用者提供 9 張場景圖（森林/雪原/
+  魔王城各3款，來源 `D:\CLAUDE專案\三選一\戰鬥場景圖`），放進
+  `public/assets/backgrounds/`，命名為 `{theme}_{1|2|3}.jpg`。
+  `ArenaGame.ts` 新增 `CAMPAIGN_BG_THEME` 篇章→主題映射（`main`→forest、
+  `ash_kingdom`→castle、`rift_omen`/`deep_sea`→snowfield，共用同一套
+  雪原素材，跟敵人池一樣屬於「沒有專屬美術先重用」的已知限制），`init()`
+  用 `Assets.load()` 預載該主題的 3 個變體，`bgSprite` 用
+  `Math.max(width/tex.width, height/tex.height)` 做 cover-scale 全螢幕鋪滿，
+  `layoutBackground()` 處理縮放/置中，`randomizeBackground()` 在
+  `enterZone()` 時隨機換一張變體，同一篇章內每個關卡場景會換底圖但主題
+  不變。原始 PNG（約24MB）用專案既有的 `sharp` devDependency 壓成 JPG
+  quality 85（9張共~3.2MB，降幅約87%），肉眼比對無明顯畫質損失，
+  壓縮後刪除原始 PNG。已用 claude-in-chrome 實機截圖確認渲染效果正確、
+  HUD 圖層順序正常（背景在最底層）、關卡切換確實會換不同變體
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
