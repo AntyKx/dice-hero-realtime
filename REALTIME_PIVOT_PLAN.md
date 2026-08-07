@@ -132,6 +132,30 @@ export const FEATURE_FLAGS = {
 如果你原本規畫的美術量沒算進這個，這是要新增的產能，建議先用現有
 idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩後再補行走幀。
 
+### 6.1 動畫風格決策（2026-08-07）
+
+目標視覺參考先後比較了兩種：
+
+- 《勇者鬥惡龍 Tact/Champions》——**3D** Q版模型+卡通渲染+可轉動鏡頭。
+  這條路本專案在轉向初期試過（`Model3DTest.tsx`，three.js/GLTF），因 3D
+  建模+綁骨+動畫的美術成本太高而放棄，改走 2D sprite（見檔頭決策紀錄）
+- 《守望傳說》——**2D** 像素風，固定俯視角，無景深/轉鏡頭，走路/攻擊/
+  施法/必殺技都是純手繪逐幀動畫（像素圖不適合骨骼動畫，邊緣會糊）
+
+**決定：走守望傳說路線**。維持現有 PixiJS + 逐幀 sprite sheet 架構
+（`SpriteAnimator`），不引入 Spine/DragonBones 骨骼動畫，也不換引擎/不
+做 3D。缺口純粹是美術產能：每個角色要多畫 walk（行走循環）、cast（施法）、
+ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動作流暢。
+
+技術面待辦（等美術資產到位後接）：
+- `SpriteAnimator` 目前是寫死 `FRAME_COUNT = 6`、單列排列，每個狀態幀數
+  固定；要擴充成每個 `AnimationState` 各自可設定幀數/排列方式，不能再假設
+  所有狀態幀數相同
+- `data.ts` 的 `SpriteMeta` 要新增 `walk`/`cast`/`ultimate` 狀態的 metadata
+- `ArenaGame` 要在對應時機切換狀態：移動中 → walk、`AutoAttack` 開火時
+  → attack（現有）、升級/波次擲骰動畫外的角色技能觸發 → cast、Boss戰或
+  特定觸發條件 → ultimate（必殺技的觸發時機本身也還沒設計，需要另外定義）
+
 ---
 
 ## 7. 里程碑
