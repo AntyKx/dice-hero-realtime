@@ -4409,8 +4409,8 @@ h1, h2, h3, p { margin: 0; }
 .arena-exit-btn {
   pointer-events: auto;
   position: absolute;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  right: 14px;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
   background: rgba(10, 16, 30, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #eef4ff;
@@ -4418,6 +4418,129 @@ h1, h2, h3, p { margin: 0; }
   padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
+}
+
+/* ── 關卡分區徽章（M3.6）：目前是第幾區、什麼類型 ── */
+.arena-zone-badge {
+  align-self: center;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #cfe8ff;
+  background: rgba(10, 16, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 3px 12px;
+}
+
+/* ── 8方向搖桿（M3.6）：取代拖曳移動，釘在左下拇指範圍 ── */
+.arena-dpad {
+  pointer-events: auto;
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 132px;
+  height: 132px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+}
+.arena-dpad-btn {
+  background: rgba(10, 16, 30, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: #eef4ff;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.arena-dpad-btn:active { background: rgba(109, 184, 255, 0.35); }
+.arena-dpad-up    { grid-column: 2; grid-row: 1; }
+.arena-dpad-left  { grid-column: 1; grid-row: 2; }
+.arena-dpad-right { grid-column: 3; grid-row: 2; }
+.arena-dpad-down  { grid-column: 2; grid-row: 3; }
+
+/* ── 右下：頭像+HP+必殺技能量條（M3.6） ── */
+.arena-ultimate-cluster {
+  pointer-events: auto;
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.arena-ultimate-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 16, 30, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 6px 10px 6px 6px;
+}
+.arena-portrait {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1a2740;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.arena-ultimate-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 90px;
+}
+.arena-mini-hp-bar, .arena-ultimate-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.arena-mini-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5a5a, #ff8a3c);
+}
+.arena-ultimate-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6db8ff, #d080ff);
+  transition: width 0.15s ease-out;
+}
+.arena-ultimate-btn {
+  pointer-events: auto;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(30, 40, 65, 0.85);
+  color: #6a7fa0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: not-allowed;
+}
+.arena-ultimate-btn.ready {
+  border-color: #ffd94a;
+  background: radial-gradient(circle, #ff8a3c, #c0392b);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 217, 74, 0.8);
+  animation: arena-ult-pulse 1s ease-in-out infinite;
+}
+@keyframes arena-ult-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.arena-runcomplete-title {
+  color: #ffd94a !important;
+  text-shadow: 0 0 16px rgba(255, 217, 74, 0.6) !important;
 }
 
 /* ── 即時制升級卡（M2）：擲骰 → 三選一，暫停戰鬥時的全螢幕疊層 ── */

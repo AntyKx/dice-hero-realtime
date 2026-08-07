@@ -1,8 +1,9 @@
-import { Application, Assets, Graphics, Sprite, Texture } from 'pixi.js'
+import { Application, Assets, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
-import { ENEMY_TYPES, BOSS_TYPE, BOSS_SPAWN_SEC, pickEnemyType, spawnIntervalSec, maxConcurrentEnemies, type EnemyTypeDef } from './enemies'
+import { ENEMY_TYPES, BOSS_TYPE, pickEnemyType, type EnemyTypeDef } from './enemies'
 import { pickRelicChoices, type ArenaRelic } from './relics'
+import { generateArenaDungeon, type ArenaZoneNode, type ArenaZoneType } from './dungeonZones'
 
 export interface ArenaHudState {
   hp: number
@@ -18,6 +19,13 @@ export interface ArenaHudState {
   bossMaxHp: number
   killCount: number
   gameOver: boolean
+  zoneType: ArenaZoneType
+  zoneIndex: number
+  zoneCount: number
+  ultimateCharge: number
+  ultimateMax: number
+  bonusGold: number
+  runComplete: boolean
 }
 
 export interface ArenaConfig {
@@ -59,6 +67,29 @@ interface EnemyInstance {
   damage: number
   contactTimer: number
   isBoss: boolean
+  isElite: boolean
+  alive: boolean
+}
+
+interface Door {
+  gfx: Graphics
+  x: number
+  y: number
+  targetNodeId: number
+}
+
+interface FloatingText {
+  obj: Text
+  vy: number
+  life: number
+  maxLife: number
+  alive: boolean
+}
+
+interface GlowBurst {
+  gfx: Graphics
+  life: number
+  maxLife: number
   alive: boolean
 }
 
@@ -74,9 +105,25 @@ const MAGNET_SPEED = 380
 const GEM_RADIUS = 7
 const GEM_XP_VALUE = 10
 const BOSS_GEM_XP_VALUE = GEM_XP_VALUE * 8
-const POINTER_DEADZONE = 6
 const ARENA_MARGIN = 40
 const HUD_EMIT_INTERVAL = 150 // ms，HUD 不用每 frame 更新
+
+const ELITE_HP_MULT = 2.2
+const ELITE_DAMAGE_MULT = 1.6
+const ELITE_TINT = 0xd080ff
+
+const ULTIMATE_MAX = 100
+const ULTIMATE_RADIUS = 220
+const ULTIMATE_DAMAGE = 80
+const ULTIMATE_CHARGE_NORMAL = 8
+const ULTIMATE_CHARGE_ELITE = 20
+const ULTIMATE_CHARGE_BOSS = 40
+
+const ALTAR_TRIGGER_RADIUS = 55
+const ALTAR_HEAL_PCT = 0.3
+const DOOR_RADIUS = 42
+const HIDDEN_GOLD_MIN = 50
+const HIDDEN_GOLD_MAX = 120
 
 export class ArenaGame {
   private app: Application | null = null
@@ -86,16 +133,14 @@ export class ArenaGame {
   private enemyTextures: Record<string, Texture> = {}
 
   private player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0 }
+  private moveDir = { x: 0, y: 0 } // -1/0/1 各軸，8方向搖桿輸入，取代舊的拖曳移動
+  private facing = { x: 0, y: 1 }  // 最後移動方向，先只記錄，鋪路給之後的方向性走路動畫
+
   private enemies: EnemyInstance[] = []
   private enemySpritePool: Pool<Sprite>
-  private spawnTimer = 0
-  private bossSpawned = false
   private bossState: 'none' | 'alive' | 'defeated' = 'none'
   private killCount = 0
   private gameOver = false
-
-  private pointerActive = false
-  private pointerTarget = { x: 0, y: 0 }
 
   private projectiles: Projectile[] = []
   private projectilePool: Pool<Graphics>
@@ -129,6 +174,28 @@ export class ArenaGame {
   private shieldTimer = 0
   private shieldCharges = 0
 
+  // ── 關卡分區（M3.6）──────────────────────────────────────────────────
+  private dungeon: ArenaZoneNode[] = []
+  private currentNodeId = 0
+  private currentZoneType: ArenaZoneType = 'battle'
+  private zoneEnemiesRemaining = 0
+  private pendingZoneCardTrigger = false
+  private doors: Door[] = []
+  private altarGfx: Graphics | null = null
+  private altarPos: { x: number; y: number } | null = null
+  private altarTriggered = false
+  private bonusGold = 0
+  private runComplete = false
+
+  // ── 必殺技（擊殺充能）────────────────────────────────────────────────
+  private ultimateCharge = 0
+
+  // ── 飄字/光效（祭壇、必殺技、隱藏獎勵共用）──────────────────────────
+  private floatingTexts: FloatingText[] = []
+  private textPool: Pool<Text>
+  private glows: GlowBurst[] = []
+  private glowPool: Pool<Graphics>
+
   constructor(
     cfg: ArenaConfig,
     private onHudChange: (s: ArenaHudState) => void,
@@ -148,6 +215,14 @@ export class ArenaGame {
       () => new Sprite(),
       s => { s.visible = true; s.tint = 0xffffff },
     )
+    this.textPool = new Pool<Text>(
+      () => new Text({ text: '', style: { fontSize: 16, fontWeight: 'bold', fill: 0xffe9a8, stroke: { color: 0x1a1000, width: 3 } } }),
+      t => { t.visible = true; t.alpha = 1 },
+    )
+    this.glowPool = new Pool<Graphics>(
+      () => new Graphics(),
+      g => { g.clear(); g.visible = true; g.scale.set(1) },
+    )
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -164,18 +239,6 @@ export class ArenaGame {
     this.app = app
     container.appendChild(app.canvas)
 
-    app.stage.eventMode = 'static'
-    app.stage.hitArea = app.screen
-    app.stage.on('pointerdown', e => {
-      this.pointerActive = true
-      this.pointerTarget = { x: e.global.x, y: e.global.y }
-    })
-    app.stage.on('pointermove', e => {
-      if (this.pointerActive) this.pointerTarget = { x: e.global.x, y: e.global.y }
-    })
-    app.stage.on('pointerup', () => { this.pointerActive = false })
-    app.stage.on('pointerupoutside', () => { this.pointerActive = false })
-
     const allEnemyTypes = [...ENEMY_TYPES, BOSS_TYPE]
     const [heroTex, ...enemyTexList] = await Promise.all([
       Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/idle_0.png`),
@@ -184,8 +247,7 @@ export class ArenaGame {
     if (this.destroyed) return
     allEnemyTypes.forEach((t, i) => { this.enemyTextures[t.id] = enemyTexList[i] })
 
-    this.player = { x: app.screen.width / 2, y: app.screen.height / 2, hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0 }
-    this.pointerTarget = { x: this.player.x, y: this.player.y }
+    this.player = { x: app.screen.width / 2, y: app.screen.height - ARENA_MARGIN - 40, hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0 }
 
     const playerSprite = new Sprite(heroTex)
     playerSprite.anchor.set(0.5)
@@ -195,6 +257,9 @@ export class ArenaGame {
     app.stage.addChild(playerSprite)
     this.playerSprite = playerSprite
 
+    this.dungeon = generateArenaDungeon()
+    this.enterZone(this.dungeon[0].id)
+
     app.ticker.add(ticker => this.update(ticker.deltaMS))
   }
 
@@ -203,25 +268,125 @@ export class ArenaGame {
     sprite.scale.set(scale)
   }
 
-  private updateSpawning(dt: number) {
-    if (!this.app) return
+  private getZoneNode(id: number): ArenaZoneNode | undefined {
+    return this.dungeon.find(n => n.id === id)
+  }
 
-    if (!this.bossSpawned && this.elapsed >= BOSS_SPAWN_SEC) {
-      this.bossSpawned = true
-      this.bossState = 'alive'
-      this.spawnEnemyOfType(BOSS_TYPE)
-    }
+  /** 進入指定節點：依類型生怪/放祭壇/觸發三選一/發獎勵。 */
+  private enterZone(nodeId: number) {
+    const node = this.getZoneNode(nodeId)
+    if (!node || !this.app) return
+    this.currentNodeId = nodeId
+    this.currentZoneType = node.type
+    this.zoneEnemiesRemaining = 0
+    this.altarGfx = null
+    this.altarPos = null
+    this.altarTriggered = false
 
-    this.spawnTimer -= dt
-    if (this.spawnTimer <= 0) {
-      this.spawnTimer = spawnIntervalSec(this.elapsed)
-      if (this.enemies.length < maxConcurrentEnemies(this.elapsed)) {
-        this.spawnEnemyOfType(pickEnemyType(this.elapsed))
+    switch (node.type) {
+      case 'battle': {
+        const count = Math.min(8, 4 + node.row)
+        for (let i = 0; i < count; i++) this.spawnEnemyOfType(pickEnemyType(this.elapsed))
+        this.zoneEnemiesRemaining = count
+        break
+      }
+      case 'elite': {
+        this.spawnEnemyOfType(pickEnemyType(this.elapsed), { isElite: true })
+        this.zoneEnemiesRemaining = 1
+        break
+      }
+      case 'rest': {
+        const { width, height } = this.app.screen
+        this.altarPos = { x: width / 2, y: height / 2 }
+        const gfx = new Graphics()
+        gfx.circle(0, 0, 34).fill({ color: 0x2a3a55 }).stroke({ color: 0x8ad4ff, width: 3 })
+        gfx.circle(0, 0, 14).fill({ color: 0x8ad4ff, alpha: 0.7 })
+        gfx.x = this.altarPos.x
+        gfx.y = this.altarPos.y
+        this.app.stage.addChild(gfx)
+        this.altarGfx = gfx
+        break
+      }
+      case 'card': {
+        this.pendingZoneCardTrigger = true
+        this.app.ticker.stop()
+        this.onLevelUp()
+        break
+      }
+      case 'hidden': {
+        const gold = HIDDEN_GOLD_MIN + Math.floor(Math.random() * (HIDDEN_GOLD_MAX - HIDDEN_GOLD_MIN))
+        this.bonusGold += gold
+        this.spawnFloatingText(`發現隱藏寶藏！+${gold} 金幣`, this.player.x, this.player.y - 40)
+        this.spawnGlowBurst(this.player.x, this.player.y, 0xffd94a, 70)
+        this.completeZone()
+        break
+      }
+      case 'boss': {
+        this.bossState = 'alive'
+        this.spawnEnemyOfType(BOSS_TYPE)
+        break
       }
     }
   }
 
-  private spawnEnemyOfType(type: EnemyTypeDef) {
+  /** 目前這區的條件達成（怪清光/摸到祭壇/選完卡），開門讓玩家走向下一區。 */
+  private completeZone() {
+    this.clearDoors()
+    const node = this.getZoneNode(this.currentNodeId)
+    if (!node || node.connections.length === 0 || !this.app) return
+    const { width } = this.app.screen
+    const y = 60
+    const positions = node.connections.length === 1 ? [width / 2] : [width * 0.32, width * 0.68]
+    node.connections.forEach((targetId, i) => {
+      const gfx = new Graphics()
+      gfx.rect(-24, -34, 48, 68).fill({ color: 0x6db8ff, alpha: 0.85 }).stroke({ color: 0xffffff, width: 2 })
+      gfx.x = positions[i]
+      gfx.y = y
+      this.app!.stage.addChild(gfx)
+      this.doors.push({ gfx, x: positions[i], y, targetNodeId: targetId })
+    })
+  }
+
+  private clearDoors() {
+    this.doors.forEach(d => d.gfx.destroy())
+    this.doors = []
+  }
+
+  private updateDoors() {
+    if (this.doors.length === 0) return
+    for (const d of this.doors) {
+      const dist = Math.hypot(this.player.x - d.x, this.player.y - d.y)
+      if (dist < DOOR_RADIUS) {
+        const targetId = d.targetNodeId
+        this.clearDoors()
+        // 清掉走位過程中可能殘留的敵人/掉落物，乾淨進下一區
+        this.enemies.forEach(e => { e.sprite.visible = false; this.enemySpritePool.release(e.sprite) })
+        this.enemies = []
+        if (!this.app) return
+        this.player.x = this.app.screen.width / 2
+        this.player.y = this.app.screen.height - ARENA_MARGIN - 40
+        if (this.playerSprite) { this.playerSprite.x = this.player.x; this.playerSprite.y = this.player.y }
+        this.enterZone(targetId)
+        return
+      }
+    }
+  }
+
+  private updateAltar() {
+    if (!this.altarGfx || !this.altarPos || this.altarTriggered) return
+    const dist = Math.hypot(this.player.x - this.altarPos.x, this.player.y - this.altarPos.y)
+    if (dist < ALTAR_TRIGGER_RADIUS) {
+      this.altarTriggered = true
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * ALTAR_HEAL_PCT)
+      this.spawnFloatingText('感受到神聖之力的祝福，回復了30%生命值', this.altarPos.x, this.altarPos.y - 50)
+      this.spawnGlowBurst(this.altarPos.x, this.altarPos.y, 0x8ad4ff, 60)
+      this.altarGfx.destroy()
+      this.altarGfx = null
+      this.completeZone()
+    }
+  }
+
+  private spawnEnemyOfType(type: EnemyTypeDef, opts?: { isElite?: boolean }) {
     if (!this.app) return
     const tex = this.enemyTextures[type.id]
     if (!tex) return
@@ -233,13 +398,16 @@ export class ArenaGame {
       : { x: -40, y: Math.random() * height }
 
     const levelMult = 1 + (Math.max(1, this.level) - 1) * 0.18
-    const hp = Math.round(ENEMY_BASE_HP * type.hpMult * levelMult)
+    const isElite = !!opts?.isElite
+    const eliteMult = isElite ? ELITE_HP_MULT : 1
+    const hp = Math.round(ENEMY_BASE_HP * type.hpMult * levelMult * eliteMult)
 
     const sprite = this.enemySpritePool.acquire()
     sprite.texture = tex
     sprite.anchor.set(0.5)
     this.setSpriteHeight(sprite, type.spriteHeight)
     if (type.isBoss) sprite.tint = 0xffb0b0
+    else if (isElite) sprite.tint = ELITE_TINT
     sprite.x = pos.x
     sprite.y = pos.y
     if (!sprite.parent) this.app.stage.addChild(sprite)
@@ -251,9 +419,10 @@ export class ArenaGame {
       hp,
       maxHp: hp,
       speed: ENEMY_BASE_SPEED * type.speedMult,
-      damage: ENEMY_CONTACT_DAMAGE * type.damageMult,
+      damage: ENEMY_CONTACT_DAMAGE * type.damageMult * (isElite ? ELITE_DAMAGE_MULT : 1),
       contactTimer: 0,
       isBoss: !!type.isBoss,
+      isElite,
       alive: true,
     })
   }
@@ -274,11 +443,14 @@ export class ArenaGame {
 
     this.updatePassives(dt)
     this.updatePlayerMovement(dt)
-    this.updateSpawning(dt)
     this.updateEnemies(dt)
     this.updateAutoAttack(dt)
     this.updateProjectiles(dt)
     this.updateGems(dt)
+    this.updateAltar()
+    this.updateDoors()
+    this.updateFloatingTexts(dt)
+    this.updateGlows(dt)
 
     this.hudEmitTimer += deltaMS
     if (this.hudEmitTimer >= HUD_EMIT_INTERVAL) {
@@ -302,16 +474,21 @@ export class ArenaGame {
     }
   }
 
+  /** 8方向搖桿輸入（每軸 -1/0/1），取代舊的拖曳移動。由 React 端的方向鍵呼叫。 */
+  setMoveDir(dx: -1 | 0 | 1, dy: -1 | 0 | 1): void {
+    this.moveDir = { x: dx, y: dy }
+  }
+
   private updatePlayerMovement(dt: number) {
     if (!this.app || !this.playerSprite) return
     const p = this.player
-    const dx = this.pointerTarget.x - p.x
-    const dy = this.pointerTarget.y - p.y
-    const dist = Math.hypot(dx, dy)
-    if (this.pointerActive && dist > POINTER_DEADZONE) {
-      const step = Math.min(dist, this.cfg.moveSpeed * this.moveSpeedMult * dt)
-      p.x += (dx / dist) * step
-      p.y += (dy / dist) * step
+    const { x: dx, y: dy } = this.moveDir
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy) || 1
+      const speed = this.cfg.moveSpeed * this.moveSpeedMult
+      p.x += (dx / len) * speed * dt
+      p.y += (dy / len) * speed * dt
+      this.facing = { x: dx / len, y: dy / len }
     }
     const { width, height } = this.app.screen
     p.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, p.x))
@@ -454,10 +631,15 @@ export class ArenaGame {
       e.sprite.visible = false
       this.enemySpritePool.release(e.sprite)
       this.killCount++
+      this.ultimateCharge = Math.min(ULTIMATE_MAX, this.ultimateCharge +
+        (e.isBoss ? ULTIMATE_CHARGE_BOSS : e.isElite ? ULTIMATE_CHARGE_ELITE : ULTIMATE_CHARGE_NORMAL))
       this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
       if (e.isBoss) {
         this.bossState = 'defeated'
         this.pauseForBossLoot()
+      } else if (this.currentZoneType === 'battle' || this.currentZoneType === 'elite') {
+        this.zoneEnemiesRemaining--
+        if (this.zoneEnemiesRemaining <= 0) this.completeZone()
       }
     }
   }
@@ -467,7 +649,7 @@ export class ArenaGame {
     this.onBossLoot(pickRelicChoices(this.ownedRelicIds, 3))
   }
 
-  /** 套用玩家在 RelicLootOverlay 選的遺物，並恢復戰鬥。 */
+  /** 套用玩家在 RelicLootOverlay 選的遺物。Boss 永遠是最後一區，選完就代表整局結束。 */
   applyRelic(relic: ArenaRelic): void {
     const e = relic.effect
     if (e.pierceBonus) this.pierceBonus += e.pierceBonus
@@ -479,8 +661,23 @@ export class ArenaGame {
       ? Math.min(this.shieldIntervalSec, e.shieldIntervalSec)
       : e.shieldIntervalSec
     this.ownedRelicIds.push(relic.id)
+    this.runComplete = true
     this.emitHud()
-    this.app?.ticker.start()
+    // 故意不 ticker.start()：Boss 是這局最後一區，選完遺物就直接停在結算畫面。
+  }
+
+  /** 必殺技：擊殺累積能量，滿了才能發動。v1 先做簡單雛型——範圍爆炸傷害。 */
+  tryActivateUltimate(): void {
+    if (this.gameOver || this.runComplete) return
+    if (this.ultimateCharge < ULTIMATE_MAX) return
+    for (const e of this.enemies) {
+      if (!e.alive) continue
+      const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y)
+      if (dist <= ULTIMATE_RADIUS) this.damageEnemy(e, ULTIMATE_DAMAGE)
+    }
+    this.ultimateCharge = 0
+    this.spawnGlowBurst(this.player.x, this.player.y, 0xff8a3c, ULTIMATE_RADIUS)
+    this.emitHud()
   }
 
   private spawnGem(x: number, y: number, value: number) {
@@ -563,11 +760,75 @@ export class ArenaGame {
       this.player.hp += e.maxHpBonus
     }
     this.emitHud()
+    if (this.pendingZoneCardTrigger) {
+      // 這次升級卡是「三選一技能區」觸發的，不是吃 XP 升級——選完要開門，
+      // 跟一般升級卡明確區分開來，一般升級不該觸發開門。
+      this.pendingZoneCardTrigger = false
+      this.completeZone()
+    }
     this.app?.ticker.start()
+  }
+
+  private spawnFloatingText(text: string, x: number, y: number) {
+    if (!this.app) return
+    const obj = this.textPool.acquire()
+    obj.text = text
+    obj.anchor.set(0.5)
+    obj.x = x
+    obj.y = y
+    if (!obj.parent) this.app.stage.addChild(obj)
+    this.floatingTexts.push({ obj, vy: -30, life: 0, maxLife: 1.6, alive: true })
+  }
+
+  private updateFloatingTexts(dt: number) {
+    for (const f of this.floatingTexts) {
+      if (!f.alive) continue
+      f.life += dt
+      f.obj.y += f.vy * dt
+      f.obj.alpha = Math.max(0, 1 - f.life / f.maxLife)
+      if (f.life >= f.maxLife) {
+        f.alive = false
+        f.obj.visible = false
+        this.textPool.release(f.obj)
+      }
+    }
+    if (this.floatingTexts.some(f => !f.alive)) {
+      this.floatingTexts = this.floatingTexts.filter(f => f.alive)
+    }
+  }
+
+  private spawnGlowBurst(x: number, y: number, color: number, radius: number) {
+    if (!this.app) return
+    const gfx = this.glowPool.acquire()
+    gfx.circle(0, 0, radius).stroke({ color, width: 4, alpha: 0.9 })
+    gfx.x = x
+    gfx.y = y
+    gfx.scale.set(0.4)
+    if (!gfx.parent) this.app.stage.addChild(gfx)
+    this.glows.push({ gfx, life: 0, maxLife: 0.5, alive: true })
+  }
+
+  private updateGlows(dt: number) {
+    for (const g of this.glows) {
+      if (!g.alive) continue
+      g.life += dt
+      const t = g.life / g.maxLife
+      g.gfx.alpha = Math.max(0, 1 - t)
+      g.gfx.scale.set(0.4 + t * 1.2)
+      if (g.life >= g.maxLife) {
+        g.alive = false
+        g.gfx.visible = false
+        this.glowPool.release(g.gfx)
+      }
+    }
+    if (this.glows.some(g => !g.alive)) {
+      this.glows = this.glows.filter(g => g.alive)
+    }
   }
 
   private emitHud() {
     const boss = this.enemies.find(e => e.isBoss && e.alive)
+    const node = this.getZoneNode(this.currentNodeId)
     this.onHudChange({
       hp: Math.round(this.player.hp),
       maxHp: this.player.maxHp,
@@ -582,6 +843,13 @@ export class ArenaGame {
       bossMaxHp: boss?.maxHp ?? 0,
       killCount: this.killCount,
       gameOver: this.gameOver,
+      zoneType: this.currentZoneType,
+      zoneIndex: (node?.row ?? 0) + 1,
+      zoneCount: this.dungeon.length > 0 ? Math.max(...this.dungeon.map(n => n.row)) + 1 : 0,
+      ultimateCharge: this.ultimateCharge,
+      ultimateMax: ULTIMATE_MAX,
+      bonusGold: this.bonusGold,
+      runComplete: this.runComplete,
     })
   }
 

@@ -4,6 +4,7 @@ import DiceUpgradeOverlay from './DiceUpgradeOverlay'
 import RelicLootOverlay from './RelicLootOverlay'
 import type { ArenaCard } from './cards'
 import type { ArenaRelic } from './relics'
+import type { ArenaZoneType } from './dungeonZones'
 
 interface Props {
   config: ArenaConfig
@@ -14,6 +15,17 @@ const INITIAL_HUD: ArenaHudState = {
   hp: 0, maxHp: 0, xp: 0, xpToNext: 1, level: 1, elapsed: 0, fps: 0,
   enemyCount: 0, bossState: 'none', bossHp: 0, bossMaxHp: 0,
   killCount: 0, gameOver: false,
+  zoneType: 'battle', zoneIndex: 1, zoneCount: 7,
+  ultimateCharge: 0, ultimateMax: 100, bonusGold: 0, runComplete: false,
+}
+
+const ZONE_LABEL: Record<ArenaZoneType, string> = {
+  battle: '戰鬥', elite: '菁英', rest: '補給', card: '祝福', hidden: '秘境', boss: 'BOSS',
+}
+
+type DirKey = 'up' | 'down' | 'left' | 'right'
+const DIR_VECTOR: Record<DirKey, { x: -1 | 0 | 1; y: -1 | 0 | 1 }> = {
+  up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
 }
 
 function formatTime(sec: number): string {
@@ -25,6 +37,7 @@ function formatTime(sec: number): string {
 export default function ArenaScreen({ config, onExit }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const gameRef = useRef<ArenaGame | null>(null)
+  const pressedDirsRef = useRef<Set<DirKey>>(new Set())
   const [hud, setHud] = useState<ArenaHudState>(INITIAL_HUD)
   const [levelUpOpen, setLevelUpOpen] = useState(false)
   const [bossLootChoices, setBossLootChoices] = useState<ArenaRelic[] | null>(null)
@@ -50,9 +63,25 @@ export default function ArenaScreen({ config, onExit }: Props) {
     setBossLootChoices(null)
   }
 
+  const applyMoveDir = () => {
+    const dirs = pressedDirsRef.current
+    let x: -1 | 0 | 1 = 0
+    let y: -1 | 0 | 1 = 0
+    if (dirs.has('left')) x = -1
+    else if (dirs.has('right')) x = 1
+    if (dirs.has('up')) y = -1
+    else if (dirs.has('down')) y = 1
+    gameRef.current?.setMoveDir(x, y)
+  }
+
+  const pressDir = (dir: DirKey) => { pressedDirsRef.current.add(dir); applyMoveDir() }
+  const releaseDir = (dir: DirKey) => { pressedDirsRef.current.delete(dir); applyMoveDir() }
+
   const hpPct = hud.maxHp > 0 ? Math.max(0, Math.min(100, (hud.hp / hud.maxHp) * 100)) : 0
   const xpPct = hud.xpToNext > 0 ? Math.max(0, Math.min(100, (hud.xp / hud.xpToNext) * 100)) : 0
   const bossPct = hud.bossMaxHp > 0 ? Math.max(0, Math.min(100, (hud.bossHp / hud.bossMaxHp) * 100)) : 0
+  const ultPct = hud.ultimateMax > 0 ? Math.max(0, Math.min(100, (hud.ultimateCharge / hud.ultimateMax) * 100)) : 0
+  const ultReady = hud.ultimateCharge >= hud.ultimateMax
 
   return (
     <div className="arena-screen">
@@ -66,6 +95,10 @@ export default function ArenaScreen({ config, onExit }: Props) {
             <span className="arena-hp-text">{hud.hp} / {hud.maxHp}</span>
           </div>
           <div className="arena-timer">{formatTime(hud.elapsed)}</div>
+        </div>
+
+        <div className="arena-zone-badge">
+          {ZONE_LABEL[hud.zoneType]}　{hud.zoneIndex} / {hud.zoneCount}
         </div>
 
         {hud.bossState === 'alive' && (
@@ -85,7 +118,41 @@ export default function ArenaScreen({ config, onExit }: Props) {
           <div className="arena-level">Lv.{hud.level}</div>
         </div>
         <div className="arena-fps">FPS {hud.fps} ｜ 敵 {hud.enemyCount}</div>
-        {!hud.gameOver && <button className="arena-exit-btn" onClick={onExit}>✕ 返回</button>}
+        {!hud.gameOver && !hud.runComplete && <button className="arena-exit-btn" onClick={onExit}>✕ 返回</button>}
+
+        {/* ── 左下：8方向搖桿（取代拖曳移動） ── */}
+        <div className="arena-dpad">
+          {(Object.keys(DIR_VECTOR) as DirKey[]).map(dir => (
+            <button
+              key={dir}
+              className={`arena-dpad-btn arena-dpad-${dir}`}
+              onPointerDown={() => pressDir(dir)}
+              onPointerUp={() => releaseDir(dir)}
+              onPointerLeave={() => releaseDir(dir)}
+              onPointerCancel={() => releaseDir(dir)}
+            >
+              {dir === 'up' ? '▲' : dir === 'down' ? '▼' : dir === 'left' ? '◀' : '▶'}
+            </button>
+          ))}
+        </div>
+
+        {/* ── 右下：頭像+HP+必殺技能量條，仿主流手遊 HUD 排版 ── */}
+        <div className="arena-ultimate-cluster">
+          <div className="arena-ultimate-info">
+            <img className="arena-portrait" src={`/assets/frames/heroes/${config.heroId}/idle_0.png`} alt={config.heroName} />
+            <div className="arena-ultimate-bars">
+              <div className="arena-mini-hp-bar"><div className="arena-mini-hp-fill" style={{ width: `${hpPct}%` }} /></div>
+              <div className="arena-ultimate-bar"><div className="arena-ultimate-fill" style={{ width: `${ultPct}%` }} /></div>
+            </div>
+          </div>
+          <button
+            className={`arena-ultimate-btn${ultReady ? ' ready' : ''}`}
+            disabled={!ultReady}
+            onClick={() => gameRef.current?.tryActivateUltimate()}
+          >
+            必殺技
+          </button>
+        </div>
       </div>
 
       {levelUpOpen && !hud.gameOver && <DiceUpgradeOverlay onComplete={handleCardChosen} />}
@@ -99,6 +166,20 @@ export default function ArenaScreen({ config, onExit }: Props) {
             <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
             <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
             {hud.bossState === 'defeated' && <div className="arena-gameover-boss">👑 擊敗了 Boss</div>}
+          </div>
+          <button className="arena-gameover-btn" onClick={onExit}>返回主選單</button>
+        </div>
+      )}
+
+      {hud.runComplete && !hud.gameOver && (
+        <div className="arena-gameover-overlay">
+          <div className="arena-gameover-title arena-runcomplete-title">關卡完成！</div>
+          <div className="arena-gameover-stats">
+            <div className="arena-gameover-row"><span>存活時間</span><strong>{formatTime(hud.elapsed)}</strong></div>
+            <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
+            <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
+            <div className="arena-gameover-row"><span>賺得金幣</span><strong>{hud.bonusGold}</strong></div>
+            <div className="arena-gameover-boss">👑 擊敗了 Boss</div>
           </div>
           <button className="arena-gameover-btn" onClick={onExit}>返回主選單</button>
         </div>
