@@ -106,6 +106,10 @@ const GEM_RADIUS = 7
 const GEM_XP_VALUE = 10
 const BOSS_GEM_XP_VALUE = GEM_XP_VALUE * 8
 const ARENA_MARGIN = 40
+// 上緣要留給左上角的返回鍵+關卡徽章疊層（HUD 佔到約 y:14~72px），
+// 不能跟其他三邊共用同一個 margin，不然角色/門會滑到 HUD 底下看不見
+// （2026-08 真機回報：清完怪找不到門、角色可以滑出邊界，根源就是這裡）。
+const ARENA_TOP_MARGIN = 110
 const HUD_EMIT_INTERVAL = 150 // ms，HUD 不用每 frame 更新
 
 const ELITE_HP_MULT = 2.2
@@ -335,7 +339,7 @@ export class ArenaGame {
     const node = this.getZoneNode(this.currentNodeId)
     if (!node || node.connections.length === 0 || !this.app) return
     const { width } = this.app.screen
-    const y = 60
+    const y = ARENA_TOP_MARGIN
     const positions = node.connections.length === 1 ? [width / 2] : [width * 0.32, width * 0.68]
     node.connections.forEach((targetId, i) => {
       const gfx = new Graphics()
@@ -492,7 +496,7 @@ export class ArenaGame {
     }
     const { width, height } = this.app.screen
     p.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, p.x))
-    p.y = Math.max(ARENA_MARGIN, Math.min(height - ARENA_MARGIN, p.y))
+    p.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, p.y))
     this.playerSprite.x = p.x
     this.playerSprite.y = p.y
   }
