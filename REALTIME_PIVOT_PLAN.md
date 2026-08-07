@@ -457,6 +457,17 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   quality 85（9張共~3.2MB，降幅約87%），肉眼比對無明顯畫質損失，
   壓縮後刪除原始 PNG。已用 claude-in-chrome 實機截圖確認渲染效果正確、
   HUD 圖層順序正常（背景在最底層）、關卡切換確實會換不同變體
+- ✅ **修復武鬥家（fighter）arena 貼圖缺失**（2026-08-07）：使用者回報「英雄
+  裝備介面的英雄圖跟實際進遊戲的圖不一樣」，比對後發現 `public/assets/
+  frames/heroes/` 底下 10 個英雄都有對應資料夾，唯獨 `fighter` 沒有——因為
+  `fighter` 在舊回合制系統裡沒有「基礎版」spritesheet，`data.ts` 的
+  `sprite: H('fighter_s0', 262, 188)` 直接借用星等0的圖（`fighter_s0.png`），
+  但產生 arena frames 資料夾的一次性腳本當初顯然是照 `heroId` 去找
+  `{heroId}.png`，`fighter.png` 不存在所以那次沒生成，導致 arena 內選武鬥家
+  時 `Assets.load('/assets/frames/heroes/fighter/idle_0.png')` 直接 404。
+  修復：從 `fighter_s0.png`（1572×188，6格橫排，跟其他英雄同規格）用跟
+  其他英雄相同的等分裁切邏輯，補產生 `idle_0/idle_1/attack_0/attack_1/
+  skill_0/hurt_0.png` 六張圖到 `public/assets/frames/heroes/fighter/`
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
