@@ -1341,6 +1341,7 @@ export default function App() {
           pickupRangeMult: talentBonus.pickupRangeMult,
           keystoneUnlocked: talentBonus.keystoneUnlocked,
           campaign: phase.campaign,
+          stars: heroProgress.stars,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
         onRunEnd={(won, floorsCleared, goldEarned) => {

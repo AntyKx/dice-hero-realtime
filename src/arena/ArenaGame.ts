@@ -38,6 +38,7 @@ export interface ArenaConfig {
   pickupRangeMult?: number  // 天賦帶來的起始拾取範圍倍率，預設 1（PICKUP_RANGE 是內部常數，只能靠這個 config 種初始值）
   keystoneUnlocked?: boolean // 天賦樹的職業技能節點是否已點亮，決定 updateKeystone() 是否生效
   campaign?: string // 篇章（main/ash_kingdom/rift_omen/deep_sea），決定敵人池/Boss，預設 main
+  stars?: number // 英雄星等（0-3），決定要載入 frames/heroes/{heroId}/s{stars}/ 底下哪一套貼圖，預設 0
 }
 
 interface Projectile {
@@ -273,8 +274,9 @@ export class ArenaGame {
     const allEnemyTypes = [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
     const bgTheme = CAMPAIGN_BG_THEME[this.campaign] ?? 'forest'
     const bgPaths = Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${bgTheme}_${i + 1}.jpg`)
+    const heroStars = Math.min(3, Math.max(0, this.cfg.stars ?? 0))
     const [heroTex, bgTexList, ...enemyTexList] = await Promise.all([
-      Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/idle_0.png`),
+      Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/s${heroStars}/idle_0.png`),
       Promise.all(bgPaths.map(p => Assets.load(p))),
       ...allEnemyTypes.map(t => Assets.load(`/assets/frames/enemies/${t.id}/idle_0.png`)),
     ])

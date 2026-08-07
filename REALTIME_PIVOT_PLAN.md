@@ -468,6 +468,29 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   修復：從 `fighter_s0.png`（1572×188，6格橫排，跟其他英雄同規格）用跟
   其他英雄相同的等分裁切邏輯，補產生 `idle_0/idle_1/attack_0/attack_1/
   skill_0/hurt_0.png` 六張圖到 `public/assets/frames/heroes/fighter/`
+- ✅ **修復全部11個英雄的 arena 貼圖都是「星等升級前」的舊圖**（2026-08-07，
+  接續武鬥家那次的延伸調查）：使用者回報「英雄裝備介面的英雄圖跟實際進
+  遊戲的圖不一樣」並附了聖騎士的對比截圖——選英雄畫面顯示的是他已經
+  1★升級後的「誓約騎士」銀白色鎧甲立繪，但進 arena 後角色是最原始的
+  藍金色鎧甲。追出根本原因：`data.ts` 的 `getHeroSprite(hero, stars)`
+  只要 `hero.starSprites` 有定義就一律回傳 `starSprites[stars]`（就算
+  stars=0 也是回傳 `{id}_s0.png`），代表 `hero.sprite`（沒有 `_s` 後綴
+  的原始檔，例如 `knight.png`）其實從星等系統上線後就沒有任何 UI 真的
+  在用了——但轉向即時制時產生 `frames/heroes/{heroId}/idle_0.png` 的那次
+  一次性腳本，用的正是這個已經沒人在用的 `hero.sprite`，所以 arena 貼圖
+  凍結在星等系統上線前的舊版美術，而且完全不會隨星等升級變化。
+  用 `priest` 驗證：`priest.png`（舊，1038×184）跟 `priest_s0.png`（現行
+  0★，1458×320）是完全不同的兩套畫風/設計，證實不是個案，11個英雄全部
+  受影響。修復：寫 `scripts/gen-star-frames.mjs`，讀 `data.ts` 裡每個
+  英雄 4 個星等的 `starSprites` sheet 路徑+frameWidth/frameHeight，比照
+  原本裁切邏輯，把 `idle_0.png` 裁到 `frames/heroes/{heroId}/s{0-3}/`
+  （11 英雄 × 4 星等 = 44 組）；`ArenaConfig` 新增 `stars?: number`，
+  `ArenaGame.init()` 改讀 `frames/heroes/{heroId}/s${stars}/idle_0.png`；
+  `App.tsx` 的 `arena_run` 區塊把 `heroProgress.stars` 帶進去。因為 arena
+  目前整個引擎只用單一靜態 `idle_0` 幀（沒有走路/攻擊/技能的逐幀動畫），
+  之後其餘 5 個動作幀（`idle_1/attack_0/attack_1/skill_0/hurt_0`）沒有
+  預先裁出來——`scripts/gen-star-frames.mjs` 留著，之後真的要做逐幀動畫
+  時把 `NAMES` 陣列全部裁出來即可，來源 spritesheet 都還在
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
