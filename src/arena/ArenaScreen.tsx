@@ -9,6 +9,8 @@ import type { ArenaZoneType } from './dungeonZones'
 interface Props {
   config: ArenaConfig
   onExit: () => void
+  /** 一局結束（陣亡或過關）時觸發一次，讓外層把這局戰果寫回持久化的英雄等級。 */
+  onRunEnd?: (won: boolean, floorsCleared: number) => void
 }
 
 const INITIAL_HUD: ArenaHudState = {
@@ -31,11 +33,12 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function ArenaScreen({ config, onExit }: Props) {
+export default function ArenaScreen({ config, onExit, onRunEnd }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const gameRef = useRef<ArenaGame | null>(null)
   const knobRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ active: boolean; centerX: number; centerY: number }>({ active: false, centerX: 0, centerY: 0 })
+  const runEndFiredRef = useRef(false)
   const [hud, setHud] = useState<ArenaHudState>(INITIAL_HUD)
   const [levelUpOpen, setLevelUpOpen] = useState(false)
   const [bossLootChoices, setBossLootChoices] = useState<ArenaRelic[] | null>(null)
@@ -50,6 +53,21 @@ export default function ArenaScreen({ config, onExit }: Props) {
     return () => { gameRef.current = null; game.destroy() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 一局只結算一次（死亡或過關其中一種會把對應旗標設 true，之後 HUD 還會再更新，
+  // 用 ref 擋掉重複觸發）。floorsCleared 沿用舊回合制的「已清關卡數」語意：
+  // 過關 = 全部 7 區都算清完；死亡 = 目前所在區之前的都已清完（zoneIndex 是目前區,
+  // 1-based，所以已清完的是 zoneIndex-1）。
+  useEffect(() => {
+    if (runEndFiredRef.current) return
+    if (hud.runComplete) {
+      runEndFiredRef.current = true
+      onRunEnd?.(true, hud.zoneCount)
+    } else if (hud.gameOver) {
+      runEndFiredRef.current = true
+      onRunEnd?.(false, Math.max(0, hud.zoneIndex - 1))
+    }
+  }, [hud.runComplete, hud.gameOver, hud.zoneCount, hud.zoneIndex, onRunEnd])
 
   const handleCardChosen = (card: ArenaCard) => {
     gameRef.current?.applyCard(card)

@@ -333,8 +333,35 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
 - ✅ 驗收：實機測完整「死亡→看廣告→復活」與「購買→解鎖」流程
 
 ### M5 — 打磨與功能回歸評估
+
+**決策（2026-08-07）：裝備 + 英雄等級系統要接回來**，天賦改成「等級到了只是
+解鎖資格，還要另外花天賦點數才能真的選定」（跟舊版「到等級直接免費選」不同，
+逼玩家在有限點數下做取捨）。新增兩個貨幣：金幣（通用，商店/強化花費）、
+天賦點數（專門拿來解鎖天賦節點）；星塵沿用舊定位（裝備強化材料）。
+
+最大技術風險：裝備/天賦的加成最後都要折算進同一組 `ArenaConfig` 起始數值，
+現在 `ArenaGame` 內部是分散的 private 欄位，不是統一 StatBlock，三個來源疊加
+容易算錯，值得優先整理。
+
+- ✅ **英雄等級持久化**（第一步，已完成）：`arena_run` 之前完全不影響
+  `meta.heroProgress`，打完就歸零。現在直接重用舊回合制的既有函式
+  （`calcRunExp`/`addHeroExp`/`checkStarConditions`，`App.tsx` 裡本來就有
+  `awardRunExp` 這個組合它們的 helper，未改動邏輯，只是新增呼叫點）：
+  `ArenaScreen` 新增 `onRunEnd(won, floorsCleared)` callback，`hud.gameOver`
+  /`hud.runComplete` 其中一個變 true 時觸發一次（`floorsCleared` 死亡算
+  `zoneIndex-1`、過關算 `zoneCount`），`App.tsx` 接手呼叫 `awardRunExp`
+  寫回 `meta.heroProgress`。開局時反過來讀：`computeTalentBonus(heroId,
+  heroProgress)` 算出的「每級小幅成長」（`FEATURE_FLAGS.talents` 還沒開，
+  `selectedTalents` 是空的，不會多算到天賦效果）疊進 `ArenaConfig` 的
+  `maxHp`/`atkDamage`，等級持久化第一次有實際效果。`AdventureReadyScreen`
+  英雄選擇格子本來就會讀 `heroProgress.level/stars`，不用另外加 UI
+- ⬜ 金幣：`meta.gold`（新欄位）+ 關卡結算把 `bonusGold` 寫回去（目前只是
+  本局內顯示，沒有persist）
+- ⬜ 裝備：幫 arena 寫一個掉落來源（Boss/隱藏關觸發），`computeEquipBonus()`
+  的輸出要另外寫轉接層折算進 `ArenaConfig`
+- ⬜ 天賦點數 + 花點數解鎖：新貨幣、`HERO_TALENT_TREES`/`selectedTalents`
+  資料結構沿用，「選擇」動作前面加一道花費檢查
 - 打擊感（頓幀/震屏/粒子）
-- 視情況決定裝備/天賦/副本/排行榜是否要接回新玩法，或永久移除
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
 ---

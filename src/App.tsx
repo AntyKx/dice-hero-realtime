@@ -1304,17 +1304,24 @@ export default function App() {
 
   if (phase.type === 'arena_run') {
     const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
+    // 持久化的英雄等級（跨局累積的 exp/stars）目前只有「等級成長」這條線接回
+    // arena：computeTalentBonus 本來就會算「每級小幅成長」，天賦樹本身因為
+    // FEATURE_FLAGS.talents 還沒開、selectedTalents 永遠是空的，不會多算到
+    // 尚未接回的天賦效果，之後真的要接裝備/天賦時這裡是同一個折算點。
+    const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
+    const talentBonus = computeTalentBonus(hero.id, heroProgress)
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp,
-          atkDamage: Math.round(hero.atk * 0.6),
+          maxHp: hero.hp + talentBonus.hpBonus,
+          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
           atkCooldown: 0.45,
           moveSpeed: 260,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
+        onRunEnd={(won, floorsCleared) => awardRunExp(hero.id, won, floorsCleared)}
       />
     )
   }
