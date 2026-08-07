@@ -503,6 +503,16 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   劍+盾的哥布林，新圖是長矛+滴血造型的哥布林，完全是不同設計。修復：
   新增 `scripts/gen-enemy-frames.mjs`（比照英雄版，只裁 `idle_0`），
   10隻全部從目前的 spritesheet 重新裁切覆蓋
+- ✅ **上面兩次貼圖修復實際上線後沒生效，因為 PWA 快取**（2026-08-07）：
+  使用者回報哥布林在圖鑑（正確新圖）跟關卡裡（還是舊的去背不乾淨的圖）
+  仍然不一樣。根因不是修復本身沒生效，是 `vite.config.ts` 裡 `/assets/`
+  路徑的 runtime caching 規則用 `StaleWhileRevalidate` + 固定
+  `cacheName: 'game-assets-v3'`——**檔名沒變、只有內容變**的部署，舊裝置
+  上先前就快取過的版本會直接從 runtime cache 吐出舊 bytes，不會因為
+  server 端檔案換了就自動失效（這是本專案先前就踩過的已知模式，見
+  `CLAUDE.md`/memory「asset cache versioning」）。解法固定：碰到「同檔名
+  換內容」的圖檔更新，一定要把 `cacheName` 升版（這次 v3→v4），逼所有
+  裝置的 runtime cache 整組失效重抓，不能只靠檔案內容變更去期待自動生效
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 

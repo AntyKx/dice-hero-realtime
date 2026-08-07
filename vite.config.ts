@@ -85,7 +85,7 @@ export default defineConfig({
             urlPattern: /\/assets\//,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'game-assets-v3',
+              cacheName: 'game-assets-v4',
               expiration: {
                 maxEntries: 200,
                 maxAgeSeconds: 60 * 60 * 24 * 7,
