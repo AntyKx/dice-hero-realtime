@@ -43,12 +43,20 @@ export function loadMeta(): MetaState {
     if (!raw) return defaultMeta()
     const parsed = JSON.parse(raw) as Partial<MetaState>
     const def = defaultMeta()
+    // 舊存檔的 heroProgress[heroId] 物件本身就存在，但缺 talentPoints/
+    // allocatedTalentIds 這兩個新欄位——單純 {...def.heroProgress,
+    // ...parsed.heroProgress} 只會整組取代掉某個英雄的 progress，不會補
+    // 到缺的欄位，所以每個英雄要各自 merge 一次。
+    const mergedHeroProgress: Record<string, HeroProgress> = { ...def.heroProgress }
+    for (const [heroId, prog] of Object.entries(parsed.heroProgress ?? {})) {
+      mergedHeroProgress[heroId] = { ...defaultHeroProgress(), ...prog }
+    }
     return {
       ...def,
       ...parsed,
       inventory: (parsed.inventory ?? []).map(it => migrateEquipment(refreshLegendaryDesc(it))),
       loadouts: { ...def.loadouts, ...(parsed.loadouts ?? {}) },
-      heroProgress: { ...def.heroProgress, ...(parsed.heroProgress ?? {}) },
+      heroProgress: mergedHeroProgress,
       fateLevel: parsed.fateLevel ?? 0,
       activeFateLevel: parsed.activeFateLevel ?? 0,
       lockedUids: parsed.lockedUids ?? [],

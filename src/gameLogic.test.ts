@@ -43,7 +43,7 @@ describe('evaluateDice', () => {
 
 // ── computeHeroAction：職業加成 ─────────────────────────────────────────────
 const heroOf = (role: Hero['role'], atk = 10): Hero =>
-  ({ id: 'x', name: 'x', title: '', hp: 100, atk, def: 5, role, skill: '', desc: '', sprite: {} as Hero['sprite'] })
+  ({ id: 'x', name: 'x', title: '', hp: 100, atk, def: 5, role, school: 'physical', skill: '', desc: '', sprite: {} as Hero['sprite'] })
 
 describe('computeHeroAction', () => {
   it('基礎傷害 = baseDamage + atk', () => {

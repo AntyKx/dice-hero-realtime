@@ -375,11 +375,35 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   結算時機。主選單「英雄 & 裝備」按鈕上加了 💰 金幣 徽章（跟原本的 ⭐星塵
   徽章並排）。目前金幣只有「賺」沒有「花」——花費端（商店/重鑄/直接買等級）
   還沒做，屬於之後的事
-- ⬜ 天賦樹重做（2026-08-07 決定）：捨棄舊的「單一大節點、每階選一個效果」
-  結構，改成類似 POE 的天賦樹——大量小節點（+力量/+HP/+魔力這種單一小
-  數值加成），沿路隔幾個小節點會有一個「由角色等級控制」的職業專屬技能
-  節點可以解鎖。小節點/技能節點都要花天賦點數才能點亮，不是免費。這是
-  全新的資料結構，不是沿用 `HERO_TALENT_TREES`，設計細節待補
+- ✅ **天賦樹重做**：新檔案 `src/arena/arenaTalents.ts`（比照 cards.ts/
+  relics.ts/dungeonZones.ts 的既有慣例，不沿用舊 `HERO_TALENT_TREES`/
+  `TalentEffect`，舊系統整個保留不刪、只是不再是 arena 用的那套）。
+  - `Hero` 新增 `school: 'physical'|'magic'`（`src/data.ts`，11 個英雄都標好
+    了：mage/priest/princess 是 magic，其餘 8 個 physical）
+  - 每個英雄固定 20 個節點的線性鏈（`generateHeroTalentTree()`，非隨機、
+    每次呼叫結果一樣）：19 個共用小節點模板（+力量或+魔力/+HP/+移速/
+    +拾取範圍/+攻速，依 school 決定攻擊節點是哪種），第 12 個節點（tier
+    索引11）固定是該英雄專屬的職業技能，額外要求角色等級40才能點
+  - `HeroProgress` 新增 `talentPoints`/`allocatedTalentIds`（`src/types.ts`），
+    **每個英雄各自累積**，不是全局共用。每 3 級發 1 點（`addHeroExp()`
+    順手算，`src/talents.ts`）。`src/meta.ts` 的 `loadMeta()` 補了per-hero
+    欄位遷移，不然舊存檔的 heroProgress 會缺這兩個新欄位
+  - `AdventureReadyScreen.tsx` 的天賦 Modal 整個重寫：從唯讀檢視改成
+    可點擊點亮（花1點+二次確認），沿用 `talent-view-overlay`/
+    `talent-view-modal` 外殼但節點本身是新的線性列表+連接線樣式
+  - `FEATURE_FLAGS.talents` 打開（跟裝備那次一樣的處理方式）
+  - `App.tsx` 的 `arena_run` 改呼叫新的 `computeArenaTalentBonus()`，
+    折算進 `ArenaConfig`（含新增的 `pickupRangeMult`/`keystoneUnlocked`
+    欄位）
+  - **11 個職業技能全部實作**（`ArenaGame.ts` 新增 `updateKeystone()` 統一
+    分派 + 幾個掛勾點）：聖騎士(週期減傷)/火焰法師(週期爆擊)/神官祭司
+    (週期自癒)/影刃刺客(機率追打)/皇家公主(冰痕疊層凍結，新增
+    `EnemyInstance.frostStacks/frozenTimer`)/遊俠獵人(週期範圍箭雨)/
+    矮人戰士(破甲疊層增傷，新增`armorBreakStacks`)/吟遊詩人(命中機率
+    回血)/獸語馴獸師(受擊機率反擊)/機關技師(機率額外砲彈)/武鬥家
+    (擊殺疊氣勢→下次攻擊200%)
+  - 未做：新美術/施法動畫（純數值判定+沿用既有 `spawnGlowBurst`/
+    `spawnFloatingText` 做回饋，跟 §6.1 決定的方向一致，等美術到位再接）
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 

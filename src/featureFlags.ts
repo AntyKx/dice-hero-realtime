@@ -4,7 +4,7 @@
  */
 export const FEATURE_FLAGS = {
   equipment: true,
-  talents: false,
+  talents: true,
   dungeons: false,
   leaderboard: false,
   potionsAndCurses: false,

@@ -899,43 +899,41 @@ h1, h2, h3, p { margin: 0; }
 .talent-view-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:3000; padding:16px; overflow:hidden; }
 .talent-view-modal { background:#0e1a36; border:1px solid rgba(110,144,255,.35); border-radius:16px; padding:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; gap:12px; }
 .tvm-header { font-size:1.1rem; font-weight:700; margin-bottom:4px; }
-.tvm-tier { display:flex; flex-direction:column; gap:6px; }
-.tvm-tier-label { font-size:0.7rem; font-weight:700; color:#6090ff; letter-spacing:.06em; text-transform:uppercase; }
-.tvm-choices { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
-/* v1.25.15：原本每格同時塞名稱+敘述，3欄擠在520px視窗裡常常斷得很醜。
-   改成每格只留名稱（短字不會斷行），點哪個就在下方 .tvm-active-desc 用全寬顯示敘述 */
-.tvm-choice {
-  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:8px;
-  padding:8px 6px; display:flex; align-items:center; justify-content:center; text-align:center;
-  cursor:pointer; transition:background .15s, border-color .15s;
+
+/* 天賦樹重做（2026-08）：一條線性節點鏈，每格是一個小加成或職業技能，
+   花天賦點數點亮，不是舊版的「5關卡、每關免費選一個」 */
+.tvm-points-badge {
+  align-self:flex-start; font-size:0.78rem; font-weight:700; color:#7ae0ff;
+  background:rgba(96,144,255,.14); border:1px solid rgba(96,144,255,.35);
+  border-radius:20px; padding:4px 12px;
 }
-.tvm-choice:hover { background:rgba(255,255,255,.09); }
-.tvm-choice.selected { background:rgba(96,144,255,.18); border-color:rgba(96,144,255,.6); }
-.tvm-choice.active { border-color:rgba(255,255,255,.55); }
-.tvm-choice.selected.active { border-color:#aaccff; box-shadow:0 0 0 1px rgba(96,144,255,.4) inset; }
-.tvm-choice-name { font-size:0.78rem; font-weight:700; color:#e8f0ff; }
-.tvm-choice-desc { font-size:0.7rem; color:#99b4cc; line-height:1.35; }
-/* v1.25.16：敘述長短不一時，這格高度會跟著文字長度伸縮，每階高度不一致很難看，
-   改成固定高度（約3行），超長的內部捲動，不再把整個天賦樹列表拉長 */
-.tvm-active-desc {
-  font-size:0.78rem; color:#cfe0f4; line-height:1.5;
-  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
-  border-radius:8px; padding:8px 10px;
-  height:58px; overflow-y:auto;
+.tvm-tree { display:flex; flex-direction:column; align-items:stretch; }
+.tvm-node-row { display:flex; flex-direction:column; align-items:center; }
+.tvm-node-connector { width:2px; height:14px; background:rgba(255,255,255,.15); }
+.tvm-node-connector.lit { background:rgba(96,144,255,.7); }
+.tvm-node {
+  width:100%; text-align:left; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:8px 12px;
+  display:flex; flex-direction:column; gap:2px; cursor:pointer; transition:background .15s, border-color .15s;
 }
-.tvm-awakening { border-top:1px solid rgba(255,220,100,.25); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
-.tvm-awk-label { font-size:0.7rem; font-weight:700; color:#ffd36e; letter-spacing:.06em; }
-.tvm-awk-choice {
-  background:rgba(255,211,110,.08); border-color:rgba(255,211,110,.35) !important;
-  flex-direction:column; align-items:flex-start; text-align:left; cursor:default; gap:3px;
+.tvm-node.available { border-color:rgba(96,144,255,.55); cursor:pointer; }
+.tvm-node.available:hover { background:rgba(96,144,255,.14); }
+.tvm-node.allocated { background:rgba(96,144,255,.2); border-color:rgba(96,144,255,.75); cursor:default; }
+.tvm-node.locked { opacity:0.4; cursor:not-allowed; }
+.tvm-node-keystone { border-color:rgba(255,211,110,.45); }
+.tvm-node-keystone.allocated { background:rgba(255,211,110,.2); border-color:rgba(255,211,110,.8); }
+.tvm-node-keystone.available { border-color:rgba(255,211,110,.7); }
+.tvm-node-name { font-size:0.82rem; font-weight:700; color:#e8f0ff; }
+.tvm-node-keystone .tvm-node-name { color:#ffd36e; }
+.tvm-node-desc { font-size:0.72rem; color:#99b4cc; line-height:1.35; }
+.tvm-node-lockhint { font-size:0.68rem; color:#ff8a3c; font-weight:600; }
+
+.tvm-confirm {
+  background:rgba(255,255,255,.04); border:1px solid rgba(96,144,255,.35); border-radius:10px;
+  padding:10px 12px; display:flex; flex-direction:column; gap:8px;
 }
-.tvm-awk-choice.unlocked { background:rgba(255,211,110,.18); border-color:rgba(255,211,110,.7) !important; }
-.tvm-awk-choice .tvm-choice-name { color:#ffd36e; }
-.tvm-talent-btn { font-size:0.72rem; padding:3px 9px; border-radius:6px; background:rgba(96,144,255,.22); border:1px solid rgba(96,144,255,.65); color:#b0ccff; cursor:pointer; font-weight:600; white-space:nowrap; }
-.tvm-talent-btn:hover { background:rgba(96,144,255,.38); border-color:#7aaaff; color:#d0e4ff; }
-@media(max-width:480px){
-  .tvm-choices { grid-template-columns:1fr; }
-}
+.tvm-confirm-text { font-size:0.8rem; color:#e8f0ff; }
+.tvm-confirm-btns { display:flex; gap:8px; justify-content:flex-end; }
 
 /* ── Reward Screen ──────────────────────────────────────── */
 .reward-screen { max-width:700px; margin:0 auto; text-align:center; }

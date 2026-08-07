@@ -35,6 +35,8 @@ export interface ArenaConfig {
   atkDamage: number
   atkCooldown: number // 秒/次
   moveSpeed: number    // px/秒
+  pickupRangeMult?: number  // 天賦帶來的起始拾取範圍倍率，預設 1（PICKUP_RANGE 是內部常數，只能靠這個 config 種初始值）
+  keystoneUnlocked?: boolean // 天賦樹的職業技能節點是否已點亮，決定 updateKeystone() 是否生效
 }
 
 interface Projectile {
@@ -69,6 +71,10 @@ interface EnemyInstance {
   isBoss: boolean
   isElite: boolean
   alive: boolean
+  // 職業技能專用的每敵人狀態（只有對應英雄的技能會用到，其他英雄永遠是 0）
+  frostStacks: number   // 皇家公主：冰痕層數，滿5層觸發凍結
+  frozenTimer: number   // 皇家公主：凍結剩餘秒數，>0 時敵人不移動
+  armorBreakStacks: number // 矮人戰士：破甲層數（最多3），damageEnemy() 依此加傷
 }
 
 interface Door {
@@ -194,6 +200,13 @@ export class ArenaGame {
   // ── 必殺技（擊殺充能）────────────────────────────────────────────────
   private ultimateCharge = 0
 
+  // ── 天賦樹職業技能（11個英雄各自一種，依 cfg.heroId 分派見 updateKeystone）──
+  private keystoneUnlocked = false
+  private keystoneTimer = 0     // 週期觸發類共用（聖騎士/火焰法師/神官祭司/遊俠獵人）
+  private keystoneBuffTimer = 0 // 聖騎士：減傷buff剩餘時間
+  private keystoneStacks = 0    // 武鬥家：擊殺氣勢層數
+  private keystoneNextAtkBonus = false // 武鬥家：氣勢滿了，下次攻擊加成待觸發
+
   // ── 飄字/光效（祭壇、必殺技、隱藏獎勵共用）──────────────────────────
   private floatingTexts: FloatingText[] = []
   private textPool: Pool<Text>
@@ -207,6 +220,8 @@ export class ArenaGame {
     private onBossLoot: (choices: ArenaRelic[]) => void,
   ) {
     this.cfg = cfg
+    this.pickupRangeMult = cfg.pickupRangeMult ?? 1
+    this.keystoneUnlocked = !!cfg.keystoneUnlocked
     this.projectilePool = new Pool<Graphics>(
       () => new Graphics(),
       g => { g.clear(); g.visible = true },
@@ -428,6 +443,9 @@ export class ArenaGame {
       isBoss: !!type.isBoss,
       isElite,
       alive: true,
+      frostStacks: 0,
+      frozenTimer: 0,
+      armorBreakStacks: 0,
     })
   }
 
@@ -446,6 +464,7 @@ export class ArenaGame {
     }
 
     this.updatePassives(dt)
+    this.updateKeystone(dt)
     this.updatePlayerMovement(dt)
     this.updateEnemies(dt)
     this.updateAutoAttack(dt)
@@ -478,6 +497,51 @@ export class ArenaGame {
     }
   }
 
+  /**
+   * 天賦樹職業技能（11個英雄各一種，見 src/arena/arenaTalents.ts 的
+   * KEYSTONE_INFO）。只處理「週期觸發類」（聖騎士/火焰法師/神官祭司/
+   * 遊俠獵人）跟 buff 倒數；機率觸發類掛在 fireProjectileAt/updateAutoAttack，
+   * 疊層類掛在 damageEnemy/updateProjectiles，受擊反應類掛在 updateEnemies。
+   */
+  private updateKeystone(dt: number) {
+    if (this.keystoneBuffTimer > 0) this.keystoneBuffTimer -= dt
+
+    if (!this.keystoneUnlocked || this.player.hp <= 0) return
+    const heroId = this.cfg.heroId
+    const PERIODIC_INTERVAL: Record<string, number> = { knight: 20, mage: 8, priest: 10, archer: 12 }
+    const interval = PERIODIC_INTERVAL[heroId]
+    if (!interval) return
+    this.keystoneTimer += dt
+    if (this.keystoneTimer < interval) return
+    this.keystoneTimer -= interval
+
+    switch (heroId) {
+      case 'knight':
+        this.keystoneBuffTimer = 3
+        this.spawnGlowBurst(this.player.x, this.player.y, 0x6db8ff, 140)
+        this.spawnFloatingText('嘲諷！', this.player.x, this.player.y - 40)
+        break
+      case 'mage': {
+        const target = this.findNearestEnemy()
+        if (target) {
+          this.damageEnemy(target, 60)
+          this.spawnGlowBurst(target.x, target.y, 0xff6a3c, 70)
+        }
+        break
+      }
+      case 'priest':
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.1)
+        this.spawnGlowBurst(this.player.x, this.player.y, 0x8ad4ff, 60)
+        break
+      case 'archer':
+        for (const e of this.enemies) {
+          if (e.alive && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 260) this.damageEnemy(e, 40)
+        }
+        this.spawnGlowBurst(this.player.x, this.player.y, 0xffd94a, 260)
+        break
+    }
+  }
+
   /** 類比搖桿輸入（-1~1 連續值，非固定8方向），取代舊的拖曳移動。由 React 端的虛擬搖桿呼叫。 */
   setMoveDir(dx: number, dy: number): void {
     this.moveDir = { x: dx, y: dy }
@@ -502,26 +566,38 @@ export class ArenaGame {
   }
 
   private updateEnemies(dt: number) {
+    const isBeastmaster = this.keystoneUnlocked && this.cfg.heroId === 'beastmaster'
     for (const e of this.enemies) {
       if (!e.alive) continue
-      const dx = this.player.x - e.x
-      const dy = this.player.y - e.y
-      const dist = Math.hypot(dx, dy) || 1
-      e.x += (dx / dist) * e.speed * dt
-      e.y += (dy / dist) * e.speed * dt
+
+      // 皇家公主天賦技能：凍結中的敵人原地不動、不計時解除
+      if (e.frozenTimer > 0) {
+        e.frozenTimer -= dt
+      } else {
+        const dx = this.player.x - e.x
+        const dy = this.player.y - e.y
+        const dist = Math.hypot(dx, dy) || 1
+        e.x += (dx / dist) * e.speed * dt
+        e.y += (dy / dist) * e.speed * dt
+      }
       e.sprite.x = e.x
       e.sprite.y = e.y
 
+      const dist = Math.hypot(this.player.x - e.x, this.player.y - e.y)
       const contactRadius = e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS
       e.contactTimer -= dt
       if (dist < contactRadius && e.contactTimer <= 0) {
         e.contactTimer = ENEMY_CONTACT_COOLDOWN
+        // 聖騎士天賦技能：buff 期間內受到的接觸傷害減半
+        const incoming = this.keystoneBuffTimer > 0 ? e.damage * 0.5 : e.damage
         if (this.shieldCharges > 0) {
           this.shieldCharges--
         } else {
-          this.player.hp = Math.max(0, this.player.hp - e.damage)
+          this.player.hp = Math.max(0, this.player.hp - incoming)
         }
         if (this.thornsPct > 0) this.damageEnemy(e, e.damage * this.thornsPct)
+        // 獸語馴獸師天賦技能：受擊 30% 機率反擊
+        if (isBeastmaster && Math.random() < 0.3) this.damageEnemy(e, this.cfg.atkDamage + this.bonusDamage)
         if (this.player.hp <= 0) { this.triggerGameOver(); return }
       }
     }
@@ -556,6 +632,18 @@ export class ArenaGame {
     if (!target) return
     this.player.atkTimer = this.cfg.atkCooldown * this.atkCooldownMult
     this.fireProjectileAt(target.x, target.y)
+
+    if (this.keystoneUnlocked) {
+      // 影刃刺客天賦技能：20% 機率追加 2 次攻擊
+      if (this.cfg.heroId === 'rogue' && Math.random() < 0.2) {
+        this.fireProjectileAt(target.x, target.y)
+        this.fireProjectileAt(target.x, target.y)
+      }
+      // 機關技師天賦技能：25% 機率額外發射一枚砲彈
+      if (this.cfg.heroId === 'engineer' && Math.random() < 0.25) {
+        this.fireProjectileAt(target.x, target.y)
+      }
+    }
   }
 
   private fireProjectileAt(tx: number, ty: number) {
@@ -564,6 +652,13 @@ export class ArenaGame {
     const dy = ty - this.player.y
     const baseAngle = Math.atan2(dy, dx)
     const shots = 1 + this.extraProjectiles
+    // 武鬥家天賦技能：氣勢滿層時，下一次攻擊（含這次觸發的所有發數）造成 200% 傷害
+    let dmgMult = 1
+    if (this.keystoneNextAtkBonus) {
+      dmgMult = 2
+      this.keystoneNextAtkBonus = false
+      this.spawnGlowBurst(this.player.x, this.player.y, 0xff4040, 50)
+    }
     for (let i = 0; i < shots; i++) {
       // 多發時左右扇形展開，單發時角度不變
       const spread = shots > 1 ? (i - (shots - 1) / 2) * 0.18 : 0
@@ -579,7 +674,7 @@ export class ArenaGame {
         y: this.player.y,
         vx: Math.cos(angle) * PROJECTILE_SPEED,
         vy: Math.sin(angle) * PROJECTILE_SPEED,
-        damage: this.cfg.atkDamage + this.bonusDamage,
+        damage: (this.cfg.atkDamage + this.bonusDamage) * dmgMult,
         pierceLeft: this.pierceBonus,
         hit: new Set(),
         alive: true,
@@ -606,6 +701,7 @@ export class ArenaGame {
         const hitRadius = (e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS) * 0.6
         const dist = Math.hypot(e.x - p.x, e.y - p.y)
         if (dist < hitRadius) {
+          this.onAttackHit(e)
           this.damageEnemy(e, p.damage)
           if (this.lifestealPct > 0) {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + p.damage * this.lifestealPct)
@@ -627,8 +723,10 @@ export class ArenaGame {
     this.projectilePool.release(p.gfx)
   }
 
+  /** 矮人戰士天賦技能：破甲層數在傷害結算時生效，攻擊命中時另外呼叫 onAttackHit() 疊層。 */
   private damageEnemy(e: EnemyInstance, amount: number) {
     if (!e.alive) return
+    if (e.armorBreakStacks > 0) amount *= 1 + 0.1 * e.armorBreakStacks
     e.hp -= amount
     if (e.hp <= 0) {
       e.alive = false
@@ -638,6 +736,11 @@ export class ArenaGame {
       this.ultimateCharge = Math.min(ULTIMATE_MAX, this.ultimateCharge +
         (e.isBoss ? ULTIMATE_CHARGE_BOSS : e.isElite ? ULTIMATE_CHARGE_ELITE : ULTIMATE_CHARGE_NORMAL))
       this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
+      // 武鬥家天賦技能：擊殺疊氣勢，滿5層下次攻擊 200% 傷害
+      if (this.keystoneUnlocked && this.cfg.heroId === 'fighter') {
+        this.keystoneStacks++
+        if (this.keystoneStacks >= 5) { this.keystoneStacks = 0; this.keystoneNextAtkBonus = true }
+      }
       if (e.isBoss) {
         this.bossState = 'defeated'
         this.pauseForBossLoot()
@@ -645,6 +748,27 @@ export class ArenaGame {
         this.zoneEnemiesRemaining--
         if (this.zoneEnemiesRemaining <= 0) this.completeZone()
       }
+    }
+  }
+
+  /**
+   * 攻擊命中（尚未結算傷害）時的職業技能疊層/機率效果：皇家公主冰痕、
+   * 矮人戰士破甲、吟遊詩人命中回血。跟傷害本身（damageEnemy）分開，
+   * 因為這些是「命中就觸發」，不是「造成傷害才觸發」。
+   */
+  private onAttackHit(e: EnemyInstance) {
+    if (!this.keystoneUnlocked) return
+    switch (this.cfg.heroId) {
+      case 'princess':
+        e.frostStacks++
+        if (e.frostStacks >= 5) { e.frostStacks = 0; e.frozenTimer = 2 }
+        break
+      case 'dwarf':
+        e.armorBreakStacks = Math.min(3, e.armorBreakStacks + 1)
+        break
+      case 'bard':
+        if (Math.random() < 0.25) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 5)
+        break
     }
   }
 

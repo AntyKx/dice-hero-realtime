@@ -8,8 +8,13 @@ export function getExpForLevel(level: number): number {
   return 100 + (level - 1) * 2
 }
 
+// 每 3 級發 1 點天賦點數；用 Math.floor(level/3) 的差值算，一次升好幾級
+// 也不會漏發（跟 gainXp 的 while-not-if 是同一種顧慮）。
+const LEVELS_PER_TALENT_POINT = 3
+
 export function addHeroExp(progress: HeroProgress, exp: number): HeroProgress {
   if (progress.level >= 100) return progress
+  const startLevel = progress.level
   let { level, exp: cur } = progress
   cur += exp
   while (level < 100) {
@@ -17,7 +22,8 @@ export function addHeroExp(progress: HeroProgress, exp: number): HeroProgress {
     if (cur >= needed) { cur -= needed; level++ } else break
   }
   if (level >= 100) { level = 100; cur = 0 }
-  return { ...progress, level, exp: cur }
+  const gainedPoints = Math.floor(level / LEVELS_PER_TALENT_POINT) - Math.floor(startLevel / LEVELS_PER_TALENT_POINT)
+  return { ...progress, level, exp: cur, talentPoints: (progress.talentPoints ?? 0) + gainedPoints }
 }
 
 export function checkStarConditions(p: HeroProgress): number {
@@ -33,7 +39,10 @@ export function calcRunExp(won: boolean, floorsCleared: number): number {
 }
 
 export function defaultHeroProgress(): HeroProgress {
-  return { level: 1, exp: 0, stars: 0, runsCompleted: 0, runsWon: 0, selectedTalents: {} }
+  return {
+    level: 1, exp: 0, stars: 0, runsCompleted: 0, runsWon: 0, selectedTalents: {},
+    talentPoints: 0, allocatedTalentIds: [],
+  }
 }
 
 // ── Star multiplier ────────────────────────────────────────────────────────

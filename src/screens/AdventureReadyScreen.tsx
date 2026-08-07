@@ -4,10 +4,11 @@ import { HEROES, getHeroSprite, type Hero } from '../data'
 import SpriteAnimator from '../components/SpriteAnimator'
 import HeroPortraitModal from '../components/HeroPortraitModal'
 import { DUNGEON_DEFS, DIFFICULTY_CONFIG, type DungeonDifficulty } from '../dungeon'
-import { getHeroStarTitle, computeTalentBonus, HERO_TALENT_TREES } from '../talents'
+import { getHeroStarTitle, computeTalentBonus, defaultHeroProgress } from '../talents'
 import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { Equipment } from '../types'
 import { FEATURE_FLAGS } from '../featureFlags'
+import { generateHeroTalentTree, isTalentNodeAvailable, type ArenaTalentNode } from '../arena/arenaTalents'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -20,6 +21,7 @@ interface Props {
   meta: MetaState
   onStart: (config: AdventureStartConfig) => void
   onSetFateLevel: (lv: number) => void
+  onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void
   onBack: () => void
   onLeaderboard: () => void
 }
@@ -59,7 +61,7 @@ const ROLE_META: Record<string, { icon: string; color: string }> = {
   gear:   { icon: '⚙️',  color: '#90a0b0' },
 }
 
-export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, onBack, onLeaderboard }: Props) {
+export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard }: Props) {
   const [modeTab, setModeTab]           = useState<ModeTab>('main')
   const [campaignPick, setCampaignPick] = useState<CampaignPick>('main')
   const [ashGroupOpen, setAshGroupOpen]         = useState(false)
@@ -75,7 +77,7 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
   const [portraitHero, setPortraitHero]     = useState<Hero | null>(null)
   const [talentViewHero, setTalentViewHero] = useState<Hero | null>(null)
   const [equipViewHero, setEquipViewHero]   = useState<Hero | null>(null)
-  const [activeTalentByTier, setActiveTalentByTier] = useState<Record<number, string>>({}) // 天賦樹：每階目前點開查看說明的選項
+  const [talentPendingNode, setTalentPendingNode] = useState<ArenaTalentNode | null>(null) // 點了還沒確認花費的節點
 
   const canStart =
     selectedHeroId !== null &&
@@ -513,7 +515,7 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
           }
           onStart={() => handlePortraitStart(portraitHero.id)}
           onClose={() => setPortraitHero(null)}
-          onViewTalent={FEATURE_FLAGS.talents ? () => { setPortraitHero(null); setTalentViewHero(portraitHero); setActiveTalentByTier({}) } : undefined}
+          onViewTalent={FEATURE_FLAGS.talents ? () => { setPortraitHero(null); setTalentViewHero(portraitHero); setTalentPendingNode(null) } : undefined}
           onViewEquip={FEATURE_FLAGS.equipment ? () => { setPortraitHero(null); setEquipViewHero(portraitHero) } : undefined}
         />
       )}
@@ -593,53 +595,78 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
         )
       })()}
 
-      {/* ── 天賦樹 Modal ── */}
+      {/* ── 天賦樹 Modal（2026-08 重做：大量小節點+花點數點亮+沿路一個職業技能） ── */}
       {talentViewHero && (() => {
-        const tree = HERO_TALENT_TREES[talentViewHero.id]
-        const prog = meta.heroProgress[talentViewHero.id]
+        const heroId = talentViewHero.id
+        const tree = generateHeroTalentTree(heroId)
+        const prog = meta.heroProgress[heroId] ?? defaultHeroProgress()
         const rm   = ROLE_META[talentViewHero.role] ?? { icon: '⚔️', color: '#6090ff' }
-        const isAwkUnlocked = (prog?.stars ?? 0) >= 3
+        const allocated = prog.allocatedTalentIds ?? []
+
+        const confirmAllocate = (node: ArenaTalentNode) => {
+          onMetaUpdate(m => {
+            const cur = m.heroProgress[heroId] ?? defaultHeroProgress()
+            if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < 1) return m
+            if (!isTalentNodeAvailable(tree, node, cur.allocatedTalentIds, cur.level)) return m
+            return {
+              ...m,
+              heroProgress: {
+                ...m.heroProgress,
+                [heroId]: {
+                  ...cur,
+                  talentPoints: cur.talentPoints - 1,
+                  allocatedTalentIds: [...cur.allocatedTalentIds, node.id],
+                },
+              },
+            }
+          })
+          setTalentPendingNode(null)
+        }
+
         return (
-          <div className="talent-view-overlay" onClick={() => setTalentViewHero(null)}>
+          <div className="talent-view-overlay" onClick={() => { setTalentViewHero(null); setTalentPendingNode(null) }}>
             <div className="talent-view-modal" onClick={e => e.stopPropagation()}>
               <div className="tvm-header" style={{ color: rm.color }}>
                 {rm.icon} {talentViewHero.name} — 天賦樹
               </div>
-              {tree?.nodes.map(node => {
-                const selected  = prog?.selectedTalents?.[node.level]
-                const isUnlocked = (prog?.level ?? 1) >= node.level
-                const activeId = activeTalentByTier[node.level] ?? selected ?? node.choices[0]?.id
-                const activeChoice = node.choices.find(c => c.id === activeId)
-                return (
-                  <div key={node.level} className="tvm-tier">
-                    <div className="tvm-tier-label">Lv{node.level}{!isUnlocked && ' 🔒'}</div>
-                    <div className="tvm-choices">
-                      {node.choices.map(choice => (
-                        <div key={choice.id}
-                          className={`tvm-choice${selected === choice.id ? ' selected' : ''}${activeId === choice.id ? ' active' : ''}`}
-                          style={!isUnlocked ? { opacity: 0.45 } : {}}
-                          onClick={() => setActiveTalentByTier(prev => ({ ...prev, [node.level]: choice.id }))}
-                        >
-                          <div className="tvm-choice-name">{choice.name}</div>
-                        </div>
-                      ))}
+              <div className="tvm-points-badge">🔷 剩餘天賦點數：{prog.talentPoints}</div>
+
+              <div className="tvm-tree">
+                {tree.map((node, i) => {
+                  const isAllocated = allocated.includes(node.id)
+                  const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, prog.level)
+                  const isKeystone = node.kind === 'keystone'
+                  return (
+                    <div key={node.id} className="tvm-node-row">
+                      {i > 0 && <div className={`tvm-node-connector${isAllocated ? ' lit' : ''}`} />}
+                      <button
+                        className={`tvm-node${isKeystone ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
+                        onClick={() => (isAvailable ? setTalentPendingNode(node) : undefined)}
+                        disabled={!isAvailable}
+                      >
+                        <div className="tvm-node-name">{isKeystone ? '⭐ ' : ''}{node.name}</div>
+                        <div className="tvm-node-desc">{node.desc}</div>
+                        {isKeystone && node.requiredLevel && prog.level < node.requiredLevel && (
+                          <div className="tvm-node-lockhint">需角色等級 {node.requiredLevel}</div>
+                        )}
+                      </button>
                     </div>
-                    {activeChoice && <div className="tvm-active-desc">{activeChoice.desc}</div>}
-                  </div>
-                )
-              })}
-              {tree?.awakening && (
-                <div className="tvm-awakening">
-                  <div className="tvm-awk-label">★ 覺醒（10勝 + Lv60）</div>
-                  <div className={`tvm-choice tvm-awk-choice${isAwkUnlocked ? ' unlocked' : ''}`}
-                    style={!isAwkUnlocked ? { opacity: 0.45 } : {}}>
-                    <div className="tvm-choice-name">{tree.awakening.name}</div>
-                    <div className="tvm-choice-desc">{tree.awakening.desc}</div>
+                  )
+                })}
+              </div>
+
+              {talentPendingNode && (
+                <div className="tvm-confirm">
+                  <div className="tvm-confirm-text">花費 1 點天賦點數點亮「{talentPendingNode.name}」？</div>
+                  <div className="tvm-confirm-btns">
+                    <button className="ghost" onClick={() => setTalentPendingNode(null)}>取消</button>
+                    <button className="primary" onClick={() => confirmAllocate(talentPendingNode)}>確認</button>
                   </div>
                 </div>
               )}
+
               <button className="ghost" style={{ marginTop: 8, width: '100%' }}
-                onClick={() => setTalentViewHero(null)}>關閉</button>
+                onClick={() => { setTalentViewHero(null); setTalentPendingNode(null) }}>關閉</button>
             </div>
           </div>
         )

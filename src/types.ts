@@ -579,7 +579,9 @@ export type HeroProgress = {
   stars: number
   runsCompleted: number
   runsWon: number
-  selectedTalents: Record<number, string>
+  selectedTalents: Record<number, string>  // 舊天賦系統遺留欄位，新系統不再寫入，保留避免舊存檔炸開
+  talentPoints: number        // 新天賦系統：可花費的點數，跟這個英雄自己綁定
+  allocatedTalentIds: string[] // 新天賦系統：已點亮的節點 id（src/arena/arenaTalents.ts 的 ArenaTalentNode.id）
 }
 
 export type TalentBonus = {

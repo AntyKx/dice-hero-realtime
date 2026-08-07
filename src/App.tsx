@@ -66,6 +66,7 @@ import HeroPortraitModal from './components/HeroPortraitModal'
 import PlayerNameModal from './components/PlayerNameModal'
 import GmScreen from './screens/GmScreen'
 import ArenaScreen from './arena/ArenaScreen'
+import { computeArenaTalentBonus, generateHeroTalentTree } from './arena/arenaTalents'
 
 const APP_VERSION = __APP_BUILD__
 
@@ -1229,6 +1230,7 @@ export default function App() {
             level: 100, exp: 0, stars: 3,
             runsCompleted: 20, runsWon: 20,
             selectedTalents: { 20: '20a', 40: '40a', 60: '60a', 80: '80a', 100: '100a' },
+            talentPoints: 99, allocatedTalentIds: generateHeroTalentTree(h.id).map(n => n.id),
           }
         }
       }
@@ -1304,12 +1306,12 @@ export default function App() {
 
   if (phase.type === 'arena_run') {
     const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
-    // 持久化的英雄等級（跨局累積的 exp/stars）目前只有「等級成長」這條線接回
-    // arena：computeTalentBonus 本來就會算「每級小幅成長」，天賦樹本身因為
-    // FEATURE_FLAGS.talents 還沒開、selectedTalents 永遠是空的，不會多算到
-    // 尚未接回的天賦效果，之後真的要接裝備/天賦時這裡是同一個折算點。
+    // 天賦樹重做（2026-08-07）：不再用舊 computeTalentBonus()（5選1、免費），
+    // 改用 arenaTalents.ts 的新系統——大量小節點都要花天賦點數點亮，沿路一個
+    // 由角色等級控制的職業技能（keystoneUnlocked 影響 ArenaGame 的
+    // updateKeystone 行為）。
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
-    const talentBonus = computeTalentBonus(hero.id, heroProgress)
+    const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
     return (
       <ArenaScreen
         config={{
@@ -1317,8 +1319,10 @@ export default function App() {
           heroName: hero.name,
           maxHp: hero.hp + talentBonus.hpBonus,
           atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
-          atkCooldown: 0.45,
-          moveSpeed: 260,
+          atkCooldown: 0.45 * talentBonus.atkCooldownMult,
+          moveSpeed: 260 * talentBonus.moveSpeedMult,
+          pickupRangeMult: talentBonus.pickupRangeMult,
+          keystoneUnlocked: talentBonus.keystoneUnlocked,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
         onRunEnd={(won, floorsCleared, goldEarned) => {
@@ -1341,6 +1345,7 @@ export default function App() {
           meta={meta}
           onStart={handleAdventureStart}
           onSetFateLevel={lv => updateMeta(m => ({ ...m, activeFateLevel: Math.min(lv, m.fateLevel) }))}
+          onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
           onLeaderboard={() => setPhase({ type: 'leaderboard' })}
         />
