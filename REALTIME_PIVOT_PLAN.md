@@ -425,6 +425,24 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   `createRun()`/`generateMap()`），`handleAdventureStart` 多一個
   `if (FEATURE_FLAGS.turnBasedMainline)` 分支會呼叫它，但這個 flag
   維持 `false`，所以現狀完全沒變，只是萬一以後真的要開，入口已經接好了
+- ✅ **主線「選擇篇章」UI 拉回來，而且真的接了對應敵人池**：跟上面那條
+  不衝突——玩法還是 100% arena_run，只是即時戰鬥現在依篇章有不同敵人組成
+  了。`src/arena/enemies.ts` 整個重構成 `CAMPAIGN_ENEMY_POOLS`/
+  `CAMPAIGN_BOSS`（依 `ArenaCampaignId`），`pickEnemyType()` 多一個
+  campaign 參數。`ArenaConfig`/`GamePhase.arena_run` 都多帶
+  `campaign` 欄位，一路從 `AdventureReadyScreen` 的篇章選擇
+  → `handleAdventureStart` → `arena_run` phase → `ArenaGame` 建構子。
+  美術現況（跟使用者確認過的取捨）：
+  - 灰燼王國篇 第一章（`main`）：goblin/skeleton/orc/slimeking/
+    lightning_lancer/dark_knight + 巨龍 Boss，剛好完整對應舊回合制三章
+    的敵人+Boss，美術齊全
+  - 灰燼王國篇 第二章（`ash_kingdom`）/裂隙前兆篇/深海遺城篇：**沒有
+    專屬美術**，重用上面那組素材重新配了風味相近的權重（王城餘燼偏重裝、
+    裂隙前兆偏冰系、深海遺城偏史萊姆/骷髏），Boss 借用石巨人/冰霜女巫，
+    深海遺城目前跟主線共用巨龍（只有3種Boss美術，4個篇章不夠分）。等
+    真的畫了專屬即時制美術，直接在 `enemies.ts` 對應篇章換掉即可
+  - 主選單「出發準備」的篇章選擇區塊拿掉 `FEATURE_FLAGS.turnBasedMainline`
+    的門檻，永久顯示；路線/命運等級因為即時制沒有對應概念，繼續藏著
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 

@@ -171,13 +171,12 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
             </div>
           )}
 
-          {/* 篇章/路線/命運等級：回合制主線的選項，即時制內容還沒依此分化，
-              先隱藏（見 FEATURE_FLAGS.turnBasedMainline），邏輯與畫面保留，
-              之後要幫即時制做內容分化時可以直接重新打開。 */}
-          {modeTab === 'main' && FEATURE_FLAGS.turnBasedMainline && (
+          {/* 篇章選擇（2026-08 拉回來）：即時制現在會依篇章對應不同敵人池
+              （見 src/arena/enemies.ts），灰燼王國篇美術齊全，其餘三篇暫時
+              重用現有素材頂著，等新美術再換。 */}
+          {modeTab === 'main' && (
             <>
-              {/* 篇章選擇 */}
-              <div className="ar-label">選擇篇章</div>
+              <div className="ar-label" style={{ marginTop: FEATURE_FLAGS.turnBasedMainline ? 0 : 14 }}>選擇篇章</div>
               <div className="ar-campaign-col">
 
                 {/* ── 灰燼王國篇（群組） ── */}
@@ -293,7 +292,13 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
                   </div>
                 )}
               </div>
+            </>
+          )}
 
+          {/* 路線/命運等級：即時制目前不使用（沒有安全/風險路線分佈或難度
+              量表的概念），繼續藏著，邏輯畫面都保留。 */}
+          {modeTab === 'main' && FEATURE_FLAGS.turnBasedMainline && (
+            <>
               {/* 路線 */}
               <div className="ar-label" style={{ marginTop: 14 }}>路線</div>
               <div className="ar-route-col">

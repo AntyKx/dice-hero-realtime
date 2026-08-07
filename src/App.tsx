@@ -380,9 +380,9 @@ export default function App() {
       return
     }
     // 即時制轉向：主線一律進 arena_run，不用 RunState/map/battle 那套回合制流程。
-    // 篇章/路線選擇目前對即時制內容沒有實質影響（內容還沒依篇章分化），先忽略，
-    // 只留 AdventureReadyScreen 的英雄選擇這部分。見 REALTIME_PIVOT_PLAN.md M3。
-    setPhase({ type: 'arena_run', heroId: config.heroId })
+    // 篇章選擇（2026-08）現在會決定敵人池/Boss（見 src/arena/enemies.ts），
+    // 路線/命運等級對即時制還沒有意義，繼續忽略。見 REALTIME_PIVOT_PLAN.md M3。
+    setPhase({ type: 'arena_run', heroId: config.heroId, campaign: config.campaign })
   }
 
   const startMainCampaign = (heroId: string, routeType: RouteType, campaign: 'main' | 'rift_omen' | 'deep_sea' | 'ash_kingdom') => {
@@ -1340,6 +1340,7 @@ export default function App() {
           moveSpeed: 260 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
           keystoneUnlocked: talentBonus.keystoneUnlocked,
+          campaign: phase.campaign,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
         onRunEnd={(won, floorsCleared, goldEarned) => {

@@ -810,4 +810,4 @@ export type GamePhase =
   | { type: 'leaderboard'; dungeonId?: string }
   | { type: 'gm' }
   | { type: 'arena_test' } // M1 即時制垂直切片測試場景，見 REALTIME_PIVOT_PLAN.md
-  | { type: 'arena_run'; heroId: string } // 正式即時制冒險入口，見 REALTIME_PIVOT_PLAN.md M3
+  | { type: 'arena_run'; heroId: string; campaign?: string } // 正式即時制冒險入口，見 REALTIME_PIVOT_PLAN.md M3；campaign 決定敵人池，見 src/arena/enemies.ts

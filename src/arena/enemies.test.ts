@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ENEMY_TYPES, pickEnemyType, spawnIntervalSec, maxConcurrentEnemies, BOSS_SPAWN_SEC } from './enemies'
+import { getCampaignEnemyPool, pickEnemyType, spawnIntervalSec, maxConcurrentEnemies, BOSS_SPAWN_SEC } from './enemies'
 
 describe('pickEnemyType', () => {
   it('minMinute 未到之前不會抽到該型別', () => {
@@ -18,7 +18,7 @@ describe('pickEnemyType', () => {
   })
 
   it('每個型別權重都是正數（不會有抽不到/永遠抽到的死型別）', () => {
-    for (const t of ENEMY_TYPES) {
+    for (const t of getCampaignEnemyPool('main')) {
       expect(t.weight).toBeGreaterThan(0)
     }
   })

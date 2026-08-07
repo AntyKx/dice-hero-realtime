@@ -1,7 +1,7 @@
 import { Application, Assets, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
-import { ENEMY_TYPES, BOSS_TYPE, pickEnemyType, type EnemyTypeDef } from './enemies'
+import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, type EnemyTypeDef } from './enemies'
 import { pickRelicChoices, type ArenaRelic } from './relics'
 import { generateArenaDungeon, type ArenaZoneNode, type ArenaZoneType } from './dungeonZones'
 
@@ -37,6 +37,7 @@ export interface ArenaConfig {
   moveSpeed: number    // px/秒
   pickupRangeMult?: number  // 天賦帶來的起始拾取範圍倍率，預設 1（PICKUP_RANGE 是內部常數，只能靠這個 config 種初始值）
   keystoneUnlocked?: boolean // 天賦樹的職業技能節點是否已點亮，決定 updateKeystone() 是否生效
+  campaign?: string // 篇章（main/ash_kingdom/rift_omen/deep_sea），決定敵人池/Boss，預設 main
 }
 
 interface Projectile {
@@ -148,6 +149,7 @@ export class ArenaGame {
 
   private enemies: EnemyInstance[] = []
   private enemySpritePool: Pool<Sprite>
+  private campaign = 'main' // 決定敵人池/Boss，見 src/arena/enemies.ts 的 CAMPAIGN_ENEMY_POOLS
   private bossState: 'none' | 'alive' | 'defeated' = 'none'
   private killCount = 0
   private gameOver = false
@@ -222,6 +224,7 @@ export class ArenaGame {
     this.cfg = cfg
     this.pickupRangeMult = cfg.pickupRangeMult ?? 1
     this.keystoneUnlocked = !!cfg.keystoneUnlocked
+    this.campaign = cfg.campaign ?? 'main'
     this.projectilePool = new Pool<Graphics>(
       () => new Graphics(),
       g => { g.clear(); g.visible = true },
@@ -258,7 +261,7 @@ export class ArenaGame {
     this.app = app
     container.appendChild(app.canvas)
 
-    const allEnemyTypes = [...ENEMY_TYPES, BOSS_TYPE]
+    const allEnemyTypes = [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
     const [heroTex, ...enemyTexList] = await Promise.all([
       Assets.load(`/assets/frames/heroes/${this.cfg.heroId}/idle_0.png`),
       ...allEnemyTypes.map(t => Assets.load(`/assets/frames/enemies/${t.id}/idle_0.png`)),
@@ -305,12 +308,12 @@ export class ArenaGame {
     switch (node.type) {
       case 'battle': {
         const count = Math.min(8, 4 + node.row)
-        for (let i = 0; i < count; i++) this.spawnEnemyOfType(pickEnemyType(this.elapsed))
+        for (let i = 0; i < count; i++) this.spawnEnemyOfType(pickEnemyType(this.elapsed, this.campaign))
         this.zoneEnemiesRemaining = count
         break
       }
       case 'elite': {
-        this.spawnEnemyOfType(pickEnemyType(this.elapsed), { isElite: true })
+        this.spawnEnemyOfType(pickEnemyType(this.elapsed, this.campaign), { isElite: true })
         this.zoneEnemiesRemaining = 1
         break
       }
@@ -342,7 +345,7 @@ export class ArenaGame {
       }
       case 'boss': {
         this.bossState = 'alive'
-        this.spawnEnemyOfType(BOSS_TYPE)
+        this.spawnEnemyOfType(getCampaignBoss(this.campaign))
         break
       }
     }
