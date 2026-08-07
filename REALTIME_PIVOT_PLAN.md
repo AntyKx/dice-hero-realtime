@@ -491,6 +491,18 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   之後其餘 5 個動作幀（`idle_1/attack_0/attack_1/skill_0/hurt_0`）沒有
   預先裁出來——`scripts/gen-star-frames.mjs` 留著，之後真的要做逐幀動畫
   時把 `NAMES` 陣列全部裁出來即可，來源 spritesheet 都還在
+- ✅ **敵人貼圖也是同一類問題，已修**（2026-08-07，使用者主動追問「怪物的
+  圖應該也是同樣問題」猜對了）：檢查 `public/assets/frames/enemies/` 底下
+  10 隻主線敵人（goblin/orc/skeleton/mimic/golem/slimeking/
+  lightning_lancer/ice_witch/dark_knight/dragon）的檔案時間戳，全部停在
+  2026-06-02；但對應的 `public/assets/spritesheets/enemies/*.png` 全部
+  在 2026-06-12 被改過（美術重新調整/修圖腳本如 `fix-sheets.mjs`/
+  `normalize-sheets.mjs` 跑過之後）——跟英雄那次是不同成因（這次不是
+  「用錯檔案」而是「當初裁的檔案後來被換掉了，沒有跟著重裁」），但結果
+  一樣：arena 顯示的是10天前的舊設計圖。實測 `goblin` 最明顯——舊圖是
+  劍+盾的哥布林，新圖是長矛+滴血造型的哥布林，完全是不同設計。修復：
+  新增 `scripts/gen-enemy-frames.mjs`（比照英雄版，只裁 `idle_0`），
+  10隻全部從目前的 spritesheet 重新裁切覆蓋
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
