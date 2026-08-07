@@ -118,11 +118,6 @@ export default function ArenaScreen({ config, onExit }: Props) {
           <div className="arena-boss-defeated">👑 Boss 擊敗！</div>
         )}
 
-        <div className="arena-hud-bottom">
-          <div className="arena-xp-bar">
-            <div className="arena-xp-fill" style={{ width: `${xpPct}%` }} />
-          </div>
-        </div>
         <div className="arena-fps">FPS {hud.fps} ｜ 敵 {hud.enemyCount}</div>
         {!hud.gameOver && !hud.runComplete && <button className="arena-exit-btn" onClick={onExit}>✕ 返回</button>}
 
@@ -151,6 +146,7 @@ export default function ArenaScreen({ config, onExit }: Props) {
             </div>
             <div className="arena-ultimate-bars">
               <div className="arena-mini-hp-bar"><div className="arena-mini-hp-fill" style={{ width: `${hpPct}%` }} /></div>
+              <div className="arena-mini-xp-bar"><div className="arena-mini-xp-fill" style={{ width: `${xpPct}%` }} /></div>
               <div className="arena-ultimate-bar"><div className="arena-ultimate-fill" style={{ width: `${ultPct}%` }} /></div>
             </div>
           </div>

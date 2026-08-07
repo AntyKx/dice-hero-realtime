@@ -4249,26 +4249,6 @@ h1, h2, h3, p { margin: 0; }
   font-size: 13px;
 }
 
-.arena-hud-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.arena-xp-bar {
-  flex: 1;
-  height: 10px;
-  border-radius: 5px;
-  background: rgba(10, 16, 30, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-}
-.arena-xp-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4ade80, #7ae0ff);
-  transition: width 0.15s ease-out;
-}
-
 .arena-fps {
   position: absolute;
   top: max(14px, env(safe-area-inset-top));
@@ -4499,6 +4479,17 @@ h1, h2, h3, p { margin: 0; }
 .arena-mini-hp-fill {
   height: 100%;
   background: linear-gradient(90deg, #ff5a5a, #ff8a3c);
+}
+.arena-mini-xp-bar {
+  height: 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.arena-mini-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #7ae0ff);
+  transition: width 0.15s ease-out;
 }
 .arena-ultimate-fill {
   height: 100%;
