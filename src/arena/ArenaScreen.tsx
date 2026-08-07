@@ -9,8 +9,8 @@ import type { ArenaZoneType } from './dungeonZones'
 interface Props {
   config: ArenaConfig
   onExit: () => void
-  /** 一局結束（陣亡或過關）時觸發一次，讓外層把這局戰果寫回持久化的英雄等級。 */
-  onRunEnd?: (won: boolean, floorsCleared: number) => void
+  /** 一局結束（陣亡或過關）時觸發一次，讓外層把這局戰果寫回持久化的英雄等級/金幣。 */
+  onRunEnd?: (won: boolean, floorsCleared: number, goldEarned: number) => void
 }
 
 const INITIAL_HUD: ArenaHudState = {
@@ -62,12 +62,12 @@ export default function ArenaScreen({ config, onExit, onRunEnd }: Props) {
     if (runEndFiredRef.current) return
     if (hud.runComplete) {
       runEndFiredRef.current = true
-      onRunEnd?.(true, hud.zoneCount)
+      onRunEnd?.(true, hud.zoneCount, hud.bonusGold)
     } else if (hud.gameOver) {
       runEndFiredRef.current = true
-      onRunEnd?.(false, Math.max(0, hud.zoneIndex - 1))
+      onRunEnd?.(false, Math.max(0, hud.zoneIndex - 1), hud.bonusGold)
     }
-  }, [hud.runComplete, hud.gameOver, hud.zoneCount, hud.zoneIndex, onRunEnd])
+  }, [hud.runComplete, hud.gameOver, hud.zoneCount, hud.zoneIndex, hud.bonusGold, onRunEnd])
 
   const handleCardChosen = (card: ArenaCard) => {
     gameRef.current?.applyCard(card)

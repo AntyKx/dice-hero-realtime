@@ -1321,7 +1321,10 @@ export default function App() {
           moveSpeed: 260,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
-        onRunEnd={(won, floorsCleared) => awardRunExp(hero.id, won, floorsCleared)}
+        onRunEnd={(won, floorsCleared, goldEarned) => {
+          awardRunExp(hero.id, won, floorsCleared)
+          if (goldEarned > 0) updateMeta(m => ({ ...m, gold: m.gold + goldEarned }))
+        }}
       />
     )
   }

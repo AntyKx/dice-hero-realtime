@@ -368,10 +368,18 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
 - ⬜ 裝備加成接進 arena 戰鬥數值：`computeEquipBonus()` 的輸出折算進
   `ArenaConfig`（跟英雄等級那條走同一個折算點）
 - ⬜ arena 的裝備掉落來源：Boss/隱藏關觸發，目前隱藏關只會給金幣
-- ⬜ 金幣：`meta.gold`（新欄位）+ 關卡結算把 `bonusGold` 寫回去（目前只是
-  本局內顯示，沒有persist）
-- ⬜ 天賦點數 + 花點數解鎖：新貨幣、`HERO_TALENT_TREES`/`selectedTalents`
-  資料結構沿用，「選擇」動作前面加一道花費檢查
+- ✅ **金幣持久化**：`MetaState` 新增 `gold: number`（`defaultMeta()` 預設0，
+  跟 `stardust` 分開，定位是通用貨幣）。`ArenaScreen` 的 `onRunEnd` 多帶一個
+  `goldEarned` 參數（就是 `hud.bonusGold`），`App.tsx` 收到後
+  `updateMeta(m => ({...m, gold: m.gold+goldEarned}))`，跟英雄等級走同一次
+  結算時機。主選單「英雄 & 裝備」按鈕上加了 💰 金幣 徽章（跟原本的 ⭐星塵
+  徽章並排）。目前金幣只有「賺」沒有「花」——花費端（商店/重鑄/直接買等級）
+  還沒做，屬於之後的事
+- ⬜ 天賦樹重做（2026-08-07 決定）：捨棄舊的「單一大節點、每階選一個效果」
+  結構，改成類似 POE 的天賦樹——大量小節點（+力量/+HP/+魔力這種單一小
+  數值加成），沿路隔幾個小節點會有一個「由角色等級控制」的職業專屬技能
+  節點可以解鎖。小節點/技能節點都要花天賦點數才能點亮，不是免費。這是
+  全新的資料結構，不是沿用 `HERO_TALENT_TREES`，設計細節待補
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 

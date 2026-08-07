@@ -20,6 +20,7 @@ function defaultHeroProgressMap(): Record<string, HeroProgress> {
 
 export function defaultMeta(): MetaState {
   return {
+    gold: 0,
     stardust: 0,
     totalRuns: 0,
     totalWins: 0,

@@ -147,7 +147,10 @@ export default function MainMenuScreen({
               <div className="mm-btn-title">英雄 &amp; 裝備</div>
               <div className="mm-btn-sub">管理裝備配置，強化你的英雄</div>
             </div>
-            <span className="mm-stardust-badge">⭐ {meta.stardust}</span>
+            <div className="mm-badge-group">
+              <span className="mm-gold-badge">💰 {meta.gold}</span>
+              <span className="mm-stardust-badge">⭐ {meta.stardust}</span>
+            </div>
           </button>
         )}
 

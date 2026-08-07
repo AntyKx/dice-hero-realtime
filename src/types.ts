@@ -738,6 +738,7 @@ export interface WorldCupState {
 }
 
 export type MetaState = {
+  gold: number       // 通用貨幣：商店/裝備重鑄強化/直接買等級花費，跟 stardust（裝備強化材料）分開
   stardust: number
   totalRuns: number
   totalWins: number
