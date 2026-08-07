@@ -5,7 +5,7 @@
 export const FEATURE_FLAGS = {
   equipment: true,
   talents: true,
-  dungeons: false,
+  dungeons: true,
   leaderboard: false,
   potionsAndCurses: false,
   // 回合制主線（地圖/戰鬥/獎勵）已被 arena_run 取代——新開局一律進即時戰鬥，

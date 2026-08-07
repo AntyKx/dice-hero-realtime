@@ -410,6 +410,13 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
     新節點鏈 UI，重用同一批 `tvm-*` CSS class）。順便清掉了只剩這裡在用、
     現在完全沒有呼叫點的 `passiveLabel()`（58 行的舊技能被動文案對照表）
     跟 `TalentPassiveId` import
+- ✅ **地城副本入口拉回來**：`FEATURE_FLAGS.dungeons` 打開（唯一改動）。
+  跟裝備/天賦不一樣的地方——副本從轉向開始就沒被動過，`handleAdventureStart`
+  對 `campaign==='dungeon'` 原本就完整呼叫 `startDungeon()`→建立回合制
+  `RunState`/15層節點地圖→`dungeon_map`→舊 `BattleScreen`（沒被刪，全程
+  留著沒動），只是 UI 入口（`AdventureReadyScreen` 的主線/副本分頁切換）
+  被 FEATURE_FLAGS 擋住而已，這次單純開閘，沒有任何相容性/折算工作要做，
+  跟 arena 引擎完全獨立的兩套系統
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
