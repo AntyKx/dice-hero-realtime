@@ -15,69 +15,10 @@ import {
   getAffixTier, rerollCostWithLocks,
 } from '../equipment'
 import {
-  HERO_TALENT_TREES, computeTalentBonus, getExpForLevel,
+  getExpForLevel,
   defaultHeroProgress, STAR_CONDITIONS, getHeroStarTitle, HERO_STAR_PASSIVES,
 } from '../talents'
-import type { TalentPassiveId } from '../types'
-
-function passiveLabel(id: TalentPassiveId, v: number, v2?: number): string {
-  const map: Partial<Record<TalentPassiveId, string>> = {
-    regen:                 `每回合回復 ${v} HP`,
-    shield_per_turn:       `每回合護盾 +${v}`,
-    burn_per_turn:         `每回合敵人燃燒 +${v}`,
-    heal_shield:           `治療時獲得護盾（上限 ${v}）`,
-    skill_shield:          `技能觸發護盾 +${v}`,
-    heal_atk_bonus:        `治療超過 ${v2} 時下次攻擊 +${v}`,
-    proc_freeze:           `${v}% 機率凍結`,
-    shield_on_combo:       `Rank≥${v2} 額外護盾 +${v}`,
-    shield_to_dmg:         `護盾值 ${v}% 追加傷害`,
-    burn_on_high_combo:    `Rank≥${v2} 額外 +${v} 層燃燒`,
-    burn_explosion:        `引爆 ${v}% 燃燒層數`,
-    heal_pct_bonus:        `治療量 +${v}%`,
-    six_heal:              `每顆 6 治療 +${v}`,
-    overflow_shield:       `溢出治療 ${v}% 轉護盾（上限 ${v2}）`,
-    proc_double_strike:    `${v}% 機率追加 ${v2}% 傷害`,
-    enhanced_proc_debuff:  `中毒/破甲時追加機率提至 ${v}%`,
-    taunt_on_combo:        `Rank≥${v2} 使敵人攻擊 -${v}%`,
-    freeze_burst:          `凍結時傷害 +${v}%`,
-    unique_dice_dmg:       `骰子種類每多 1 種傷害 +${v}`,
-    full_unique_bonus:     `5 種全不同追加 ${v}% 傷害`,
-    no_reroll_bonus:       `未重骰傷害 +${v}%`,
-    armor_break_on_combo:  `Rank≥${v2} 破甲 ${v}`,
-    shield_on_armor_break: `破甲時護盾 +${v}`,
-    armor_break_dmg_bonus: `破甲敵人傷害 +${v}%`,
-    ranked_heal:           `Rank≥${v2} 治療 +${v}`,
-    consecutive_combo_bonus:`連續高Rank第二回合傷害 +${v}%`,
-    wolf_summon:           `攻擊後 ${v}% 機率召喚狼（${v2} 傷）`,
-    wolf_summon_on_combo:  `Rank≥3 必定召喚狼`,
-    wolf_super_strike:     `每 3 次召喚狼攻擊 ×${v2 ?? 1.8}`,
-    star_reroll_charge:    `重骰蓄能（上限 ${v} 層，每層 +${v2} 傷）`,
-    star_reroll_charge_max:`蓄能上限 ${v} 層（每層 +${v2} 傷）`,
-    star_overclock_cannon: `蓄能滿時追加 ${v}% 砲擊`,
-    heal_dmg:              `治療時，敵人受到 ${v}% 治療量的傷害`,
-    tank_stack:            `受傷後下次攻擊 +${v}（疊加）`,
-    attack_atk_stack:      `攻擊後 ATK 永久 +${v}（疊加）`,
-    six_dmg_stack:         `每顆 6，下次攻擊 +${v}（疊加）`,
-    unique_atk_stack:      `5 種點數出手後，下次攻擊 +${v}（疊加）`,
-    reroll_min_boost:      `重骰骰子最低值 +1（上限 +${v}）`,
-    proc_freeze_chance:    `Rank≥${v2} 時 ${v}% 機率凍結`,
-    freeze_per_turn:       `每回合造成冰痕層數 ×${v} 傷害`,
-    shield_to_dmg_talent:  `攻擊時，追加護盾值 ${v}% 的傷害`,
-    armor_break_on_attack: `攻擊時破甲 -${v}（疊加）`,
-    no_reroll_talent:      `本回合未重骰時，傷害 +${v}%`,
-    gear_heat_control:     `過熱懲罰降低 ${v}；過熱 ≥3 層時獲得護盾`,
-    gear_blueprint_cooling:`每回合第一次重骰不增加過熱；攻擊後過熱 ≥3 層獲得護盾`,
-    shadow_assassinate_poisoned: `攻擊中毒敵人時，追加 ${v} 暗影傷害`,
-    shadow_evasion_mark:   `兩對以上時獲得暗影印記 +${v} 層（上限 3，下次追擊傷害 +10%/層）`,
-    shadow_execute:        `敵方 HP 低於 ${v}% 時，追加 ${v}% 處決傷害`,
-    shadow_poison_bonus:   `攻擊中毒敵人時，額外 +${v} 層中毒`,
-    shadow_chain_execute:  `擊敗敵人後，下次攻擊必定觸發暗影追擊`,
-    chain_armor_break:     `連續技觸發時，額外破甲 +${v}`,
-    fist_power_flat_dmg:   `拳勢每層額外 +${v} 傷害`,
-    munsou_enhance:        `無雙架式連段效果 +${v}%；結束後保留拳勢`,
-  }
-  return map[id] ?? id
-}
+import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, type ArenaTalentNode } from '../arena/arenaTalents'
 
 interface Props {
   meta: MetaState
@@ -415,29 +356,36 @@ function ItemDetail({
 }
 
 function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaState; onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void }) {
-  const tree = HERO_TALENT_TREES[heroId]
   const hero = HEROES.find(h => h.id === heroId)
   const progress = meta.heroProgress[heroId] ?? defaultHeroProgress()
-  const talBonus = computeTalentBonus(heroId, progress)
+  const tree = generateHeroTalentTree(heroId)
+  const talBonus = computeArenaTalentBonus(heroId, progress.allocatedTalentIds)
   const expNeeded = progress.level < 100 ? getExpForLevel(progress.level) : 0
   const expPct = expNeeded > 0 ? Math.round((progress.exp / expNeeded) * 100) : 100
+  const [pendingNode, setPendingNode] = useState<ArenaTalentNode | null>(null)
 
-  if (!tree || !hero) return <div className="talent-empty">此英雄尚無天賦樹</div>
+  if (!hero) return <div className="talent-empty">此英雄尚無天賦樹</div>
 
-  function selectTalent(level: number, id: string) {
-    onMetaUpdate(m => ({
-      ...m,
-      heroProgress: {
-        ...m.heroProgress,
-        [heroId]: {
-          ...(m.heroProgress[heroId] ?? defaultHeroProgress()),
-          selectedTalents: {
-            ...(m.heroProgress[heroId]?.selectedTalents ?? {}),
-            [level]: id,
+  const allocated = progress.allocatedTalentIds ?? []
+
+  function confirmAllocate(node: ArenaTalentNode) {
+    onMetaUpdate(m => {
+      const cur = m.heroProgress[heroId] ?? defaultHeroProgress()
+      if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < 1) return m
+      if (!isTalentNodeAvailable(tree, node, cur.allocatedTalentIds, cur.level)) return m
+      return {
+        ...m,
+        heroProgress: {
+          ...m.heroProgress,
+          [heroId]: {
+            ...cur,
+            talentPoints: cur.talentPoints - 1,
+            allocatedTalentIds: [...cur.allocatedTalentIds, node.id],
           },
         },
-      },
-    }))
+      }
+    })
+    setPendingNode(null)
   }
 
   const heroSprite = getHeroSprite(hero, progress.stars)
@@ -486,75 +434,47 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
         ))}
       </div>
 
-      {/* Talent nodes */}
-      <div className="talent-nodes">
-        {tree.nodes.map(node => {
-          const unlocked = progress.level >= node.level
-          const selected = progress.selectedTalents[node.level]
+      {/* 天賦點數 */}
+      <div className="tvm-points-badge">🔷 剩餘天賦點數：{progress.talentPoints}</div>
+
+      {/* 天賦節點（2026-08 重做：花點數點亮，沿路一個由等級控制的職業技能） */}
+      <div className="talent-nodes tvm-tree">
+        {tree.map((node, i) => {
+          const isAllocated = allocated.includes(node.id)
+          const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, progress.level)
+          const isKeystone = node.kind === 'keystone'
           return (
-            <div key={node.level} className={`talent-node ${unlocked ? 'unlocked' : 'locked'}`}>
-              <div className="tn-level-badge">Lv {node.level}</div>
-              {unlocked ? (
-                <div className="tn-choices">
-                  {node.choices.map(choice => (
-                    <button
-                      key={choice.id}
-                      className={`tn-choice ${selected === choice.id ? 'selected' : ''}`}
-                      onClick={() => selectTalent(node.level, choice.id)}
-                    >
-                      <div className="tnc-name">{choice.name}</div>
-                      <div className="tnc-desc">{choice.desc}</div>
-                      {progress.stars > 0 && selected === choice.id && (
-                        <div className="tnc-stars">★{progress.stars} 加成 ×{[1.0,1.3,1.6,2.0][progress.stars].toFixed(1)}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="tn-locked-msg">需要 Lv {node.level} 解鎖</div>
-              )}
+            <div key={node.id} className="tvm-node-row">
+              {i > 0 && <div className={`tvm-node-connector${isAllocated ? ' lit' : ''}`} />}
+              <button
+                className={`tvm-node${isKeystone ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
+                onClick={() => (isAvailable ? setPendingNode(node) : undefined)}
+                disabled={!isAvailable}
+              >
+                <div className="tvm-node-name">{isKeystone ? '⭐ ' : ''}{node.name}</div>
+                <div className="tvm-node-desc">{node.desc}</div>
+                {isKeystone && node.requiredLevel && progress.level < node.requiredLevel && (
+                  <div className="tvm-node-lockhint">需角色等級 {node.requiredLevel}</div>
+                )}
+              </button>
             </div>
           )
         })}
       </div>
 
-      {/* Awakening */}
-      <div className={`talent-awakening ${progress.stars >= 3 ? 'active' : 'inactive'}`}>
-        <div className="ta-title">★★★ 覺醒：{tree.awakening.name}</div>
-        <div className="ta-desc">{tree.awakening.desc}</div>
-        {progress.stars < 3 && <div className="ta-locked">需要 ★3 覺醒</div>}
-      </div>
+      {pendingNode && (
+        <div className="tvm-confirm">
+          <div className="tvm-confirm-text">花費 1 點天賦點數點亮「{pendingNode.name}」？</div>
+          <div className="tvm-confirm-btns">
+            <button className="ghost" onClick={() => setPendingNode(null)}>取消</button>
+            <button className="primary" onClick={() => confirmAllocate(pendingNode)}>確認</button>
+          </div>
+        </div>
+      )}
 
       {/* Active abilities summary */}
       <div className="talent-summary">
         <div className="ts-title">✦ 已啟動能力</div>
-
-        {/* Selected talent nodes */}
-        {tree.nodes.map(node => {
-          if (progress.level < node.level) return null
-          const choice = node.choices.find(c => c.id === progress.selectedTalents[node.level])
-          if (!choice) return null
-          return (
-            <div key={node.level} className="ts-ability-row">
-              <div className="ts-ar-source">Lv{node.level}</div>
-              <div className="ts-ar-body">
-                <span className="ts-ar-name">{choice.name}</span>
-                <span className="ts-ar-desc">{choice.desc}</span>
-              </div>
-            </div>
-          )
-        })}
-
-        {/* Awakening */}
-        {progress.stars >= 3 && (
-          <div className="ts-ability-row ts-ar-awaken">
-            <div className="ts-ar-source">覺醒</div>
-            <div className="ts-ar-body">
-              <span className="ts-ar-name">{tree.awakening.name}</span>
-              <span className="ts-ar-desc">{tree.awakening.desc}</span>
-            </div>
-          </div>
-        )}
 
         {/* Star abilities */}
         {progress.stars > 0 && (
@@ -573,25 +493,17 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
         )}
 
         {/* Numeric totals */}
-        {(talBonus.flatDamage > 0 || talBonus.damagePerRank > 0 || talBonus.hpBonus > 0 || talBonus.defBonus > 0 ||
-          talBonus.startShield > 0 || talBonus.rerollBonus > 0 || talBonus.healBonus > 0 ||
-          talBonus.burnOnAttack > 0 || talBonus.startEnemyBurn > 0 || talBonus.rankedDamages.length > 0 ||
-          talBonus.passives.length > 0 || talBonus.skillOverrideId) && (
+        {(talBonus.flatDamage > 0 || talBonus.hpBonus > 0 || talBonus.moveSpeedMult > 1 ||
+          talBonus.pickupRangeMult > 1 || talBonus.atkCooldownMult < 1 || talBonus.keystoneUnlocked) && (
           <>
             <div className="ts-section-divider">— 數值總覽 —</div>
             <div className="ts-stats">
+              {talBonus.flatDamage > 0 && <span>攻擊力 +{talBonus.flatDamage}</span>}
               {talBonus.hpBonus > 0 && <span>HP +{talBonus.hpBonus}</span>}
-              {talBonus.defBonus > 0 && <span>防禦 +{talBonus.defBonus}</span>}
-              {talBonus.flatDamage > 0 && <span>傷害 +{talBonus.flatDamage}</span>}
-              {talBonus.damagePerRank > 0 && <span>每Rank +{talBonus.damagePerRank}</span>}
-              {talBonus.startShield > 0 && <span>開戰護盾 +{talBonus.startShield}</span>}
-              {talBonus.rerollBonus > 0 && <span>重骰 +{talBonus.rerollBonus}</span>}
-              {talBonus.healBonus > 0 && <span>治療 +{talBonus.healBonus}</span>}
-              {talBonus.burnOnAttack > 0 && <span>攻擊 +{talBonus.burnOnAttack} 燃燒</span>}
-              {talBonus.startEnemyBurn > 0 && <span>開戰敵人 +{talBonus.startEnemyBurn} 燃燒</span>}
-              {talBonus.rankedDamages.map((rd, i) => <span key={i}>Rank≥{rd.minRank} +{rd.value} 傷害</span>)}
-              {talBonus.passives.map((p, i) => <span key={i}>{passiveLabel(p.id, p.value, p.value2)}</span>)}
-              {talBonus.skillOverrideId && <span>技能已替換</span>}
+              {talBonus.moveSpeedMult > 1 && <span>移速 +{Math.round((talBonus.moveSpeedMult - 1) * 100)}%</span>}
+              {talBonus.pickupRangeMult > 1 && <span>拾取範圍 +{Math.round((talBonus.pickupRangeMult - 1) * 100)}%</span>}
+              {talBonus.atkCooldownMult < 1 && <span>攻速 +{Math.round((1 - talBonus.atkCooldownMult) * 100)}%</span>}
+              {talBonus.keystoneUnlocked && <span>職業技能已解鎖</span>}
             </div>
           </>
         )}

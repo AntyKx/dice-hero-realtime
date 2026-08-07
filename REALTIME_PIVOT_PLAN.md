@@ -404,6 +404,12 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
     (擊殺疊氣勢→下次攻擊200%)
   - 未做：新美術/施法動畫（純數值判定+沿用既有 `spawnGlowBurst`/
     `spawnFloatingText` 做回饋，跟 §6.1 決定的方向一致，等美術到位再接）
+  - ✅ **`EquipmentScreen.tsx` 的「天賦 & 成長」分頁同步**：這裡原本是另一份
+    完整的舊系統天賦 UI（等級/經驗條+星等條件是共用邏輯保留，節點選擇/
+    覺醒/數值總覽都是舊系統專屬，整段換成跟 `AdventureReadyScreen` 同一套
+    新節點鏈 UI，重用同一批 `tvm-*` CSS class）。順便清掉了只剩這裡在用、
+    現在完全沒有呼叫點的 `passiveLabel()`（58 行的舊技能被動文案對照表）
+    跟 `TalentPassiveId` import
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 
