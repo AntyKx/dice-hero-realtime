@@ -928,9 +928,14 @@ h1, h2, h3, p { margin: 0; }
 .tvm-node-desc { font-size:0.72rem; color:#99b4cc; line-height:1.35; }
 .tvm-node-lockhint { font-size:0.68rem; color:#ff8a3c; font-weight:600; }
 
+/* position:fixed，不跟著節點清單捲動——原本是排在清單最後面的一般排版
+   元素，點清單前段的節點時，這個確認框會落在畫面外要往下捲一大段才點得到 */
 .tvm-confirm {
-  background:rgba(255,255,255,.04); border:1px solid rgba(96,144,255,.35); border-radius:10px;
+  position:fixed; left:50%; bottom:max(18px, env(safe-area-inset-bottom));
+  transform:translateX(-50%); width:min(92vw, 480px); z-index:3100;
+  background:#0e1a36; border:1px solid rgba(96,144,255,.5); border-radius:10px;
   padding:10px 12px; display:flex; flex-direction:column; gap:8px;
+  box-shadow:0 4px 24px rgba(0,0,0,.5);
 }
 .tvm-confirm-text { font-size:0.8rem; color:#e8f0ff; }
 .tvm-confirm-btns { display:flex; gap:8px; justify-content:flex-end; }
