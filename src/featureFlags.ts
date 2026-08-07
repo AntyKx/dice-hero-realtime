@@ -3,7 +3,7 @@
  * 之後要接回即時戰鬥時把對應項目打開即可。見 REALTIME_PIVOT_PLAN.md §4。
  */
 export const FEATURE_FLAGS = {
-  equipment: false,
+  equipment: true,
   talents: false,
   dungeons: false,
   leaderboard: false,

@@ -355,10 +355,21 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   `selectedTalents` 是空的，不會多算到天賦效果）疊進 `ArenaConfig` 的
   `maxHp`/`atkDamage`，等級持久化第一次有實際效果。`AdventureReadyScreen`
   英雄選擇格子本來就會讀 `heroProgress.level/stars`，不用另外加 UI
+- ✅ **英雄介面（裝備/數值檢視）拉回來**：`FEATURE_FLAGS.equipment` 打開
+  （唯一改動）。恢復的是主選單「英雄 & 裝備」入口（進 `EquipmentScreen`
+  管理裝備）+ 英雄立繪 Modal 的「查看裝備」按鈕（`AdventureReadyScreen`
+  裡的 `eqBonus`/`computeEquipBonus()` 本來就沒被 FEATURE_FLAGS 擋，一直
+  在算，只是深入的逐件檢視入口被藏起來）。確認過 `FEATURE_FLAGS.equipment`
+  唯一另外的作用點（`App.tsx` 的 `transitionWithDrop`）只有回合制舊主線
+  battle流程會呼叫，`turnBasedMainline` 還是關的，不會被意外觸發，安全
+  ⚠️ **只是恢復「看得到/能管理」**，裝備加成還沒折算進 `ArenaConfig`
+  （下一項），現在 arena 也還沒有新的裝備掉落來源，能看到的只有轉向前
+  舊存檔留下的裝備
+- ⬜ 裝備加成接進 arena 戰鬥數值：`computeEquipBonus()` 的輸出折算進
+  `ArenaConfig`（跟英雄等級那條走同一個折算點）
+- ⬜ arena 的裝備掉落來源：Boss/隱藏關觸發，目前隱藏關只會給金幣
 - ⬜ 金幣：`meta.gold`（新欄位）+ 關卡結算把 `bonusGold` 寫回去（目前只是
   本局內顯示，沒有persist）
-- ⬜ 裝備：幫 arena 寫一個掉落來源（Boss/隱藏關觸發），`computeEquipBonus()`
-  的輸出要另外寫轉接層折算進 `ArenaConfig`
 - ⬜ 天賦點數 + 花點數解鎖：新貨幣、`HERO_TALENT_TREES`/`selectedTalents`
   資料結構沿用，「選擇」動作前面加一道花費檢查
 - 打擊感（頓幀/震屏/粒子）
