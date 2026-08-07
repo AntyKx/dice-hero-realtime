@@ -238,6 +238,32 @@ idle 幀 + 位移做「無行走動畫」的簡化版驗證玩法，確定好玩
     驗證了 spawn 邏輯照公式在跑，但「中階手機維持流暢」這件事本身還是要
     使用者在真正前景的裝置上測
 
+### M3.5 — 部署修復與準備畫面收尾（2026-08-07）
+
+上一輪 M3 做完「接進正式冒險流程」後中斷，這輪先把發現的問題收尾：
+
+- ✅ `AdventureReadyScreen.tsx`：篇章/路線/命運等級這幾個回合制主線專屬
+  選項，對即時制內容沒有實質效果卻還顯示著，改成用
+  `FEATURE_FLAGS.turnBasedMainline`（新增，預設 `false`）整組隱藏，換成
+  一段「即時戰鬥」玩法說明文字。邏輯與畫面保留，只有「繼續冒險」讀到
+  轉向前的舊存檔時才會用到（v1.29.2）
+- 🐛 **重大發現：部署管線一直沒有真正更新正式站**——這個 Cloudflare Pages
+  專案的 Production 分支是歷史命名的 `DiceHeroRpg`，不是本機 git 的
+  `master`。CLAUDE.md 原本記載的部署指令沒帶 `--branch`，wrangler 用本機
+  git 分支推斷，落地變成 Preview，`https://diceherorpg.pages.dev`
+  （玩家 PWA 實際使用的網址）整整一個月沒更新，玩家看到的其實還是轉向
+  前的回合制舊版本。已修正指令為
+  `npx wrangler pages deploy dist --project-name diceherorpg --branch=DiceHeroRpg`
+  並寫回 CLAUDE.md，之後每次部署都要確認
+  `wrangler pages deployment list` 最上面那筆的 `Environment` 是
+  `Production`
+- 🐛 **修好部署管線後的連帶問題**：正式站補上一個月份的更新後，玩家端
+  `/assets/` 的 sprite 圖走 `StaleWhileRevalidate`
+  （`cacheName: 'game-assets-v2'`），會先秀出裝置上累積的舊快取圖，
+  背景才更新，導致「畫面邏輯是新的即時戰鬥，但角色/怪物圖片是舊的」。
+  把 cacheName 升到 `game-assets-v3` 強制所有裝置視為全新快取重新抓圖
+  （v1.29.3）
+
 ### M4 — 變現（1 週）
 - Capacitor 包裝（Android/iOS）
 - 廣告復活：`@capacitor-community/admob` Rewarded Ad，死亡時觸發，每局限 1～2 次
