@@ -417,6 +417,14 @@ ultimate（必殺技）這幾組新狀態的序列幀，用量抓多一點讓動
   留著沒動），只是 UI 入口（`AdventureReadyScreen` 的主線/副本分頁切換）
   被 FEATURE_FLAGS 擋住而已，這次單純開閘，沒有任何相容性/折算工作要做，
   跟 arena 引擎完全獨立的兩套系統
+- 🔸 **主線的回合制入口——決定維持關閉**：一度考慮要不要也比照副本開閘，
+  討論後使用者明確決定「全部都改成即時制，之後不會有回合制玩法，但也
+  先不要刪除程式碼」——`arena_run` 是主線唯一玩法，不會再有選單讓玩家
+  選回合制。技術上把路接通了但沒打開：`App.tsx` 新增 `startMainCampaign()`
+  （比照 `startDungeon()` 的寫法，呼叫本來就沒被刪、只是沒人呼叫的
+  `createRun()`/`generateMap()`），`handleAdventureStart` 多一個
+  `if (FEATURE_FLAGS.turnBasedMainline)` 分支會呼叫它，但這個 flag
+  維持 `false`，所以現狀完全沒變，只是萬一以後真的要開，入口已經接好了
 - 打擊感（頓幀/震屏/粒子）
 - 平衡數據紀錄（沿用 Cloudflare Functions，卡片選取率/死亡波次）
 

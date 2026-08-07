@@ -371,10 +371,27 @@ export default function App() {
       startDungeon(config.dungeonId, config.heroId, config.difficulty)
       return
     }
+    // 主線拉回來（2026-08-07）：FEATURE_FLAGS.turnBasedMainline 開的時候，
+    // 主線走回原本的回合制 map/battle 流程，不是 arena_run。這條路徑跟
+    // startDungeon 一樣，底層 createRun/generateMap/MapScreen/BattleScreen
+    // 全部沒被轉向動過，只是入口曾經被跳過。
+    if (FEATURE_FLAGS.turnBasedMainline) {
+      startMainCampaign(config.heroId, config.routeType, config.campaign)
+      return
+    }
     // 即時制轉向：主線一律進 arena_run，不用 RunState/map/battle 那套回合制流程。
     // 篇章/路線選擇目前對即時制內容沒有實質影響（內容還沒依篇章分化），先忽略，
     // 只留 AdventureReadyScreen 的英雄選擇這部分。見 REALTIME_PIVOT_PLAN.md M3。
     setPhase({ type: 'arena_run', heroId: config.heroId })
+  }
+
+  const startMainCampaign = (heroId: string, routeType: RouteType, campaign: 'main' | 'rift_omen' | 'deep_sea' | 'ash_kingdom') => {
+    const equip = getActiveEquipment(heroId)
+    const eqBonus = computeEquipBonus(equip)
+    const talentBon = getActiveTalentBonus(heroId)
+    const hpBonus = eqBonus.hpBonus + talentBon.hpBonus
+    setRun(createRun(heroId, hpBonus, routeType, campaign))
+    setPhase({ type: 'map' })
   }
 
   // kept for compatibility — only used internally now
