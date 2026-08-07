@@ -133,7 +133,7 @@ export class ArenaGame {
   private enemyTextures: Record<string, Texture> = {}
 
   private player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0 }
-  private moveDir = { x: 0, y: 0 } // -1/0/1 各軸，8方向搖桿輸入，取代舊的拖曳移動
+  private moveDir = { x: 0, y: 0 } // -1~1 連續值，類比搖桿輸入，取代舊的拖曳移動
   private facing = { x: 0, y: 1 }  // 最後移動方向，先只記錄，鋪路給之後的方向性走路動畫
 
   private enemies: EnemyInstance[] = []
@@ -474,8 +474,8 @@ export class ArenaGame {
     }
   }
 
-  /** 8方向搖桿輸入（每軸 -1/0/1），取代舊的拖曳移動。由 React 端的方向鍵呼叫。 */
-  setMoveDir(dx: -1 | 0 | 1, dy: -1 | 0 | 1): void {
+  /** 類比搖桿輸入（-1~1 連續值，非固定8方向），取代舊的拖曳移動。由 React 端的虛擬搖桿呼叫。 */
+  setMoveDir(dx: number, dy: number): void {
     this.moveDir = { x: dx, y: dy }
   }
 

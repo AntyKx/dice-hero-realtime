@@ -4234,33 +4234,8 @@ h1, h2, h3, p { margin: 0; }
 .arena-hud-top {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-}
-
-.arena-hp-bar {
-  position: relative;
-  flex: 1;
-  height: 20px;
-  border-radius: 10px;
-  background: rgba(10, 16, 30, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  overflow: hidden;
-}
-.arena-hp-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #ff5a5a, #ff8a3c);
-  transition: width 0.15s ease-out;
-}
-.arena-hp-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .arena-timer {
@@ -4292,12 +4267,6 @@ h1, h2, h3, p { margin: 0; }
   height: 100%;
   background: linear-gradient(90deg, #4ade80, #7ae0ff);
   transition: width 0.15s ease-out;
-}
-
-.arena-level {
-  font-size: 12px;
-  font-weight: 700;
-  color: #7ae0ff;
 }
 
 .arena-fps {
@@ -4433,37 +4402,42 @@ h1, h2, h3, p { margin: 0; }
   padding: 3px 12px;
 }
 
-/* ── 8方向搖桿（M3.6）：取代拖曳移動，釘在左下拇指範圍 ── */
+/* ── 類比搖桿（M3.6 v2）：單指拖曳，圓形底座+中央搖桿鈕，取代拖曳移動 ── */
 .arena-dpad {
   pointer-events: auto;
   position: absolute;
   left: max(18px, env(safe-area-inset-left));
   bottom: max(18px, env(safe-area-inset-bottom));
-  width: 132px;
-  height: 132px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 4px;
-}
-.arena-dpad-btn {
-  background: rgba(10, 16, 30, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  color: #eef4ff;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: rgba(10, 16, 30, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.25);
   touch-action: none;
   user-select: none;
 }
-.arena-dpad-btn:active { background: rgba(109, 184, 255, 0.35); }
-.arena-dpad-up    { grid-column: 2; grid-row: 1; }
-.arena-dpad-left  { grid-column: 1; grid-row: 2; }
-.arena-dpad-right { grid-column: 3; grid-row: 2; }
-.arena-dpad-down  { grid-column: 2; grid-row: 3; }
+.arena-dpad-arrow {
+  position: absolute;
+  color: rgba(238, 244, 255, 0.55);
+  font-size: 13px;
+  pointer-events: none;
+}
+.arena-dpad-arrow-up    { top: 6px; left: 50%; transform: translateX(-50%); }
+.arena-dpad-arrow-down  { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.arena-dpad-arrow-left  { left: 6px; top: 50%; transform: translateY(-50%); }
+.arena-dpad-arrow-right { right: 6px; top: 50%; transform: translateY(-50%); }
+.arena-dpad-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: rgba(109, 184, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
 
 /* ── 右下：頭像+HP+必殺技能量條（M3.6） ── */
 .arena-ultimate-cluster {
@@ -4484,6 +4458,10 @@ h1, h2, h3, p { margin: 0; }
   border-radius: 12px;
   padding: 6px 10px 6px 6px;
 }
+.arena-portrait-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
 .arena-portrait {
   width: 40px;
   height: 40px;
@@ -4491,6 +4469,20 @@ h1, h2, h3, p { margin: 0; }
   object-fit: cover;
   background: #1a2740;
   border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.arena-level-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  background: #1a2740;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #7ae0ff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 6px;
+  padding: 2px 4px;
+  white-space: nowrap;
 }
 .arena-ultimate-bars {
   display: flex;
