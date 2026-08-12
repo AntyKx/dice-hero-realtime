@@ -20,6 +20,20 @@ export default defineConfig({
         __APP_VERSION__: JSON.stringify(APP_VERSION),
     },
     build: {
+        // 真正的 bug 根源（2026-08-11 找到）：Vite 預設 build.assetsDir 也叫
+        // 'assets'，跟 public/assets/ 撞名，兩邊的檔案在 dist/assets/ 底下混在
+        // 一起。vite-plugin-pwa 生成 precache manifest 時，會把 dist/assets/
+        // 底下的檔案當成「Vite 自己雜湊過檔名、URL 本身就會變」而給
+        // revision:null（JS/CSS chunk 檔名本來就有 hash，這樣做沒問題）——但
+        // public/assets/ 底下的圖檔是原始檔名複製過去的，並沒有雜湊，
+        // revision:null 等於「這個 URL 永遠不會被判定成有更新」，導致本次工作
+        // 階段好幾次角色圖／地圖圖更新後，玩家瀏覽器的 SW precache 永遠卡在第
+        // 一次快取到的舊圖，version.json/game-assets-vN 版號怎麼跳都沒用（那些
+        // 版號機制管的是另一個 runtime cache，precache 這層根本沒被那些機制
+        // 動到）。把 Vite 自己的雜湊輸出目錄改名避開撞名，dist/assets/ 底下就
+        // 只剩 public/assets/ 複製過去的檔案，vite-plugin-pwa 才會正確算出
+        // 內容雜湊當 revision，之後圖檔內容一變 precache 就會正確跟著更新。
+        assetsDir: '_build',
         rollupOptions: {
             output: {
                 manualChunks: {
@@ -82,7 +96,7 @@ export default defineConfig({
                         urlPattern: /\/assets\//,
                         handler: 'StaleWhileRevalidate',
                         options: {
-                            cacheName: 'game-assets-v4',
+                            cacheName: 'game-assets-v16',
                             expiration: {
                                 maxEntries: 200,
                                 maxAgeSeconds: 60 * 60 * 24 * 7,

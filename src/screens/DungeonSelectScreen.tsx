@@ -205,6 +205,8 @@ export default function DungeonSelectScreen({ meta, preSelectedId, onEnterDungeo
                   const stars = prog?.stars ?? 0
                   const eligible = heroCanEnter(selected, hero.id)
                   const sprite = getHeroSprite(hero, stars)
+                  // 高度優先縮放（維持原本大小觀感），.dhm-sprite 格子已加寬，
+                  // 詳見 styles.css 該 class 註解。
                   const scale = 60 / sprite.frameHeight
                   const displayName = stars > 0 ? (getHeroStarTitle(hero.id, stars) ?? hero.name) : hero.name
                   return (

@@ -41,7 +41,7 @@ export function calcRunExp(won: boolean, floorsCleared: number): number {
 export function defaultHeroProgress(): HeroProgress {
   return {
     level: 1, exp: 0, stars: 0, runsCompleted: 0, runsWon: 0, selectedTalents: {},
-    talentPoints: 0, allocatedTalentIds: [],
+    talentPoints: 0, allocatedTalentIds: [], ownedRelicIds: [],
   }
 }
 
@@ -350,7 +350,7 @@ export const HERO_TALENT_TREES: Record<string, HeroTalentTree> = {
             {flatDamage:20},                                '超載輸出', '傷害 +20',
             {rankedDamage:{minRank:5,value:20},rerollBonus:1}, '精密連擊', '四條以上傷害 +20，重骰 +1'),
       n(80, {rerollBonus:1},                                      '極限重骰', '重骰次數 +1',
-            {damagePerRank:5},                                     '齒輪共鳴', '骰型每階 +5 傷害',
+            {damagePerRank:4},                                     '齒輪共鳴', '骰型每階 +4 傷害',
             {passiveId:'gear_heat_control',passiveValue:1},        '熱能校準', '過熱造成的下回合重骰減少效果降低 1；過熱 3 層以上時獲得 10 護盾'),
       n(100, {skillOverrideId:'gear_overdrive'},    '超頻運轉', '技能：重骰全回復，傷害 ×1.5',
              {skillOverrideId:'gear_explosion'},    '機關大爆', '技能：傷害 ×3，本回合不能重骰',

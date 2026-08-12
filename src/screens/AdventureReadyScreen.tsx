@@ -8,7 +8,7 @@ import { getHeroStarTitle, computeTalentBonus, defaultHeroProgress } from '../ta
 import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { Equipment } from '../types'
 import { FEATURE_FLAGS } from '../featureFlags'
-import { generateHeroTalentTree, isTalentNodeAvailable, type ArenaTalentNode } from '../arena/arenaTalents'
+import { generateHeroTalentTree, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -24,9 +24,11 @@ interface Props {
   onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void
   onBack: () => void
   onLeaderboard: () => void
+  /** 森林遺跡固定式主線關卡（2026-08）入口——選好出戰英雄後導向 CampaignMapScreen，跟 onStart（Roguelite/副本）分開。 */
+  onOpenCampaignMap: (heroId: string) => void
 }
 
-type ModeTab = 'main' | 'dungeon'
+type ModeTab = 'main' | 'dungeon' | 'campaign'
 type CampaignPick = 'main' | 'rift_omen' | 'deep_sea' | 'ash_kingdom'
 
 const FATE_DESCS: Record<number, string> = {
@@ -61,7 +63,7 @@ const ROLE_META: Record<string, { icon: string; color: string }> = {
   gear:   { icon: '⚙️',  color: '#90a0b0' },
 }
 
-export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard }: Props) {
+export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard, onOpenCampaignMap }: Props) {
   const [modeTab, setModeTab]           = useState<ModeTab>('main')
   const [campaignPick, setCampaignPick] = useState<CampaignPick>('main')
   const [ashGroupOpen, setAshGroupOpen]         = useState(false)
@@ -108,6 +110,8 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
   const fireStart = (heroId: string) => {
     if (modeTab === 'main') {
       onStart({ campaign: campaignPick, heroId, routeType: selectedRoute })
+    } else if (modeTab === 'campaign') {
+      onOpenCampaignMap(heroId)
     } else if (selectedDungeonId) {
       onStart({ campaign: 'dungeon', heroId, dungeonId: selectedDungeonId, difficulty: selectedDifficulty })
     }
@@ -153,6 +157,10 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
             onClick={() => setModeTab('dungeon')}>
             🏰 地城副本
           </button>
+          <button className={`ar-tab${modeTab === 'campaign' ? ' active' : ''}`}
+            onClick={() => setModeTab('campaign')}>
+            🌲 森林遺跡
+          </button>
         </div>
       )}
 
@@ -167,6 +175,17 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
                 拖曳角色走位閃避怪物，攻擊會自動鎖定最近的敵人。升級與擊敗
                 Boss 時戰鬥會暫停，讓你選擇強化。撐得越久、殺得越多，
                 獎勵越豐厚。
+              </p>
+            </div>
+          )}
+
+          {modeTab === 'campaign' && (
+            <div className="ar-arena-info">
+              <div className="ar-label">🌲 森林遺跡</div>
+              <p className="ar-arena-info-desc">
+                20 關固定式主線關卡，每關都有手工設計的敵人配置、機制與三星
+                挑戰條件，跟左邊的即時戰鬥主線/地城副本是完全獨立的第三種
+                模式。選好出戰英雄後即可進入關卡地圖。
               </p>
             </div>
           )}
@@ -456,6 +475,8 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
               const prog  = meta.heroProgress[hero.id]
               const stars = prog?.stars ?? 0
               const sprite = getHeroSprite(hero, stars)
+              // 高度優先縮放（維持原本大小觀感），.dhm-sprite 格子已加寬，
+              // 詳見 styles.css 該 class 註解。
               const scale  = 52 / sprite.frameHeight
               const displayName = stars > 0 ? (getHeroStarTitle(hero.id, stars) ?? hero.name) : hero.name
               const active = selectedHeroId === hero.id
@@ -496,6 +517,8 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
             ? '請先在右側選擇英雄'
             : modeTab === 'dungeon' && !selectedDungeonId
             ? '請選擇地城'
+            : modeTab === 'campaign'
+            ? '查看森林遺跡關卡地圖'
             : '出發！'}
         </button>
       </div>
@@ -611,7 +634,8 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
         const confirmAllocate = (node: ArenaTalentNode) => {
           onMetaUpdate(m => {
             const cur = m.heroProgress[heroId] ?? defaultHeroProgress()
-            if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < 1) return m
+            const cost = pointCostForKind(node.kind)
+            if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < cost) return m
             if (!isTalentNodeAvailable(tree, node, cur.allocatedTalentIds, cur.level)) return m
             return {
               ...m,
@@ -619,7 +643,7 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
                 ...m.heroProgress,
                 [heroId]: {
                   ...cur,
-                  talentPoints: cur.talentPoints - 1,
+                  talentPoints: cur.talentPoints - cost,
                   allocatedTalentIds: [...cur.allocatedTalentIds, node.id],
                 },
               },
@@ -640,19 +664,20 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
                 {tree.map((node, i) => {
                   const isAllocated = allocated.includes(node.id)
                   const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, prog.level)
-                  const isKeystone = node.kind === 'keystone'
+                  const isMajor = node.kind === 'major' || node.kind === 'mastery'
+                  const requiredLevel = requiredLevelForTier(node.tier)
                   return (
                     <div key={node.id} className="tvm-node-row">
                       {i > 0 && <div className={`tvm-node-connector${isAllocated ? ' lit' : ''}`} />}
                       <button
-                        className={`tvm-node${isKeystone ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
+                        className={`tvm-node${isMajor ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
                         onClick={() => (isAvailable ? setTalentPendingNode(node) : undefined)}
                         disabled={!isAvailable}
                       >
-                        <div className="tvm-node-name">{isKeystone ? '⭐ ' : ''}{node.name}</div>
+                        <div className="tvm-node-name">{node.kind === 'mastery' ? '👑 ' : isMajor ? '⭐ ' : ''}{node.name}</div>
                         <div className="tvm-node-desc">{node.desc}</div>
-                        {isKeystone && node.requiredLevel && prog.level < node.requiredLevel && (
-                          <div className="tvm-node-lockhint">需角色等級 {node.requiredLevel}</div>
+                        {prog.level < requiredLevel && (
+                          <div className="tvm-node-lockhint">需角色等級 {requiredLevel}</div>
                         )}
                       </button>
                     </div>
@@ -662,7 +687,7 @@ export default function AdventureReadyScreen({ meta, onStart, onSetFateLevel, on
 
               {talentPendingNode && (
                 <div className="tvm-confirm">
-                  <div className="tvm-confirm-text">花費 1 點天賦點數點亮「{talentPendingNode.name}」？</div>
+                  <div className="tvm-confirm-text">花費 {pointCostForKind(talentPendingNode.kind)} 點天賦點數點亮「{talentPendingNode.name}」？</div>
                   <div className="tvm-confirm-btns">
                     <button className="ghost" onClick={() => setTalentPendingNode(null)}>取消</button>
                     <button className="primary" onClick={() => confirmAllocate(talentPendingNode)}>確認</button>

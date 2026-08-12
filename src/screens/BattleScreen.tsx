@@ -125,6 +125,11 @@ export default function BattleScreen({ run, equipment, talentBonus, enemyId, flo
     ...baseEnemy,
     hp: Math.round(baseEnemy.hp * floorMult),
     atk: Math.round(baseEnemy.atk * Math.pow(floorMult, 0.75)),
+    // 平衡調整（2026-08-10）：def 原本完全不隨樓層/命運等級縮放，越深樓層
+    // 敵人 hp/atk 都在成長、def 卻停在第一章基準值，等於破甲流玩法的價值
+    // 隨進度稀釋。指數刻意比 atk 的 0.75 低很多（0.4），讓防禦仍然有感、
+    // 但成長幅度遠小於 hp/atk，不會讓後期打擊感變差。
+    def: Math.round(baseEnemy.def * Math.pow(floorMult, 0.4)),
   }), [baseEnemy, floorMult])
 
   const mechanic = useMemo(() => getEnemyMechanic(enemyId), [enemyId])

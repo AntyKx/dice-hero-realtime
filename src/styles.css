@@ -1492,11 +1492,14 @@ h1, h2, h3, p { margin: 0; }
 .eq-inv-count { color:#8fb8e8; font-size:13px; }
 .eq-body { display:flex; flex:1; overflow:hidden; }
 
-.eq-hero-list { width:195px; flex-shrink:0; overflow-y:auto; border-right:1px solid rgba(100,180,255,.15); padding:8px 6px; display:flex; flex-direction:column; gap:4px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+.eq-hero-list { width:250px; flex-shrink:0; overflow-y:auto; border-right:1px solid rgba(100,180,255,.15); padding:8px 6px; display:flex; flex-direction:column; gap:4px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
 .eq-hero-btn { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:10px; border:1px solid transparent; background:rgba(20,34,65,.6); color:#dde8ff; cursor:pointer; text-align:left; transition:all .12s; overflow:hidden; }
 .eq-hero-btn.active { border-color:rgba(100,200,255,.5); background:rgba(30,60,120,.7); }
 .eq-hero-btn:hover:not(.active) { border-color:rgba(100,180,255,.3); background:rgba(25,42,80,.7); }
-.ehb-sprite { flex-shrink:0; display:flex; align-items:flex-end; justify-content:center; width:76px; height:88px; overflow:hidden; }
+/* 寬度加到 132px：涵蓋目前全隊寬高比到 ~1.58（死亡騎士/火焰法師）都不裁切，
+   縮放邏輯維持原本的「高度優先」不變，只有武鬥家（1.79，全隊最寬）還會裁到
+   邊緣一點點。之後新英雄如果寬高比更誇張，加大這個 width 即可。 */
+.ehb-sprite { flex-shrink:0; display:flex; align-items:flex-end; justify-content:center; width:132px; height:88px; overflow:hidden; }
 .ehb-text { flex:1; min-width:0; }
 .ehb-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ehb-star-badge { color:#ffd36e; font-size:10px; margin-left:3px; }
@@ -2332,8 +2335,8 @@ h1, h2, h3, p { margin: 0; }
   .eq-stardust { font-size: 13px; }
   .eq-body { flex-direction: column; }
   .eq-hero-list { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(100,180,255,.15); padding: 6px; gap: 6px; flex-wrap: nowrap; touch-action: pan-x; }
-  .eq-hero-btn { min-width: 80px; flex-shrink: 0; }
-  .ehb-sprite { width: 56px; height: 66px; }
+  .eq-hero-btn { min-width: 118px; flex-shrink: 0; }
+  .ehb-sprite { width: 90px; height: 66px; }
   /* 裝備面板更緊湊，避免擠掉背包 */
   .eq-slots-panel { max-height: 26vh; }
   .eq-slots-row { flex-wrap: wrap; gap: 6px; }
@@ -2515,7 +2518,12 @@ h1, h2, h3, p { margin: 0; }
   flex: 1; overflow-y: auto; min-height: 0;
 }
 .dhm-heroes {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  /* minmax(0,1fr) 不是 1fr：Grid 對純 1fr 欄位預設仍會尊重內容的 min-content
+     寬度，.dhm-sprite 加寬後在窄螢幕會撐爆整排欄寬、把整個頁面往右推歪
+     （2026-08-12 手機截圖回報的「框架歪了」）。改成 minmax(0,1fr) 強制欄寬
+     嚴格五等分，寬度不夠時寧可讓格子裡的圖被自己的 overflow:hidden 裁掉
+     一點點，也不會撐爆整個版面。 */
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
 }
 .dhm-hero-btn {
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
@@ -2526,7 +2534,10 @@ h1, h2, h3, p { margin: 0; }
 .dhm-hero-btn:hover:not(:disabled) { background: rgba(100,160,255,0.12); border-color: rgba(100,160,255,0.4); }
 .dhm-hero-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 .dhm-hero-btn.ineligible { opacity: 0.35; }
-.dhm-sprite { height: 60px; width: 60px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+/* 寬度加到 90px（原本 60px 是正方形，但角色圖普遍比高還寬，寬高比 1.1~1.8
+   都有）：涵蓋目前全隊大多數寬高比不裁切，縮放邏輯維持原本的「高度優先」
+   不變，只有武鬥家/死亡騎士這兩個全隊最寬的還會裁到邊緣一點點。 */
+.dhm-sprite { height: 60px; width: 90px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
 .dhm-hero-name { font-size: 0.72rem; font-weight: 600; color: #d0e4f8; text-align: center; line-height: 1.3; }
 .dhm-hero-level { font-size: 0.68rem; color: #6888a8; }
 .dhm-lock-tag { font-size: 0.64rem; color: #ff9040; background: rgba(255,144,64,0.15); border-radius: 4px; padding: 1px 5px; }
@@ -2575,7 +2586,7 @@ h1, h2, h3, p { margin: 0; }
 /* ── Dungeon mobile ──────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
   .dungeon-grid { grid-template-columns: 1fr; }
-  .dhm-heroes { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .dhm-heroes { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
   .dhm-hero-name { font-size: 0.62rem; }
   .dungeon-hero-modal { padding: 20px 16px; }
   .dr-card { padding: 28px 20px; }
@@ -3063,9 +3074,9 @@ h1, h2, h3, p { margin: 0; }
   .ar-body { grid-template-columns: 1fr; overflow: visible; }
   .ar-options { border-right: none; border-bottom: 1px solid rgba(100,180,255,.12); max-height: none; }
   .ar-hero-panel { overflow: visible; }
-  .ar-hero-grid { grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .ar-hero-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
   .ar-hero-btn { padding: 5px 2px 4px; }
-  .dhm-sprite { height: 48px; width: 48px; }
+  .dhm-sprite { height: 48px; width: 58px; }
   .dhm-hero-name { font-size: 0.62rem; }
   .ar-diff-desc { display: none; }
 }
@@ -4227,6 +4238,8 @@ h1, h2, h3, p { margin: 0; }
 .arena-canvas-wrap {
   position: absolute;
   inset: 0;
+  touch-action: none;
+  user-select: none;
 }
 .arena-canvas-wrap canvas {
   display: block;
@@ -4279,6 +4292,81 @@ h1, h2, h3, p { margin: 0; }
   overflow: hidden;
   margin-top: 8px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   森林遺跡固定式主線關卡（2026-08）——CampaignMapScreen 章節地圖 +
+   ArenaScreen 的過關結算變體（.arena-campaign-result-overlay，見下方）。
+   ══════════════════════════════════════════════════════════════════════ */
+.cms-summary {
+  background: rgba(20,30,50,0.85);
+  border: 1px solid rgba(120,200,120,0.3);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.cms-summary-title { font-size: 1.1rem; font-weight: 700; color: #b8e8b0; }
+.cms-milestones { display: flex; gap: 14px; margin-top: 12px; }
+.cms-milestone { display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0.5; }
+.cms-milestone.reached { opacity: 1; }
+.cms-milestone-dot {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #b8ccdd;
+}
+.cms-milestone.reached .cms-milestone-dot {
+  background: rgba(120,220,120,0.18); border-color: rgba(120,220,120,0.5); color: #a0ffa0;
+}
+.cms-milestone-label { font-size: 0.68rem; color: #88a0c0; }
+
+.cms-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px; }
+.cms-node {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(20,30,50,0.85);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.cms-node:not(.locked):hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.cms-node.locked { opacity: 0.45; cursor: not-allowed; }
+.cms-node.cleared { border-color: rgba(120,220,120,0.35); }
+.cms-node.boss {
+  border-color: rgba(255,120,80,0.5);
+  background: rgba(40,20,20,0.85);
+  padding: 14px;
+}
+.cms-node-num {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem;
+  background: rgba(255,255,255,0.08); color: #cfe0f4;
+}
+.cms-node.boss .cms-node-num { width: 42px; height: 42px; background: rgba(255,120,80,0.2); color: #ffb090; font-size: 1rem; }
+.cms-node-body { flex: 1; min-width: 0; }
+.cms-node-name { font-weight: 700; font-size: 0.95rem; }
+.cms-node.boss .cms-node-name { font-size: 1.05rem; color: #ffcdb0; }
+.cms-node-lock { color: #ff9040; }
+.cms-node-meta { display: flex; gap: 10px; font-size: 0.72rem; color: #90a8c4; margin-top: 3px; }
+.cms-node-side { flex: 0 0 auto; }
+.cms-stars { font-size: 1rem; letter-spacing: 1px; }
+.cms-star { color: rgba(255,255,255,0.15); }
+.cms-star.filled { color: #ffd94a; }
+.cms-node-lock-icon { font-size: 1.1rem; opacity: 0.6; }
+.cms-hint { font-size: 0.78rem; color: #7890ac; text-align: center; margin-top: 4px; }
+
+/* ── ArenaScreen 森林遺跡結算變體：跟 .arena-gameover-overlay 共用外框，
+   只是加了星星列跟目標達成清單 ── */
+.arena-campaign-result-stars { display: flex; justify-content: center; gap: 10px; font-size: 2rem; margin: 10px 0; }
+.arena-campaign-result-stars .cms-star { font-size: inherit; }
+.arena-campaign-result-conditions { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; text-align: left; }
+.arena-campaign-result-condition { font-size: 0.85rem; display: flex; gap: 8px; align-items: center; }
+.arena-campaign-result-condition .met { color: #6fff8a; }
+.arena-campaign-result-condition .unmet { color: #7890ac; }
 .arena-boss-fill {
   height: 100%;
   background: linear-gradient(90deg, #8a1830, #ff4d6d);
@@ -4396,31 +4484,28 @@ h1, h2, h3, p { margin: 0; }
   padding: 3px 12px;
 }
 
-/* ── 類比搖桿（M3.6 v2）：單指拖曳，圓形底座+中央搖桿鈕，取代拖曳移動 ── */
-.arena-dpad {
-  pointer-events: auto;
-  position: absolute;
-  left: max(18px, env(safe-area-inset-left));
-  bottom: max(18px, env(safe-area-inset-bottom));
+/* ── 浮動搖桿（2026-08 v3）：不再有常駐底座圖形佔位，整個畫面都可以按下
+   拖曳（見 ArenaScreen.tsx 的 arena-canvas-wrap pointer 事件）。這裡只是
+   按下瞬間才出現在觸點位置的視覺回饋，opacity 預設 0、按下時用 inline
+   style 切到 1，放開淡出——本身 pointer-events:none，不攔截觸控，觸控範圍
+   是 canvas-wrap 本身。left/top 用 JS 直接設成觸點座標（fixed 定位，
+   transform 置中），不是靠 CSS 固定在畫面某個角落。 */
+.arena-joystick {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  top: 0;
   width: 104px;
   height: 104px;
+  margin: -52px 0 0 -52px;
   border-radius: 50%;
-  background: rgba(10, 16, 30, 0.55);
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  touch-action: none;
-  user-select: none;
+  background: rgba(10, 16, 30, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  z-index: 50;
 }
-.arena-dpad-arrow {
-  position: absolute;
-  color: rgba(238, 244, 255, 0.55);
-  font-size: 13px;
-  pointer-events: none;
-}
-.arena-dpad-arrow-up    { top: 6px; left: 50%; transform: translateX(-50%); }
-.arena-dpad-arrow-down  { bottom: 6px; left: 50%; transform: translateX(-50%); }
-.arena-dpad-arrow-left  { left: 6px; top: 50%; transform: translateY(-50%); }
-.arena-dpad-arrow-right { right: 6px; top: 50%; transform: translateY(-50%); }
-.arena-dpad-knob {
+.arena-joystick-knob {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -4430,7 +4515,6 @@ h1, h2, h3, p { margin: 0; }
   border-radius: 50%;
   background: rgba(109, 184, 255, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  pointer-events: none;
 }
 
 /* ── 右下：頭像+HP+必殺技能量條（M3.6） ── */

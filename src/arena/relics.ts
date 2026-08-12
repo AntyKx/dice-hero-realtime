@@ -33,9 +33,15 @@ export const ARENA_RELICS: ArenaRelic[] = [
   { id: 'shield_core', name: '護盾核心', desc: '每 12 秒獲得一次護盾，完全格擋下一次傷害', effect: { shieldIntervalSec: 12 } },
 ]
 
-/** 從還沒擁有的遺物裡隨機挑 count 個（不重複）。 */
+/**
+ * 從還沒擁有的遺物裡隨機挑 count 個（不重複）。遺物是跨局永久收藏（2026-08），
+ * excludeIds 傳進來的是這個英雄目前為止永久擁有的全部遺物 id——集滿全部種類後
+ * pool 會是空的，這時 fallback 回完整清單讓玩家可以疊加已擁有的效果，不會卡在
+ * 戰利品畫面選不到東西。
+ */
 export function pickRelicChoices(excludeIds: string[] = [], count = 3): ArenaRelic[] {
-  const pool = ARENA_RELICS.filter(r => !excludeIds.includes(r.id))
+  const fresh = ARENA_RELICS.filter(r => !excludeIds.includes(r.id))
+  const pool = fresh.length > 0 ? fresh : ARENA_RELICS
   const shuffled = [...pool].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, Math.min(count, shuffled.length))
 }

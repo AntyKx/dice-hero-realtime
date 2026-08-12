@@ -1,4 +1,4 @@
-export type Role = 'slash' | 'fire' | 'holy' | 'shadow' | 'ice' | 'arrow' | 'hammer' | 'song' | 'beast' | 'gear' | 'fighter'
+export type Role = 'slash' | 'fire' | 'holy' | 'shadow' | 'ice' | 'arrow' | 'hammer' | 'song' | 'beast' | 'gear' | 'fighter' | 'death'
 
 export type StatusType = 'burn' | 'freeze' | 'poison' | 'vulnerable' | 'armor_break'
 export type StatusEffect = { type: StatusType; stacks: number }
@@ -582,6 +582,7 @@ export type HeroProgress = {
   selectedTalents: Record<number, string>  // 舊天賦系統遺留欄位，新系統不再寫入，保留避免舊存檔炸開
   talentPoints: number        // 新天賦系統：可花費的點數，跟這個英雄自己綁定
   allocatedTalentIds: string[] // 新天賦系統：已點亮的節點 id（src/arena/arenaTalents.ts 的 ArenaTalentNode.id）
+  ownedRelicIds: string[]     // Arena 遺物永久收藏（2026-08）：跨局持有，開局自動套用效果，見 src/arena/relics.ts
 }
 
 export type TalentBonus = {
@@ -754,8 +755,13 @@ export type MetaState = {
   lockedUids: string[]
   dungeonProgress?: Record<string, { cleared: boolean; bestFloor: number; clearedDifficulties?: string[] }>
   items?: ItemStack[]
-  campaignCleared?: Record<string, boolean>   // campaign id → whether it's been cleared
+  campaignCleared?: Record<string, boolean>   // campaign id → whether it's been cleared（舊回合制專用，森林遺跡不共用）
   worldCup?: WorldCupState
+  talentTreeSchemaVersion?: number // Arena 天賦樹版本號（2026-08 v2 重做用），見 meta.ts loadMeta() 的遷移邏輯
+  /** 森林遺跡固定關卡進度（2026-08）：純新增選填欄位，舊存檔沒有時視同 {}
+   * （全部未通關），不需要 migration。key 是 CampaignStage.id（如 'forest_1_5'），
+   * 星數只升不降、首通只會從 false 變 true，見 campaignProgress.ts。 */
+  campaignStageProgress?: Record<string, { cleared: boolean; stars: number; firstClearClaimed: boolean }>
 }
 
 export type EnemyAffixId = 'thorns' | 'regen' | 'armor' | 'berserk' | 'poison_sting' | 'immune'
@@ -811,3 +817,7 @@ export type GamePhase =
   | { type: 'gm' }
   | { type: 'arena_test' } // M1 即時制垂直切片測試場景，見 REALTIME_PIVOT_PLAN.md
   | { type: 'arena_run'; heroId: string; campaign?: string } // 正式即時制冒險入口，見 REALTIME_PIVOT_PLAN.md M3；campaign 決定敵人池，見 src/arena/enemies.ts
+  // 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
+  // （Roguelite）完全分開的「第三種模式」，不共用/不覆寫 campaign 欄位語意。
+  | { type: 'campaign_map'; heroId: string }
+  | { type: 'campaign_stage'; heroId: string; stageId: string }

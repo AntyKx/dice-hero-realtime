@@ -14,7 +14,7 @@ export type Hero = {
   hp: number
   atk: number
   def: number
-  role: 'slash' | 'fire' | 'holy' | 'shadow' | 'ice' | 'arrow' | 'hammer' | 'song' | 'beast' | 'gear' | 'fighter'
+  role: 'slash' | 'fire' | 'holy' | 'shadow' | 'ice' | 'arrow' | 'hammer' | 'song' | 'beast' | 'gear' | 'fighter' | 'death'
   school: 'physical' | 'magic'  // 攻擊流派：決定天賦樹裡哪些攻擊力節點對這個英雄有用
   skill: string
   desc: string
@@ -29,6 +29,13 @@ export function getHeroSprite(hero: Hero, stars: number): SpriteMeta {
     return hero.starSprites[stars]
   }
   return hero.sprite
+}
+
+// Arena 即時制普通攻擊分類（2026-08）：role 本來就是每個英雄的武器/流派主題，
+// 剛好完全對應近戰/遠程，不用再另外加一個欄位重複描述。
+const MELEE_ROLES = new Set<Hero['role']>(['slash', 'shadow', 'hammer', 'beast', 'fighter', 'death'])
+export function getAttackType(role: Hero['role']): 'melee' | 'ranged' {
+  return MELEE_ROLES.has(role) ? 'melee' : 'ranged'
 }
 
 export type Enemy = {
@@ -55,64 +62,67 @@ const E = (id: string, frameWidth: number, frameHeight: number): SpriteMeta => (
 })
 
 export const HEROES: Hero[] = [
-  { id: 'knight', name: '聖騎士', title: '前排防禦', hp: 168, atk: 28, def: 14, role: 'slash', school: 'physical', skill: '聖盾破軍斬', desc: '三條以上時傷害提升，五條時獲得護盾並嘲諷降低敵人本回合傷害30%。', sprite: H('knight', 173, 178), portrait: '/assets/portraits/knight.png',
+  { id: 'knight', name: '聖騎士', title: '前排防禦', hp: 168, atk: 28, def: 14, role: 'slash', school: 'physical', skill: '聖盾破軍斬', desc: '三條以上時傷害提升，五條時獲得護盾並嘲諷降低敵人本回合傷害30%。', sprite: H('knight', 241, 184), portrait: '/assets/portraits/knight.png',
     starSprites: [
-      H('knight_s0', 423, 320),
-      H('knight_s1', 356, 320),
-      H('knight_s2', 393, 320),
-      H('knight_s3', 358, 320),
+      H('knight_s0', 362, 276),
+      H('knight_s1', 362, 276),
+      H('knight_s2', 362, 276),
+      H('knight_s3', 362, 276),
     ],
   },
-  { id: 'mage', name: '火焰法師', title: '爆發法術', hp: 102, atk: 39, def: 5, role: 'fire', school: 'magic', skill: '烈焰隕星', desc: '順子以上時追加爆發傷害並施加 2 層燃燒。', sprite: H('mage', 173, 184), portrait: '/assets/portraits/mage.png',
+  { id: 'mage', name: '火焰法師', title: '爆發法術', hp: 102, atk: 39, def: 5, role: 'fire', school: 'magic', skill: '烈焰隕星', desc: '順子以上時追加爆發傷害並施加 2 層燃燒。', sprite: H('mage', 287, 184), portrait: '/assets/portraits/mage.png',
     starSprites: [
-      H('mage_s0', 374, 320),
-      H('mage_s1', 345, 320),
-      H('mage_s2', 315, 320),
-      H('mage_s3', 347, 320),
+      H('mage_s0', 439, 281),
+      H('mage_s1', 439, 281),
+      H('mage_s2', 439, 281),
+      H('mage_s3', 439, 281),
     ],
   },
-  { id: 'priest', name: '神官祭司', title: '治療輔助', hp: 122, atk: 18, def: 8, role: 'holy', school: 'magic', skill: '光輪祝禱', desc: '骰到 6 越多，回復量越高。', sprite: H('priest', 173, 184), portrait: '/assets/portraits/priest.png',
+  { id: 'priest', name: '神官祭司', title: '治療輔助', hp: 122, atk: 18, def: 8, role: 'holy', school: 'magic', skill: '光輪祝禱', desc: '骰到 6 越多，回復量越高。', sprite: H('priest', 224, 184), portrait: '/assets/portraits/priest.png',
     starSprites: [
-      H('priest_s0', 243, 320),
-      H('priest_s1', 259, 320),
-      H('priest_s2', 274, 320),
-      H('priest_s3', 310, 320),
+      H('priest_s0', 349, 287),
+      H('priest_s1', 349, 287),
+      H('priest_s2', 349, 287),
+      H('priest_s3', 349, 287),
     ],
   },
-  { id: 'rogue', name: '影刃刺客', title: '高速爆擊', hp: 108, atk: 31, def: 5, role: 'shadow', school: 'physical', skill: '暗影連襲', desc: '兩對以上觸發連擊加傷，有機率爆擊造成大量額外傷害。', sprite: H('rogue', 175, 167), portrait: '/assets/portraits/rogue.png',
+  { id: 'rogue', name: '影刃刺客', title: '高速爆擊', hp: 108, atk: 31, def: 5, role: 'shadow', school: 'physical', skill: '暗影連襲', desc: '兩對以上觸發連擊加傷，有機率爆擊造成大量額外傷害。', sprite: H('rogue', 248, 184), portrait: '/assets/portraits/rogue.png',
     starSprites: [
-      H('rogue_s0', 415, 320),
-      H('rogue_s1', 425, 320),
-      H('rogue_s2', 484, 320),
-      H('rogue_s3', 347, 320),
+      H('rogue_s0', 409, 304),
+      H('rogue_s1', 409, 304),
+      H('rogue_s2', 409, 304),
+      H('rogue_s3', 409, 304),
     ],
   },
-  { id: 'princess', name: '皇家公主', title: '冰痕控制', hp: 118, atk: 24, def: 8, role: 'ice', school: 'magic', skill: '皇家冰晶陣', desc: '技能施加護盾；兩對以上疊冰痕；順子以上凍結；對凍結敵人追加冰晶傷害。冰痕每層 +4% 傷害，5 層觸發碎冰爆發。', sprite: H('princess', 173, 174), portrait: '/assets/portraits/princess.png',
+  { id: 'princess', name: '皇家公主', title: '冰痕控制', hp: 118, atk: 24, def: 8, role: 'ice', school: 'magic', skill: '皇家冰晶陣', desc: '技能施加護盾；兩對以上疊冰痕；順子以上凍結；對凍結敵人追加冰晶傷害。冰痕每層 +4% 傷害，5 層觸發碎冰爆發。', sprite: H('princess', 248, 184), portrait: '/assets/portraits/princess.png',
     starSprites: [
-      H('princess_s0', 350, 320),
-      H('princess_s1', 313, 320),
-      H('princess_s2', 316, 320),
-      H('princess_s3', 319, 320),
+      H('princess_s0', 426, 316),
+      H('princess_s1', 426, 316),
+      H('princess_s2', 426, 316),
+      H('princess_s3', 426, 316),
     ],
   },
-  { id: 'archer', name: '遊俠獵人', title: '遠程輸出', hp: 114, atk: 26, def: 7, role: 'arrow', school: 'physical', skill: '疾風箭雨', desc: '順子以上時追加箭雨傷害。', sprite: H('archer', 177, 166), portrait: '/assets/portraits/archer.png',
+  { id: 'archer', name: '遊俠獵人', title: '遠程輸出', hp: 114, atk: 26, def: 7, role: 'arrow', school: 'physical', skill: '疾風箭雨', desc: '順子以上時追加箭雨傷害。', sprite: H('archer', 211, 184), portrait: '/assets/portraits/archer.png',
     starSprites: [
-      H('archer_s0', 361, 320),
-      H('archer_s1', 483, 320),
-      H('archer_s2', 349, 320),
-      H('archer_s3', 388, 320),
+      H('archer_s0', 333, 291),
+      H('archer_s1', 333, 291),
+      H('archer_s2', 333, 291),
+      H('archer_s3', 333, 291),
     ],
   },
-  { id: 'dwarf', name: '矮人戰士', title: '重擊破甲', hp: 148, atk: 27, def: 12, role: 'hammer', school: 'physical', skill: '震地戰錘', desc: '三條以上時破甲 -3，削減敵人防禦。', sprite: H('dwarf', 180, 183), portrait: '/assets/portraits/dwarf.png',
-    starSprites: [H('dwarf_s0', 384, 320), H('dwarf_s1', 328, 320), H('dwarf_s2', 340, 320), H('dwarf_s3', 354, 320)] },
-  { id: 'bard', name: '吟遊詩人', title: '團隊增益', hp: 108, atk: 19, def: 6, role: 'song', school: 'physical', skill: '戰歌奏鳴', desc: '可在造成傷害同時小幅回血。', sprite: H('bard', 169, 180), portrait: '/assets/portraits/bard.png',
-    starSprites: [H('bard_s0', 355, 320), H('bard_s1', 342, 320), H('bard_s2', 315, 320), H('bard_s3', 317, 320)] },
-  { id: 'beastmaster', name: '獸語馴獸師', title: '協同進攻', hp: 132, atk: 24, def: 9, role: 'beast', school: 'physical', skill: '狼魂突擊', desc: '技能傷害穩定，並有少量反擊保護。', sprite: H('beastmaster', 180, 161), portrait: '/assets/portraits/beastmaster.png',
-    starSprites: [H('beastmaster_s0', 339, 320), H('beastmaster_s1', 300, 320), H('beastmaster_s2', 347, 320), H('beastmaster_s3', 332, 320)] },
+  { id: 'dwarf', name: '矮人戰士', title: '重擊破甲', hp: 148, atk: 27, def: 12, role: 'hammer', school: 'physical', skill: '震地戰錘', desc: '三條以上時破甲 -3，削減敵人防禦。', sprite: H('dwarf', 249, 184), portrait: '/assets/portraits/dwarf.png',
+    starSprites: [H('dwarf_s0', 400, 296), H('dwarf_s1', 400, 296), H('dwarf_s2', 400, 296), H('dwarf_s3', 400, 296)] },
+  { id: 'bard', name: '吟遊詩人', title: '團隊增益', hp: 108, atk: 19, def: 6, role: 'song', school: 'physical', skill: '戰歌奏鳴', desc: '可在造成傷害同時小幅回血。', sprite: H('bard', 235, 184), portrait: '/assets/portraits/bard.png',
+    starSprites: [H('bard_s0', 382, 299), H('bard_s1', 382, 299), H('bard_s2', 382, 299), H('bard_s3', 382, 299)] },
+  // 死亡騎士（2026-08 取代訓獸師，見設計文件 Migration 方案）：真實素材已處理
+  // （process-transparent-frames.mjs + compose-hero-spritesheet.mjs），尺寸來自
+  // 實際輸出的 sprite sheet。
+  { id: 'death_knight', name: '死亡騎士', title: '嗜血搏命', hp: 145, atk: 27, def: 10, role: 'death', school: 'physical', skill: '噬魂斬', desc: '血量越低傷害越高，攻擊疊血印進入血腥狀態獲得吸血與增傷。', sprite: H('death_knight', 291, 184), portrait: '/assets/portraits/death_knight.png',
+    starSprites: [H('death_knight_s0', 291, 184), H('death_knight_s1', 291, 184), H('death_knight_s2', 291, 184), H('death_knight_s3', 291, 184)] },
   { id: 'engineer', name: '機關技師', title: '機械火力', hp: 120, atk: 23, def: 8, role: 'gear', school: 'physical', skill: '蒸氣砲擊', desc: '兩對以上時機關炮追加固定傷害。', sprite: H('engineer', 175, 175), portrait: '/assets/portraits/engineer.png',
     starSprites: [H('engineer_s0', 295, 320), H('engineer_s1', 313, 320), H('engineer_s2', 339, 320), H('engineer_s3', 324, 320)] },
-  { id: 'fighter', name: '武鬥家', title: '連招拳勢', hp: 125, atk: 28, def: 9, role: 'fighter', school: 'physical', skill: '真氣運轉', desc: '連續技觸發時獲得拳勢（最多5層）；每層傷害+3%受傷-2%；拳勢滿進入無雙架式2回合。技能效果依最近連段類型強化。', sprite: H('fighter_s0', 262, 188), portrait: '/assets/portraits/fighter.png',
-    starSprites: [H('fighter_s0', 262, 188), H('fighter_s1', 264, 192), H('fighter_s2', 272, 198), H('fighter_s3', 298, 238)] },
+  { id: 'fighter', name: '武鬥家', title: '連招拳勢', hp: 125, atk: 28, def: 9, role: 'fighter', school: 'physical', skill: '真氣運轉', desc: '連續技觸發時獲得拳勢（最多5層）；每層傷害+3%受傷-2%；拳勢滿進入無雙架式2回合。技能效果依最近連段類型強化。', sprite: H('fighter', 329, 184), portrait: '/assets/portraits/fighter.png',
+    starSprites: [H('fighter_s0', 358, 200), H('fighter_s1', 358, 200), H('fighter_s2', 358, 200), H('fighter_s3', 358, 200)] },
 ]
 
 export const ENEMIES: Enemy[] = [

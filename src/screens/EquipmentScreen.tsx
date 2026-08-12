@@ -18,7 +18,7 @@ import {
   getExpForLevel,
   defaultHeroProgress, STAR_CONDITIONS, getHeroStarTitle, HERO_STAR_PASSIVES,
 } from '../talents'
-import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, type ArenaTalentNode } from '../arena/arenaTalents'
+import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
 
 interface Props {
   meta: MetaState
@@ -371,7 +371,8 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
   function confirmAllocate(node: ArenaTalentNode) {
     onMetaUpdate(m => {
       const cur = m.heroProgress[heroId] ?? defaultHeroProgress()
-      if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < 1) return m
+      const cost = pointCostForKind(node.kind)
+      if (cur.allocatedTalentIds.includes(node.id) || cur.talentPoints < cost) return m
       if (!isTalentNodeAvailable(tree, node, cur.allocatedTalentIds, cur.level)) return m
       return {
         ...m,
@@ -379,7 +380,7 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
           ...m.heroProgress,
           [heroId]: {
             ...cur,
-            talentPoints: cur.talentPoints - 1,
+            talentPoints: cur.talentPoints - cost,
             allocatedTalentIds: [...cur.allocatedTalentIds, node.id],
           },
         },
@@ -442,19 +443,20 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
         {tree.map((node, i) => {
           const isAllocated = allocated.includes(node.id)
           const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, progress.level)
-          const isKeystone = node.kind === 'keystone'
+          const isMajor = node.kind === 'major' || node.kind === 'mastery'
+          const requiredLevel = requiredLevelForTier(node.tier)
           return (
             <div key={node.id} className="tvm-node-row">
               {i > 0 && <div className={`tvm-node-connector${isAllocated ? ' lit' : ''}`} />}
               <button
-                className={`tvm-node${isKeystone ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
+                className={`tvm-node${isMajor ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
                 onClick={() => (isAvailable ? setPendingNode(node) : undefined)}
                 disabled={!isAvailable}
               >
-                <div className="tvm-node-name">{isKeystone ? '⭐ ' : ''}{node.name}</div>
+                <div className="tvm-node-name">{node.kind === 'mastery' ? '👑 ' : isMajor ? '⭐ ' : ''}{node.name}</div>
                 <div className="tvm-node-desc">{node.desc}</div>
-                {isKeystone && node.requiredLevel && progress.level < node.requiredLevel && (
-                  <div className="tvm-node-lockhint">需角色等級 {node.requiredLevel}</div>
+                {progress.level < requiredLevel && (
+                  <div className="tvm-node-lockhint">需角色等級 {requiredLevel}</div>
                 )}
               </button>
             </div>
@@ -464,7 +466,7 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
 
       {pendingNode && (
         <div className="tvm-confirm">
-          <div className="tvm-confirm-text">花費 1 點天賦點數點亮「{pendingNode.name}」？</div>
+          <div className="tvm-confirm-text">花費 {pointCostForKind(pendingNode.kind)} 點天賦點數點亮「{pendingNode.name}」？</div>
           <div className="tvm-confirm-btns">
             <button className="ghost" onClick={() => setPendingNode(null)}>取消</button>
             <button className="primary" onClick={() => confirmAllocate(pendingNode)}>確認</button>
@@ -494,7 +496,8 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
 
         {/* Numeric totals */}
         {(talBonus.flatDamage > 0 || talBonus.hpBonus > 0 || talBonus.moveSpeedMult > 1 ||
-          talBonus.pickupRangeMult > 1 || talBonus.atkCooldownMult < 1 || talBonus.keystoneUnlocked) && (
+          talBonus.pickupRangeMult > 1 || talBonus.atkCooldownMult < 1 || talBonus.damageReductionPct > 0 ||
+          talBonus.startShieldCharges > 0 || talBonus.lifestealPct > 0 || talBonus.unlockedMajorSkillIds.length > 0) && (
           <>
             <div className="ts-section-divider">— 數值總覽 —</div>
             <div className="ts-stats">
@@ -503,7 +506,10 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
               {talBonus.moveSpeedMult > 1 && <span>移速 +{Math.round((talBonus.moveSpeedMult - 1) * 100)}%</span>}
               {talBonus.pickupRangeMult > 1 && <span>拾取範圍 +{Math.round((talBonus.pickupRangeMult - 1) * 100)}%</span>}
               {talBonus.atkCooldownMult < 1 && <span>攻速 +{Math.round((1 - talBonus.atkCooldownMult) * 100)}%</span>}
-              {talBonus.keystoneUnlocked && <span>職業技能已解鎖</span>}
+              {talBonus.damageReductionPct > 0 && <span>減傷 +{Math.round(talBonus.damageReductionPct * 100)}%</span>}
+              {talBonus.startShieldCharges > 0 && <span>起始護盾 +{talBonus.startShieldCharges}</span>}
+              {talBonus.lifestealPct > 0 && <span>吸血 +{Math.round(talBonus.lifestealPct * 100)}%</span>}
+              {talBonus.unlockedMajorSkillIds.length > 0 && <span>職業技能已解鎖 ×{talBonus.unlockedMajorSkillIds.length}</span>}
             </div>
           </>
         )}
@@ -801,6 +807,12 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
         {/* Left: Hero list */}
         <div className="eq-hero-list">
           {HEROES.map(h => {
+            // 高度優先縮放（維持原本大小觀感）：格子（.ehb-sprite）本身已經
+            // 加寬到能放下目前全部英雄裡「寬高比第二寬」的角色（死亡騎士，
+            // 1.58）而不裁切；只有武鬥家（1.79，本來就是全隊寬高比最誇張的
+            // 一個）還會裁到左右一點點邊緣，其餘英雄完全不裁切、高度也跟以前
+            // 完全一樣。之後若新英雄的寬高比又更誇張，把 .ehb-sprite 的
+            // width 跟著加大即可，不用再改這裡的縮放邏輯。
             const listTargetH = isMobile ? 62 : 83
             const prog = meta.heroProgress[h.id]
             const listSprite = getHeroSprite(h, prog?.stars ?? 0)

@@ -2,8 +2,8 @@
   "knight": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/knight.png",
-    "frameWidth": 173,
-    "frameHeight": 178,
+    "frameWidth": 241,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",
@@ -17,7 +17,7 @@
   "mage": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/mage.png",
-    "frameWidth": 173,
+    "frameWidth": 287,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [
@@ -32,7 +32,7 @@
   "priest": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/priest.png",
-    "frameWidth": 173,
+    "frameWidth": 224,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [
@@ -47,8 +47,8 @@
   "rogue": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/rogue.png",
-    "frameWidth": 175,
-    "frameHeight": 167,
+    "frameWidth": 248,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",
@@ -62,8 +62,8 @@
   "princess": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/princess.png",
-    "frameWidth": 173,
-    "frameHeight": 174,
+    "frameWidth": 248,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",
@@ -77,8 +77,8 @@
   "archer": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/archer.png",
-    "frameWidth": 177,
-    "frameHeight": 166,
+    "frameWidth": 211,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",
@@ -92,8 +92,38 @@
   "dwarf": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/dwarf.png",
-    "frameWidth": 180,
-    "frameHeight": 183,
+    "frameWidth": 249,
+    "frameHeight": 184,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "fighter": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/fighter.png",
+    "frameWidth": 329,
+    "frameHeight": 184,
+    "frameCount": 6,
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "attack_0",
+      "attack_1",
+      "skill_0",
+      "hurt_0"
+    ]
+  },
+  "death_knight": {
+    "group": "heroes",
+    "sheet": "/assets/spritesheets/heroes/death_knight.png",
+    "frameWidth": 291,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",
@@ -107,8 +137,8 @@
   "bard": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/bard.png",
-    "frameWidth": 169,
-    "frameHeight": 180,
+    "frameWidth": 235,
+    "frameHeight": 184,
     "frameCount": 6,
     "frames": [
       "idle_0",

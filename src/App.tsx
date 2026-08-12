@@ -6,7 +6,7 @@ import {
   signOut, onAuthStateChanged,
 } from './lib/firebase'
 import type { User } from './lib/firebase'
-import { HEROES, getHeroSprite } from './data'
+import { HEROES, getHeroSprite, getAttackType } from './data'
 import SpriteAnimator from './components/SpriteAnimator'
 import {
   generateMap, advanceMap, getEnemyForNode, getFloorMult, getGoldReward, rollEnemyAffixes,
@@ -67,6 +67,10 @@ import PlayerNameModal from './components/PlayerNameModal'
 import GmScreen from './screens/GmScreen'
 import ArenaScreen from './arena/ArenaScreen'
 import { computeArenaTalentBonus, generateHeroTalentTree } from './arena/arenaTalents'
+import { ARENA_RELICS } from './arena/relics'
+import CampaignMapScreen from './screens/CampaignMapScreen'
+import { getCampaignStage } from './campaign/campaignStages'
+import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
 
 const APP_VERSION = __APP_BUILD__
 
@@ -368,7 +372,9 @@ export default function App() {
 
   const handleAdventureStart = (config: AdventureStartConfig) => {
     if (config.campaign === 'dungeon') {
-      startDungeon(config.dungeonId, config.heroId, config.difficulty)
+      // 副本轉即時制（2026-08）：見 startDungeonArena 的說明，這是
+      // AdventureReadyScreen 內嵌副本選擇流程實際會走的入口。
+      startDungeonArena(config.dungeonId, config.heroId)
       return
     }
     // 主線拉回來（2026-08-07）：FEATURE_FLAGS.turnBasedMainline 開的時候，
@@ -400,7 +406,16 @@ export default function App() {
     void heroId
   }
 
-  // ── Dungeon logic ─────────────────────────────────────────────────────────
+  // ── 副本轉即時制（2026-08）：副本一律走 arena_run，跟主線同一條路徑，不再
+  // 建立 RunState/DungeonRunState/15層節點地圖。difficulty 目前先忽略——
+  // 即時制還沒有難度分級機制，DungeonSelectScreen 的難度選擇暫時只是 UI，
+  // 舊的 startDungeon()/dungeon_map/BattleScreen 整套保留但不再被呼叫，
+  // 排行榜/傳說裝備掉落這兩個目前依附在舊流程的系統這輪還沒接上 Arena。
+  const startDungeonArena = (dungeonId: string, heroId: string) => {
+    setPhase({ type: 'arena_run', heroId, campaign: dungeonId })
+  }
+
+  // ── Dungeon logic（舊回合制副本，目前保留但入口已改走 startDungeonArena）──
   const startDungeon = (dungeonId: string, heroId: string, difficulty: DungeonDifficulty = 'normal') => {
     const dungeon = getDungeon(dungeonId)
     if (!dungeon) return
@@ -1248,6 +1263,7 @@ export default function App() {
             runsCompleted: 20, runsWon: 20,
             selectedTalents: { 20: '20a', 40: '40a', 60: '60a', 80: '80a', 100: '100a' },
             talentPoints: 99, allocatedTalentIds: generateHeroTalentTree(h.id).map(n => n.id),
+            ownedRelicIds: ARENA_RELICS.map(r => r.id),
           }
         }
       }
@@ -1313,8 +1329,10 @@ export default function App() {
           heroName: hero.name,
           maxHp: hero.hp,
           atkDamage: Math.round(hero.atk * 0.6),
-          atkCooldown: 0.45,
-          moveSpeed: 260,
+          atkCooldown: 0.80,
+          moveSpeed: 180,
+          attackType: getAttackType(hero.role),
+          ultimateName: hero.skill,
         }}
         onExit={() => setPhase({ type: 'gm' })}
       />
@@ -1325,28 +1343,106 @@ export default function App() {
     const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
     // 天賦樹重做（2026-08-07）：不再用舊 computeTalentBonus()（5選1、免費），
     // 改用 arenaTalents.ts 的新系統——大量小節點都要花天賦點數點亮，沿路一個
-    // 由角色等級控制的職業技能（keystoneUnlocked 影響 ArenaGame 的
+    // 由角色等級控制的職業技能（unlockedMajorSkillIds 影響 ArenaGame 的
     // updateKeystone 行為）。
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
+    // 平衡調整（2026-08-10）：Arena 先前完全沒讀裝備，練回合制裝備對即時制
+    // 戰力毫無影響。裝備的 flatDamage/hpBonus 套用跟 hero.atk 換算成
+    // Arena 數值時同一個 ×0.6 係數，讓裝備投資在 Arena 裡有感，但不會蓋過
+    // 天賦樹跟等級成長的份量（裝備原本是照回合制骰子戰鬥的數值量級去調的，
+    // 直接 1:1 套用會遠超 Arena 現有的傷害/血量量級）。
+    const equipBonus = computeEquipBonus(getActiveEquipment(hero.id))
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp + talentBonus.hpBonus,
-          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
-          atkCooldown: 0.45 * talentBonus.atkCooldownMult,
-          moveSpeed: 260 * talentBonus.moveSpeedMult,
+          maxHp: hero.hp + talentBonus.hpBonus + Math.round(equipBonus.hpBonus * 0.6),
+          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage + Math.round(equipBonus.flatDamage * 0.6),
+          atkCooldown: 0.80 * talentBonus.atkCooldownMult,
+          moveSpeed: 180 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
-          keystoneUnlocked: talentBonus.keystoneUnlocked,
+          unlockedMajorSkillIds: talentBonus.unlockedMajorSkillIds,
           campaign: phase.campaign,
           stars: heroProgress.stars,
+          attackType: getAttackType(hero.role),
+          ultimateName: hero.skill,
+          ownedRelicIds: heroProgress.ownedRelicIds,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
-        onRunEnd={(won, floorsCleared, goldEarned) => {
+        onRunEnd={(won, floorsCleared, goldEarned, ownedRelicIds) => {
           awardRunExp(hero.id, won, floorsCleared)
           if (goldEarned > 0) updateMeta(m => ({ ...m, gold: m.gold + goldEarned }))
+          // 遺物是跨局永久收藏（2026-08）：ArenaScreen 回傳的是這局結束當下完整的
+          // 持有清單（含這局新選到的那一個，若有），整份覆蓋寫回，不是增量疊加。
+          updateMeta(m => {
+            const prev = m.heroProgress[hero.id] ?? defaultHeroProgress()
+            return { ...m, heroProgress: { ...m.heroProgress, [hero.id]: { ...prev, ownedRelicIds } } }
+          })
+        }}
+      />
+    )
+  }
+
+  // ── 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
+  // （Roguelite）完全分開的「第三種模式」，各自獨立的 GamePhase 分支，不共用
+  // campaign 欄位語意，也不會互相干擾對方的存檔/進度。
+  if (phase.type === 'campaign_map') {
+    return (
+      <div className="page">
+        <CampaignMapScreen
+          meta={meta}
+          heroId={phase.heroId}
+          onSelectStage={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
+          onBack={() => setPhase({ type: 'adventure_ready' })}
+        />
+      </div>
+    )
+  }
+
+  if (phase.type === 'campaign_stage') {
+    const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
+    const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
+    const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
+    const equipBonus = computeEquipBonus(getActiveEquipment(hero.id))
+    const stageId = phase.stageId
+    return (
+      <ArenaScreen
+        config={{
+          heroId: hero.id,
+          heroName: hero.name,
+          maxHp: hero.hp + talentBonus.hpBonus + Math.round(equipBonus.hpBonus * 0.6),
+          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage + Math.round(equipBonus.flatDamage * 0.6),
+          atkCooldown: 0.80 * talentBonus.atkCooldownMult,
+          moveSpeed: 180 * talentBonus.moveSpeedMult,
+          pickupRangeMult: talentBonus.pickupRangeMult,
+          unlockedMajorSkillIds: talentBonus.unlockedMajorSkillIds,
+          stars: heroProgress.stars,
+          attackType: getAttackType(hero.role),
+          ultimateName: hero.skill,
+          ownedRelicIds: heroProgress.ownedRelicIds,
+          campaignStageId: stageId,
+        }}
+        onExit={() => setPhase({ type: 'campaign_map', heroId: hero.id })}
+        onCampaignStageEnd={result => {
+          updateMeta(m => {
+            const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
+            let next = recordStageResult(m, stageId, result.won ? result.stars : 0)
+            if (result.won && !wasFirstClearClaimed) {
+              const stage = getCampaignStage(stageId)
+              if (stage) {
+                const prevHp = next.heroProgress[hero.id] ?? defaultHeroProgress()
+                next = {
+                  ...next,
+                  gold: next.gold + stage.firstClearReward.gold,
+                  heroProgress: { ...next.heroProgress, [hero.id]: addHeroExp(prevHp, stage.firstClearReward.heroExp) },
+                }
+              }
+              next = claimFirstClearReward(next, stageId)
+            }
+            return next
+          })
         }}
       />
     )
@@ -1367,6 +1463,7 @@ export default function App() {
           onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
           onLeaderboard={() => setPhase({ type: 'leaderboard' })}
+          onOpenCampaignMap={heroId => setPhase({ type: 'campaign_map', heroId })}
         />
       </div>
     )
@@ -1439,7 +1536,7 @@ export default function App() {
         <DungeonSelectScreen
           meta={meta}
           preSelectedId={pendingDungeonId || undefined}
-          onEnterDungeon={startDungeon}
+          onEnterDungeon={startDungeonArena}
           onBack={() => setPhase({ type: 'adventure_ready' })}
           onLeaderboard={(dungeonId) => setPhase({ type: 'leaderboard', dungeonId })}
         />

@@ -8,6 +8,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   slash: '聖騎士', fire: '火焰法師', holy: '神官祭司', shadow: '影刃刺客',
   ice: '皇家公主', arrow: '遊俠獵人', hammer: '矮人戰士',
   song: '吟遊詩人', beast: '獸語馴獸師', gear: '機關技師', fighter: '武鬥家',
+  death: '死亡騎士', // 2026-08 取代訓獸師；死亡騎士的裝備套裝/傳奇效果沿用舊回合制的死代碼路徑，未特別設計，先給預設值讓型別過關
 }
 
 // ── Salvage values ────────────────────────────────────────────────────────
@@ -333,6 +334,9 @@ const WEAPON_LEGENDARIES: Record<Role, LegendaryDef> = {
   beast:  { name: '狼群號角',   effectId: 'beast_atk_stack',      desc: '連續兩回合擲出相同骰型時，召喚狼追加 14 傷害並回復 8 HP；每次攻擊本場 ATK +3（上限 +30）' },
   gear:    { name: '過載機關炮', effectId: 'gear_overheat_cannon', desc: '每次重骰獲得 1 層過熱（最多 5）；每層過熱炮擊 +6；過熱 3–4 層：出手後自傷 6 HP，下回合重骰 -1；過熱 5 層：追加爆裂炮 30 傷害，自傷 15 HP，下回合重骰 -2 且禁用炮彈' },
   fighter: { name: '龍皇滅世拳套', effectId: 'fighter_weapon', desc: '連續技觸發時額外獲得 1 層拳勢；防守連段額外 +10 護盾；解鎖奧義：順子→順子（龍翔百裂 +30 傷），葫蘆→四條以上（霸王震天擊 +25 傷）' },
+  // 死亡騎士（2026-08 取代訓獸師）：舊回合制傳奇武器系統是死代碼，未特別設計，
+  // 沿用矮人的 effectId 純粹是為了讓 Record<Role,...> 型別過關。
+  death: { name: '噬魂戰斧', effectId: 'hammer_charge_crit', desc: '（尚未設計，舊回合制系統不會被觸及）' },
 }
 
 const HEAD_LEGENDARIES: LegendaryDef[] = [
@@ -596,6 +600,9 @@ const SET_META: Record<Role, SetMetaEntry> = {
   gear:    { name: '機巧造物', bonus2: { flatDamage: 17, rerollBonus: 1 }, desc2: '傷害 +17，重骰 +1' },
   fighter: { name: '無極霸拳', bonus2: { flatDamage: 14, startShield: 10 }, desc2: '傷害 +14，戰鬥開始護盾 +10',
     grants4Override: { effectId: 'fighter_set4', desc: '連續技觸發時獲得 8 護盾；防守/調息連段效果升至 12；每場第一次連段中斷不失去拳勢' } },
+  // 死亡騎士（2026-08 取代訓獸師）：舊回合制套裝系統是死代碼，未特別設計，
+  // 純粹是為了讓 Record<Role,...> 型別過關。
+  death: { name: '噬魂王朝', bonus2: { flatDamage: 15, hpBonus: 30 }, desc2: '（尚未設計，舊回合制系統不會被觸及）' },
 }
 
 // eclipse_set, throne_set, abyss_set, covenant_set excluded since they have no role (all-class / dungeon-specific)
