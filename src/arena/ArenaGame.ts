@@ -950,8 +950,15 @@ export class ArenaGame {
         const count = stage.boss.count ?? 1
         // 多隻同時出現時（1-18 雙獸人隊長）每隻血量打折，避免跟單人版 Boss
         // 共用同一份 hpMult 時，玩家要重複打兩份滿血 Boss，戰鬥被拖到不合理長。
-        const opts = count > 1 ? { hpMultOverride: 0.6 } : undefined
-        for (let i = 0; i < count; i++) this.spawnEnemyOfType(bossType, opts)
+        const hpOpt = count > 1 ? { hpMultOverride: 0.6 } : undefined
+        // Boss 一開場就要站在場地上方中間（不是跟小怪一樣從畫面外走進來）：
+        // 直接指定生成座標，蓋掉 spawnEnemyOfType() 預設的「畫面外隨機邊」邏輯。
+        const { width } = this.app.screen
+        const y = ARENA_TOP_MARGIN
+        for (let i = 0; i < count; i++) {
+          const x = count > 1 ? width * (0.35 + i * 0.3) : width / 2
+          this.spawnEnemyOfType(bossType, { ...hpOpt, x, y })
+        }
       }
     }
   }
@@ -1179,7 +1186,9 @@ export class ArenaGame {
       }
       case 'boss': {
         this.bossState = 'alive'
-        this.spawnEnemyOfType(getCampaignBoss(this.campaign))
+        // Boss 一開場就站在場地上方中間，不用跟小怪一樣從畫面外走進來。
+        const { width } = this.app.screen
+        this.spawnEnemyOfType(getCampaignBoss(this.campaign), { x: width / 2, y: ARENA_TOP_MARGIN })
         break
       }
     }
@@ -1985,6 +1994,14 @@ export class ArenaGame {
     e.y += (dy / dist) * speed * dt
   }
 
+  /** 把敵人座標夾回場地可站範圍內，跟玩家自己的移動夾同一塊區域共用同一組邊界常數。 */
+  clampEnemyToArena(e: EnemyInstance) {
+    if (!this.app) return
+    const { width, height } = this.app.screen
+    e.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, e.x))
+    e.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, e.y))
+  }
+
   /**
    * Ranged/Support/Summoner 這幾種 AI 用來「跟玩家拉開距離」，跟
    * moveEnemyToward 不同——那個天然會往（已經被夾在場地內的）玩家座標靠近，
@@ -1992,17 +2009,37 @@ export class ArenaGame {
    * 外面甚至螢幕外，近戰英雄永遠追不到（回報症狀：「遠程的怪會躲出邊界，
    * 近戰攻擊不到」）。跟玩家自己的移動夾在同一個可站立範圍內，兩邊共用
    * 同一塊可達區域，近戰就一定追得到。
+   *
+   * 玩家把敵人逼到牆角時，「逃跑方向」會被邊界整個抵銷，敵人會整隻凍結貼
+   * 在牆上不動（回報症狀：「怪物卡在邊界」）——偵測到移動量被夾掉大半時，
+   * 改沿邊界切線滑動，敵人才會持續移動，不會看起來像卡死。
    */
   moveEnemyAway(e: EnemyInstance, fromX: number, fromY: number, dt: number) {
     const dx = e.x - fromX, dy = e.y - fromY
     const dist = Math.hypot(dx, dy) || 1
     const speed = e.speed * this.getEliteSpeedMult(e) * this.getSlowMult(e)
-    e.x += (dx / dist) * speed * dt
-    e.y += (dy / dist) * speed * dt
+    const step = speed * dt
+    let moveX = (dx / dist) * step
+    let moveY = (dy / dist) * step
+
     if (this.app) {
       const { width, height } = this.app.screen
-      e.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, e.x))
-      e.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, e.y))
+      const minX = ARENA_MARGIN, maxX = width - ARENA_MARGIN
+      const minY = ARENA_TOP_MARGIN, maxY = height - ARENA_MARGIN
+      const prevX = e.x, prevY = e.y
+      let nextX = Math.max(minX, Math.min(maxX, e.x + moveX))
+      let nextY = Math.max(minY, Math.min(maxY, e.y + moveY))
+      if (Math.hypot(nextX - prevX, nextY - prevY) < step * 0.3) {
+        const tangentX = -moveY, tangentY = moveX
+        const tLen = Math.hypot(tangentX, tangentY) || 1
+        nextX = Math.max(minX, Math.min(maxX, prevX + (tangentX / tLen) * step))
+        nextY = Math.max(minY, Math.min(maxY, prevY + (tangentY / tLen) * step))
+      }
+      e.x = nextX
+      e.y = nextY
+    } else {
+      e.x += moveX
+      e.y += moveY
     }
   }
 
@@ -2054,6 +2091,10 @@ export class ArenaGame {
         }
         if (this.isOutOfArenaBounds(e.x, e.y) || e.stateTimer >= CHARGE_CONFIG.dashMaxDurationSec) {
           e.state = 'stunned'; e.stateTimer = 0
+          // 衝刺沒有邊界檢查，衝出場地外一段距離才會被 isOutOfArenaBounds 攔下
+          // 來——不夾回可站範圍的話，怪物會頂著暈眩狀態卡在場外，玩家近戰完全
+          // 打不到（回報症狀：「怪物卡在邊界」）。
+          this.clampEnemyToArena(e)
         }
         return
       }
@@ -2180,7 +2221,10 @@ export class ArenaGame {
         // 一種 charge 技能，直接依 typeId 記，不用另外追蹤「目前是哪個 skill.id」。
         if (this.campaignStage && e.typeId === 'orc_chieftain') this.recordCampaignSkillHit('orc_chieftain_charge')
       }
-      if (this.isOutOfArenaBounds(e.x, e.y)) e.state = 'seek'
+      if (this.isOutOfArenaBounds(e.x, e.y)) {
+        e.state = 'seek'
+        this.clampEnemyToArena(e) // 同 updateChargeAI：衝刺結束沒夾回範圍會卡在場外
+      }
       return
     }
     // 1-15 黑騎士先鋒 Black Steel Counter 的格擋視窗：純倒數，命中判定攔截
@@ -2292,6 +2336,11 @@ export class ArenaGame {
         const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x) + (Math.random() - 0.5) * 1.2
         e.targetX = e.x + Math.cos(angle) * SKIRMISHER_CONFIG.repositionDistance
         e.targetY = e.y + Math.sin(angle) * SKIRMISHER_CONFIG.repositionDistance
+        if (this.app) {
+          const { width, height } = this.app.screen
+          e.targetX = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, e.targetX))
+          e.targetY = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, e.targetY))
+        }
       }
       return
     }

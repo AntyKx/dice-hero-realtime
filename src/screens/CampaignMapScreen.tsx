@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import type { MetaState } from '../types'
 import { HEROES } from '../data'
 import type { StageObjectiveType } from '../campaign/campaignTypes'
 import { CAMPAIGN_ID_FOREST_RUINS, CHAPTER_STAR_MILESTONES } from '../campaign/campaignTypes'
 import { getChapterStages } from '../campaign/campaignStages'
 import { getStageProgress, getChapterTotalStars, getChapterMaxStars, isStageUnlocked } from '../campaign/campaignProgress'
+import { hasTravelSegments, getTravelSegmentsForStage } from '../campaign/chapterTravelData'
+import CampaignTravelPreview from '../components/CampaignTravelPreview'
 
 interface Props {
   meta: MetaState
@@ -37,6 +40,18 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
   const maxStars = getChapterMaxStars(CAMPAIGN_ID_FOREST_RUINS)
   const heroName = HEROES.find(h => h.id === heroId)?.name ?? heroId
 
+  // 篇章 I 旅程預覽：點選有旅程資料的關卡時先攔截，播完/略過才真正呼叫
+  // onSelectStage；沒有旅程資料的關卡（6~20）維持原本直接跳轉的行為。
+  const [travelStageId, setTravelStageId] = useState<string | null>(null)
+
+  function handleSelectStage(stageId: string) {
+    if (hasTravelSegments(stageId)) {
+      setTravelStageId(stageId)
+    } else {
+      onSelectStage(stageId)
+    }
+  }
+
   return (
     <div className="page cms-screen">
       <header className="topbar">
@@ -69,7 +84,7 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
               key={stage.id}
               className={`cms-node${isBoss ? ' boss' : ''}${unlocked ? '' : ' locked'}${prog.cleared ? ' cleared' : ''}`}
               disabled={!unlocked}
-              onClick={() => unlocked && onSelectStage(stage.id)}
+              onClick={() => unlocked && handleSelectStage(stage.id)}
             >
               <div className="cms-node-num">{stage.stageNumber}</div>
               <div className="cms-node-body">
@@ -91,6 +106,18 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
       </div>
 
       <p className="cms-hint">目前出戰英雄：{heroName}｜通關（不需三星）即可解鎖下一關，三星是額外的精通目標</p>
+
+      {travelStageId && (
+        <CampaignTravelPreview
+          segments={getTravelSegmentsForStage(travelStageId)}
+          heroId={heroId}
+          onFinish={() => {
+            const stageId = travelStageId
+            setTravelStageId(null)
+            onSelectStage(stageId)
+          }}
+        />
+      )}
     </div>
   )
 }

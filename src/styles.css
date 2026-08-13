@@ -4373,6 +4373,92 @@ h1, h2, h3, p { margin: 0; }
 .cms-node-lock-icon { font-size: 1.1rem; opacity: 0.6; }
 .cms-hint { font-size: 0.78rem; color: #7890ac; text-align: center; margin-top: 4px; }
 
+/* ── 章節旅程節點預覽（CampaignTravelPreview，森林遺跡 1–20 關全篇章）──
+   角色以 ref 直接寫 DOM transform（不用 React state 逐幀更新）沿 pathNodes
+   走位；.ctp-char-wrap 的 left/top 用百分比對齊場景容器，.ctp-char-anchor
+   負責「腳底錨點」（translate(-50%,-100%)）+ 縮放。每個 layer 依自己的
+   parallax 係數透過 CSS 變數 --ctp-pan（JS 逐幀寫入）做水平位移，ground
+   固定 parallax=1.0 所以位移永遠是 0（參考平面）。地面/裝飾目前全是 CSS
+   漸層與 emoji 佔位，日後要換真美術只需要動 CampaignTravelPreview.tsx 的
+   對照表，不用碰這裡的版面規則。 */
+@keyframes ctpFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.ctp-overlay {
+  position: fixed; inset: 0; z-index: 3200; background: rgba(0,0,0,.85);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  animation: ctpFadeIn .15s ease;
+}
+.ctp-scene {
+  position: relative; width: min(94vw, 920px); aspect-ratio: 16 / 10;
+  border-radius: 18px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.6);
+  border: 1px solid rgba(140,180,255,.2); background: #0a0f1a;
+}
+.ctp-layer { position: absolute; inset: 0; pointer-events: none; }
+.ctp-backdrop {
+  inset: -2% -4%; background-size: cover; background-position: center;
+  filter: saturate(0.9) brightness(0.75);
+  transform: translateX(var(--ctp-pan, 0px));
+}
+.ctp-ground { z-index: 8; transform: translateX(var(--ctp-pan, 0px)); }
+.ctp-decor-slot { position: absolute; top: 0; pointer-events: none; }
+.ctp-decor-slot-mg { top: 38%; z-index: 5; }
+.ctp-decor-slot-fg { top: 68%; z-index: 1000; }
+.ctp-midground-item, .ctp-foreground-item {
+  position: relative; transform: translateX(var(--ctp-pan, 0px));
+}
+.ctp-decor-glyph {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.6)); opacity: .92; user-select: none;
+}
+.ctp-ambience { z-index: 900; }
+.ctp-amb-particle { position: absolute; width: 7px; height: 7px; border-radius: 50%; opacity: 0; }
+.ctp-amb-leaves { background: radial-gradient(circle, #9fb75e 0%, transparent 72%); animation: ctpDriftDiagonal 7s ease-in-out infinite; }
+.ctp-amb-embers { background: radial-gradient(circle, #ff9d4d 0%, transparent 70%); box-shadow: 0 0 6px 2px rgba(255,150,60,.5); animation: ctpDriftUp 5s ease-in-out infinite; }
+.ctp-amb-miasma { width: 22px; height: 14px; border-radius: 50%; background: radial-gradient(ellipse, rgba(120,180,90,.4) 0%, transparent 75%); animation: ctpDriftSide 9s ease-in-out infinite; }
+.ctp-amb-root-glow { background: radial-gradient(circle, #7dffb0 0%, transparent 70%); box-shadow: 0 0 8px 3px rgba(90,255,150,.45); animation: ctpPulseGlow 4s ease-in-out infinite; }
+.ctp-amb-heat-haze { width: 3px; height: 20px; border-radius: 2px; background: linear-gradient(180deg, rgba(255,140,60,.55), transparent); animation: ctpDriftUp 3.5s ease-in-out infinite; }
+@keyframes ctpDriftDiagonal { 0% { opacity: 0; transform: translate(0,0) rotate(0deg); } 15% { opacity: .85; } 100% { opacity: 0; transform: translate(30px,60px) rotate(90deg); } }
+@keyframes ctpDriftUp { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: .9; } 100% { opacity: 0; transform: translateY(-70px); } }
+@keyframes ctpDriftSide { 0% { opacity: 0; transform: translateX(-20px); } 30% { opacity: .6; } 70% { opacity: .6; } 100% { opacity: 0; transform: translateX(30px); } }
+@keyframes ctpPulseGlow { 0%, 100% { opacity: .25; transform: scale(1); } 50% { opacity: .9; transform: scale(1.4); } }
+.ctp-char-wrap {
+  position: absolute; left: 0; top: 0; z-index: 20;
+  transition: opacity .3s ease;
+}
+.ctp-char-anchor { transform-origin: center bottom; }
+.ctp-char-shadow {
+  position: absolute; left: 0; top: 0; width: 90px; height: 26px; z-index: -1;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 72%);
+}
+.ctp-title-card {
+  position: absolute; left: 50%; top: 20px; transform: translateX(-50%);
+  padding: 8px 22px; border-radius: 10px; background: rgba(8,14,24,.7);
+  border: 1px solid rgba(140,180,255,.25); backdrop-filter: blur(3px);
+  z-index: 1100; transition: opacity .4s ease;
+}
+.ctp-title-card.arrived { opacity: .55; }
+.ctp-title-text { font-size: 1.05rem; font-weight: 700; color: #e8f0ff; letter-spacing: .03em; }
+.ctp-segment-dots {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 1100;
+}
+.ctp-segment-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); }
+.ctp-segment-dot.active { background: #ffd94a; }
+.ctp-segment-dot.done { background: rgba(255,217,74,.5); }
+.ctp-skip-btn {
+  position: absolute; right: 14px; top: 14px; z-index: 1100;
+  font-size: .8rem; padding: 7px 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctp-char-wrap { transition: opacity .5s ease; }
+  .ctp-amb-particle { animation: none !important; opacity: .35; }
+}
+@media (max-width: 640px) {
+  .ctp-scene { aspect-ratio: 4 / 3; }
+  .ctp-title-card { top: 12px; padding: 6px 16px; }
+  .ctp-title-text { font-size: .9rem; }
+  .ctp-decor-glyph { filter: none; }
+}
+
 /* ── ArenaScreen 森林遺跡結算變體：跟 .arena-gameover-overlay 共用外框，
    只是加了星星列跟目標達成清單 ── */
 .arena-campaign-result-stars { display: flex; justify-content: center; gap: 10px; font-size: 2rem; margin: 10px 0; }
