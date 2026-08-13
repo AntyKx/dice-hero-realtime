@@ -1,4 +1,5 @@
 import type { MetaState, HeroLoadout, HeroProgress } from './types'
+import type { ArenaLoadout } from './arena/equipment'
 import { HEROES } from './data'
 import { defaultHeroProgress } from './talents'
 import { refreshLegendaryDesc, migrateEquipment } from './equipment'
@@ -6,6 +7,15 @@ import { refreshLegendaryDesc, migrateEquipment } from './equipment'
 const META_KEY = 'dice_hero_meta_v2'
 
 function defaultLoadouts(): Record<string, HeroLoadout> {
+  return Object.fromEntries(
+    HEROES.map(h => [h.id, {
+      weapon: null, head: null, body: null, hands: null,
+      boots: null, ring1: null, ring2: null, accessory: null,
+    }])
+  )
+}
+
+function defaultArenaLoadouts(): Record<string, ArenaLoadout> {
   return Object.fromEntries(
     HEROES.map(h => [h.id, {
       weapon: null, head: null, body: null, hands: null,
@@ -41,6 +51,8 @@ export function defaultMeta(): MetaState {
     items: [],
     worldCup: { picks: [], successCount: 0 },
     talentTreeSchemaVersion: TALENT_TREE_SCHEMA_VERSION,
+    arenaInventory: [],
+    arenaLoadouts: defaultArenaLoadouts(),
   }
 }
 
@@ -102,6 +114,8 @@ export function loadMeta(): MetaState {
       items: parsed.items ?? [],
       worldCup: parsed.worldCup ?? { picks: [], successCount: 0 },
       talentTreeSchemaVersion: TALENT_TREE_SCHEMA_VERSION,
+      arenaInventory: parsed.arenaInventory ?? [],
+      arenaLoadouts: { ...def.arenaLoadouts, ...(parsed.arenaLoadouts ?? {}) },
     }
   } catch {
     return defaultMeta()

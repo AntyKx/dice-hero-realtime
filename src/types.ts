@@ -762,6 +762,12 @@ export type MetaState = {
    * （全部未通關），不需要 migration。key 是 CampaignStage.id（如 'forest_1_5'），
    * 星數只升不降、首通只會從 false 變 true，見 campaignProgress.ts。 */
   campaignStageProgress?: Record<string, { cleared: boolean; stars: number; firstClearClaimed: boolean }>
+  /** 即時制專屬裝備（2026-08 裝備系統重整）：跟回合制的 inventory/loadouts
+   * 完全分開，型別是 arena/equipment.ts 的 ArenaEquipment/ArenaLoadout，
+   * 不是 Equipment/HeroLoadout。純新增選填欄位，舊存檔沒有時視同空陣列/
+   * 空物件，不需要 migration（本來就沒有舊資料可搬）。 */
+  arenaInventory?: import('./arena/equipment').ArenaEquipment[]
+  arenaLoadouts?: Record<string, import('./arena/equipment').ArenaLoadout>
 }
 
 export type EnemyAffixId = 'thorns' | 'regen' | 'armor' | 'berserk' | 'poison_sting' | 'immune'

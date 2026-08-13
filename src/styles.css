@@ -2,6 +2,77 @@
   font-family: "Segoe UI", "Noto Sans TC", sans-serif;
   color: #eef4ff;
   background: #111a2e;
+
+  /* ── ASTERVOW 品牌設計系統（2026-08 品牌重製，取代 Dice Hero 舊識別）──
+     只給主選單（MainMenuScreen）跟出發準備（AdventureReadyScreen）兩個
+     入口畫面用；戰鬥內 UI（ArenaGame/BattleScreen 等）不套用，避免動到
+     戰鬥可讀性。色彩哲學見設計文件：古金只用在「可前往/可確認/可提升」
+     的互動元件上，不是裝飾滿版。 */
+  --av-midnight: #080f24;      /* 未知星海：最深底色 */
+  --av-navy: #101c3c;          /* 可依循的路徑：面板/卡片底色 */
+  --av-gold: #e9b85c;          /* Astral Gold：唯一的互動強調色 */
+  --av-gold-soft: rgba(233, 184, 92, 0.34);
+  --av-ink: #f8e8c7;           /* 金色系文字上的淺色前景 */
+  --av-font-display: Cinzel, "Noto Sans TC", serif;
+}
+
+.av-wordmark {
+  font-family: var(--av-font-display);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--av-ink);
+  text-shadow: 0 1px 10px rgba(0,0,0,.55);
+}
+.av-wordmark b, .av-wordmark strong { color: var(--av-gold); font-weight: 700; }
+
+/* 星羅盤徽記：跟轉移包的 .brand-sigil 同一套 CSS 繪製手法，不用圖片。 */
+.av-sigil {
+  position: relative; display: grid; place-items: center;
+  width: 34px; height: 34px; color: var(--av-gold);
+  border: 1px solid rgba(233,184,92,.72); border-radius: 50%;
+  transform: rotate(45deg);
+  box-shadow: 0 0 14px rgba(233,184,92,.3), inset 0 0 10px rgba(111,160,255,.2);
+}
+.av-sigil::before { content: ""; position: absolute; width: 50%; height: 50%; border: 1px solid currentColor; transform: rotate(45deg); }
+.av-sigil span { position: absolute; width: 1px; height: 86%; background: currentColor; }
+.av-sigil i { position: absolute; width: 86%; height: 1px; background: currentColor; }
+.av-sigil::after { content: ""; width: 6px; height: 6px; background: #fff0c4; border: 1px solid #b97825; border-radius: 50%; box-shadow: 0 0 12px var(--av-gold); }
+
+/* 玻璃金線面板按鈕：主選單/出發準備兩個入口畫面共用的次要按鈕質感。 */
+.av-glass-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  color: var(--av-ink);
+  background: rgba(8, 20, 56, 0.46);
+  border: 1px solid var(--av-gold-soft);
+  box-shadow: inset 0 1px rgba(255,255,255,.11), 0 9px 26px rgba(0,0,0,.2);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  cursor: pointer;
+}
+.av-glass-btn:hover { background: rgba(21, 43, 89, 0.78); border-color: rgba(233,184,92,.78); }
+.av-glass-btn:active { transform: scale(0.97); }
+.av-glass-btn:focus-visible { outline: 2px solid var(--av-gold); outline-offset: 2px; }
+
+/* 主要 CTA：實心古金，跟次要玻璃按鈕明確區分「唯一的前往動作」。 */
+.av-cta-btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 44px; padding: 12px 28px;
+  background: linear-gradient(180deg, #f4d38a, var(--av-gold));
+  color: #241505;
+  border: 1px solid rgba(255,235,190,.6);
+  border-radius: 999px;
+  font-weight: 700;
+  box-shadow: 0 10px 28px rgba(233,184,92,.35), inset 0 1px rgba(255,255,255,.5);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  cursor: pointer;
+}
+.av-cta-btn:hover { box-shadow: 0 14px 34px rgba(233,184,92,.5), inset 0 1px rgba(255,255,255,.5); }
+.av-cta-btn:active { transform: scale(0.97); }
+.av-cta-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .av-glass-btn, .av-cta-btn { transition: none; }
 }
 
 * { box-sizing: border-box; }
@@ -1072,13 +1143,60 @@ h1, h2, h3, p { margin: 0; }
 .ec-label { font-size:16px; font-weight:700; margin-bottom:4px; }
 .ec-desc { font-size:12px; color:#a8c4e4; }
 
-/* ── Main Menu ──────────────────────────────────────────── */
+/* ── Main Menu（2026-08 ASTERVOW 品牌重製）──────────────────
+   舊版用 background-image: cover + 絕對定位百分比疊按鈕，是針對舊主視覺
+   （menu-bg.png）手動量出來的位置，換圖就會整組跑掉。新版改用原生比例
+   <img>（.av-home-art）＋一般文件流排版（.av-home-safe），不管圖片跟
+   螢幕寬高比怎麼配，logo/星環/角色一定完整可見、CTA 一定在角色下方，
+   換圖或換裝置都不用重新量位置，超出視窗高度時允許整頁捲動而不是裁切
+   內容。 */
 .main-menu {
   position: relative;
   min-height: 100lvh;
-  overflow: hidden;
   overscroll-behavior: none;
-  background: url('/assets/menu-bg.png') top center / cover no-repeat, #050a1e;
+  background: var(--av-midnight);
+}
+.av-home {
+  display: flex; flex-direction: column; align-items: center;
+  overflow-y: auto; overflow-x: hidden;
+}
+.av-home-art {
+  display: block; width: 100%; max-width: 520px; height: auto;
+}
+.av-home-safe {
+  width: 100%; max-width: 460px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 14px 20px calc(env(safe-area-inset-bottom, 12px) + 18px);
+  margin-top: -6px; /* 跟主視覺圖底部的暗色地面銜接，避免明顯分界線 */
+}
+.av-home-continue {
+  width: 100%; flex-direction: column; gap: 2px; padding: 10px 16px;
+  font-size: .85rem; font-weight: 700;
+}
+.av-home-cta {
+  width: 236px;
+}
+.av-home-cta-sub {
+  font-size: .6rem; font-weight: 500; letter-spacing: .12em;
+  color: rgba(36,21,5,.65);
+}
+.av-home-warn { font-size: .74rem; color: #ffb090; margin-top: -4px; }
+.av-home-utility {
+  display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; justify-content: center;
+}
+.av-home-icon-btn {
+  position: relative; flex-direction: column; gap: 3px;
+  width: 60px; padding: 9px 4px; font-size: 1.1rem;
+}
+.av-home-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+.av-home-icon-label { font-size: .62rem; color: var(--av-ink); }
+.av-home-icon-badge {
+  position: absolute; top: 6px; right: 10px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #e07030; box-shadow: 0 0 6px #e07030;
+}
+@media (max-width: 400px) {
+  .av-home-icon-btn { width: 52px; }
 }
 .mm-stats { display:flex; gap:24px; }
 .mm-stat-item { text-align:center; background:rgba(30,50,90,.6); border:1px solid rgba(100,180,255,.2); border-radius:12px; padding:12px 20px; }
@@ -3082,6 +3200,37 @@ h1, h2, h3, p { margin: 0; }
 .ar-start-btn { width: 100%; font-size: 1rem; padding: 13px; border-radius: 12px; }
 .ar-start-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+/* ── ASTERVOW 品牌重製（2026-08）：出發準備畫面的色彩套用 ──────────────
+   刻意用同一批既有 .ar-* class 名稱疊加覆寫（不改結構、不改任何功能邏輯），
+   只把原本的寶石藍強調色（#7ae0ff／rgba(100,180,255,…)）換成古金
+   var(--av-gold)，跟主選單同一套設計語言；灰燼王國篇既有的琥珀/橘色調
+   本來就跟古金同一色系，不用改。只影響 .ar-screen 底下的元素，不會外溢
+   到 CampaignMapScreen／ArenaEquipmentScreen／戰鬥內 UI。 */
+.ar-screen { background: var(--av-midnight); }
+.ar-mode-tabs { background: rgba(8,15,36,.7); border-bottom-color: var(--av-gold-soft); }
+.ar-tab:hover { color: var(--av-ink); background: rgba(233,184,92,.06); }
+.ar-tab.active { color: var(--av-gold); border-bottom-color: var(--av-gold); background: rgba(233,184,92,.1); }
+.ar-label { color: var(--av-gold); }
+.ar-campaign-btn.active {
+  background: rgba(233,184,92,.12); border-color: rgba(233,184,92,.5);
+  box-shadow: 0 0 12px rgba(233,184,92,.12);
+}
+.ar-route-btn.active {
+  background: rgba(233,184,92,.14); border-color: rgba(233,184,92,.5);
+}
+.ar-hero-btn:hover { background: rgba(233,184,92,.1); border-color: rgba(233,184,92,.35); }
+.ar-hero-btn.active { background: rgba(233,184,92,.16); border-color: rgba(233,184,92,.55); }
+.ar-dg-btn.active { border-color: rgba(233,184,92,.6) !important; }
+.ar-footer { background: rgba(6,11,28,.85); border-top-color: var(--av-gold-soft); }
+.ar-start-btn:not(:disabled) {
+  background: linear-gradient(180deg, #f4d38a, var(--av-gold)) !important;
+  color: #241505 !important;
+  border-color: rgba(255,235,190,.6) !important;
+  box-shadow: 0 10px 28px rgba(233,184,92,.35), inset 0 1px rgba(255,255,255,.5);
+}
+.ar-start-btn:not(:disabled):hover { box-shadow: 0 14px 34px rgba(233,184,92,.5), inset 0 1px rgba(255,255,255,.5); }
+.ar-start-btn:not(:disabled):active { transform: scale(0.97); }
+
 /* ── Mobile: stack options above hero grid ── */
 @media (max-width: 760px) {
   .ar-screen { height: auto; min-height: 100vh; overflow: visible; }
@@ -3093,7 +3242,158 @@ h1, h2, h3, p { margin: 0; }
   .dhm-sprite { height: 48px; width: 58px; }
   .dhm-hero-name { font-size: 0.62rem; }
   .ar-diff-desc { display: none; }
+  .av-lobby { overflow: visible; }
 }
+
+/* ── 大廳版面（主線冒險分頁，2026-08）：英雄站台＋章節輪播＋功能磚，
+   跟 .ar-body（地城副本分頁維持的清單式版面）並列互斥。用現有的長方形
+   立繪重排，不是去背全身立繪站台（本專案沒有這類素材）。 ── */
+.av-lobby {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 16px 16px max(20px, env(safe-area-inset-bottom));
+}
+.av-lobby-resources { display: flex; gap: 8px; align-self: flex-start; }
+
+.av-lobby-stage { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.av-lobby-stage-art {
+  position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
+  border-radius: 20px; border: 1px solid var(--av-gold-soft);
+  background: var(--av-navy); padding: 0; margin: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.av-lobby-stage-art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.av-lobby-stage-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent 45%, rgba(8,15,36,.92) 100%);
+}
+.av-lobby-stage-caption { position: absolute; left: 14px; right: 14px; bottom: 12px; text-align: left; }
+.av-lobby-stage-name { font-family: var(--av-font-display); font-size: 1.15rem; font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.av-lobby-stage-star { margin-left: 6px; color: var(--av-gold); font-size: 0.85em; }
+.av-lobby-stage-sub { font-size: 0.75rem; color: var(--av-ink); opacity: .85; margin-top: 2px; }
+
+.av-lobby-stage-switcher {
+  display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 2px 2px 6px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+}
+.av-lobby-switch-btn {
+  flex-shrink: 0; width: 46px; height: 46px; border-radius: 12px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s;
+}
+.av-lobby-switch-btn:hover { background: rgba(233,184,92,.1); border-color: rgba(233,184,92,.35); }
+.av-lobby-switch-btn.active { background: rgba(233,184,92,.18); border-color: var(--av-gold); }
+
+.av-lobby-chapter { width: 100%; max-width: 420px; display: flex; align-items: center; gap: 8px; }
+.av-lobby-chapter-nav {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15);
+  color: var(--av-ink); font-size: 1.1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .15s;
+}
+.av-lobby-chapter-nav:hover { background: rgba(233,184,92,.12); border-color: rgba(233,184,92,.4); }
+.av-lobby-chapter-card {
+  flex: 1; min-width: 0; background: rgba(16,28,60,.7); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; padding: 14px 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.av-lobby-chapter-icon { font-size: 1.6rem; }
+.av-lobby-chapter-name { font-family: var(--av-font-display); font-weight: 700; font-size: 1rem; color: var(--av-ink); }
+.av-lobby-chapter-sub { font-size: 0.68rem; color: #8090a8; }
+.av-lobby-chapter-progress { width: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 0.7rem; color: #b0c4de; }
+.av-lobby-chapter-progress-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+.av-lobby-chapter-progress-fill { height: 100%; border-radius: 4px; }
+.av-lobby-chapter-progress-note { font-size: 0.68rem; color: #6888a8; margin-top: 4px; }
+.av-lobby-chapter-enter { margin-top: 8px; width: 100%; }
+.av-lobby-chapter-enter:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+/* ── 大廳玩家資訊列 + 底部導覽 + 右側抽屜（2026-08）：比照使用者提供的
+   mockup 補上左上玩家資訊／右上工具列＋選單／底下固定導覽三塊。跟
+   .ar-footer 一樣是 .ar-screen flex column 裡的一般 flex 子元素（不是
+   position:fixed），桌面版靠 .ar-screen 的 height:100vh 天然貼底，手機版
+   media query 讓 .ar-screen 變成 height:auto 後整頁自然捲動，跟既有
+   .ar-footer 行為一致。 ── */
+.av-lobby-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(233,184,92,.14);
+  background: rgba(8,15,36,.7);
+}
+.av-lobby-player-chip {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  background: transparent; border: none; cursor: pointer; padding: 2px;
+  color: var(--av-ink); text-align: left;
+}
+.av-lobby-player-avatar {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  background: rgba(233,184,92,.14); border: 1px solid var(--av-gold-soft);
+}
+.av-lobby-player-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.av-lobby-player-info b { font-size: 0.82rem; color: var(--av-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av-lobby-player-info small { font-size: 0.66rem; color: var(--av-gold); }
+.av-lobby-toolbar { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.av-lobby-menu-btn { width: 34px; height: 34px; padding: 0; border-radius: 10px; font-size: 1rem; }
+
+.av-lobby-dock {
+  display: flex; align-items: stretch; justify-content: space-around;
+  flex-shrink: 0; padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  background: rgba(6,11,28,.88); border-top: 1px solid rgba(233,184,92,.15);
+}
+.av-lobby-dock-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: transparent; border: none; color: #7888a8; cursor: pointer;
+  font-size: 0.62rem; padding: 4px 2px; border-radius: 10px; transition: color .15s, background .15s;
+}
+.av-lobby-dock-btn span:first-child { font-size: 1.15rem; }
+.av-lobby-dock-btn:hover { color: var(--av-ink); background: rgba(233,184,92,.08); }
+.av-lobby-dock-btn.active { color: var(--av-gold); }
+.av-lobby-dock-primary {
+  flex: 1.3; color: #241505;
+  background: linear-gradient(180deg, #f4d38a, var(--av-gold));
+  box-shadow: 0 6px 16px rgba(233,184,92,.35);
+  margin: -14px 4px 0; border-radius: 16px; font-weight: 700;
+}
+.av-lobby-dock-primary span:first-child { font-size: 1.3rem; }
+.av-lobby-dock-primary:hover { color: #241505; background: linear-gradient(180deg, #f4d38a, var(--av-gold)); }
+.av-lobby-dock-primary:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+.av-drawer-overlay { position: fixed; inset: 0; z-index: 60; display: flex; justify-content: flex-end; }
+.av-drawer-scrim { position: absolute; inset: 0; background: rgba(4,8,20,.6); border: none; cursor: pointer; padding: 0; }
+.av-drawer {
+  position: relative; width: 300px; max-width: 85vw; height: 100%;
+  background: linear-gradient(180deg, #0d1730, #0a1226);
+  border-left: 1px solid rgba(233,184,92,.2);
+  box-shadow: -18px 0 40px rgba(0,0,0,.4);
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  overflow-y: auto;
+  animation: av-drawer-in .2s ease;
+}
+@keyframes av-drawer-in { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .av-drawer { animation: none; } }
+.av-drawer-header { display: flex; align-items: center; justify-content: space-between; }
+.av-drawer-close { padding: 4px 9px; }
+.av-drawer-profile {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: rgba(233,184,92,.08); border: 1px solid var(--av-gold-soft); border-radius: 14px;
+}
+.av-drawer-list { display: flex; flex-direction: column; gap: 6px; }
+.av-drawer-item {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px; padding: 11px 12px; color: var(--av-ink); cursor: pointer;
+  font-size: 0.85rem; transition: background .15s, border-color .15s;
+}
+.av-drawer-item:hover:not(:disabled) { background: rgba(233,184,92,.08); border-color: rgba(233,184,92,.3); }
+.av-drawer-item:disabled { opacity: .5; cursor: not-allowed; }
+.av-drawer-item span:first-child { font-size: 1rem; }
+.av-drawer-item span:nth-child(2) { flex: 1; }
+.av-drawer-item-tag { font-size: 0.62rem; color: #8090a8; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 2px 6px; }
+.av-drawer-item-arrow { color: #6888a8; }
+.av-drawer-footer { margin-top: auto; }
+.av-drawer-footer button { width: 100%; }
 
 /* ── GM Mode ───────────────────────────────────────────────────────────────── */
 .gm-gate {
@@ -4782,5 +5082,63 @@ h1, h2, h3, p { margin: 0; }
 }
 .arena-relic-tag {
   color: #ffd94a !important;
+}
+
+/* ── 即時制裝備 + 抽獎面板（ArenaEquipmentScreen，2026-08 裝備系統重整）──
+   內嵌在 EquipmentScreen.tsx 的「⚔️ 即時制裝備」分頁裡，不是獨立頁面，
+   英雄選擇沿用外層畫面左側的英雄清單，這裡不重複做一份。 */
+.aeq-panel { padding-top: 4px; }
+
+.aeq-gacha-panel {
+  background: linear-gradient(160deg, rgba(255,180,60,.14), rgba(20,26,40,.4));
+  border: 1px solid rgba(255,190,80,.3); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px;
+}
+.aeq-gacha-title { font-weight: 700; font-size: 1rem; color: #ffd48a; margin-bottom: 4px; }
+.aeq-gacha-hint { font-size: .74rem; color: #9aa8c4; margin-top: 6px; }
+.aeq-gacha-btns { display: flex; gap: 10px; margin-top: 8px; }
+.aeq-gacha-btns button { flex: 1; }
+
+.aeq-loadout-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;
+}
+.aeq-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+  padding: 10px 6px; cursor: pointer; text-align: center; min-height: 84px; justify-content: center;
+}
+.aeq-slot-icon { font-size: 1.2rem; }
+.aeq-slot-label { font-size: .68rem; color: #8393b0; }
+.aeq-slot-empty { font-size: .68rem; color: #5a6580; margin-top: 2px; }
+.aeq-slot-item-name { font-size: .74rem; font-weight: 700; line-height: 1.2; }
+.aeq-slot-item-bonus { font-size: .64rem; color: #8fa5c8; }
+.aeq-slot-unequip { font-size: .62rem; color: #ff8a80; margin-top: 2px; }
+
+.aeq-inventory-title { font-weight: 700; margin-bottom: 8px; color: #cfe0f5; }
+.aeq-inventory-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px; }
+.aeq-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
+  padding: 9px 12px; text-align: left; cursor: pointer;
+}
+.aeq-item:disabled { cursor: default; }
+.aeq-item-name { font-weight: 700; font-size: .86rem; }
+.aeq-item-tag { font-size: .7rem; color: #6fff8a; font-weight: 400; }
+.aeq-item-bonus { font-size: .72rem; color: #8fa5c8; }
+.aeq-empty-hint { font-size: .8rem; color: #7890ac; padding: 10px 0; }
+
+.aeq-picker-overlay {
+  position: fixed; inset: 0; z-index: 3300; background: rgba(0,0,0,.75);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.aeq-picker-modal {
+  width: 100%; max-width: 480px; max-height: 80vh; overflow-y: auto;
+  background: linear-gradient(160deg,#16243e,#0e1828); border: 1px solid rgba(140,180,255,.25);
+  border-radius: 16px; padding: 18px;
+}
+.aeq-picker-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 10px; color: #eaf3ff; }
+.aeq-picker-list { display: flex; flex-direction: column; gap: 6px; }
+
+@media (max-width: 640px) {
+  .aeq-loadout-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

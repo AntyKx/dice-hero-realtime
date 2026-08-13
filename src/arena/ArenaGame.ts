@@ -101,6 +101,17 @@ export interface ArenaConfig {
   talentDamageReductionPct?: number // 天賦 ArenaTalentBonus.damageReductionPct，開局套用
   talentStartShieldCharges?: number // 天賦 ArenaTalentBonus.startShieldCharges，開局套用
   talentLifestealPct?: number       // 天賦 ArenaTalentBonus.lifestealPct，開局套用
+  // ── 即時制專屬裝備（2026-08 重整，見 src/arena/equipment.ts）：開局套用，
+  // 全部是 computeArenaEquipBonus() 算好的最終值，這裡只負責讀不負責算。
+  // HP 加成沒有獨立欄位——比照舊系統 eqBonus.hpBonus/talentBon.hpBonus 的
+  // 慣例，直接由呼叫端加進 maxHp 本身傳進來。
+  equipDamageReductionPct?: number   // defBonusToDamageReductionPct() 轉換過的減傷比例
+  equipMoveSpeedMult?: number
+  equipAtkCooldownMult?: number
+  equipLifestealPct?: number
+  equipExtraProjectiles?: number
+  equipPierceBonus?: number
+  equippedWeaponTag?: string // 目前裝備武器的 weaponTag，boss 戰利品用來併入武器專屬遺物池
   /** 森林遺跡固定關卡（2026-08，見 src/campaign/）：有值時 init() 完全跳過
    * Arena Roguelite Run 的隨機分區生成，改跑固定波次/Hazard/Objective。
    * 跟 `campaign` 欄位語意獨立，不會互相覆寫。 */
@@ -377,14 +388,17 @@ const CAMPAIGN_BG_THEME: Record<string, string> = {
 }
 const BG_VARIANTS_PER_THEME = 3
 
-// 森林遺跡固定關卡（2026-08）的 5 種場景主題，目前也只有 forest/castle/
-// snowfield 三套現成背景可借，森林巨龍龍巢刻意借雪原做出「離開森林進入
-// 巨龍領域」的色調轉換，其餘都借最貼近的森林/城堡場景頂著，等有專屬美術
-// 再換成 5 張各自的真背景。
-const CAMPAIGN_STAGE_BG_THEME: Record<CampaignStage['bgTheme'], string> = {
-  forest_entrance: 'forest', poison_forest: 'forest',
-  ancient_ruins: 'castle', ancient_altar: 'castle',
-  dragon_nest: 'snowfield',
+// 森林遺跡固定關卡（2026-08-14）的 5 種場景主題專屬美術——取代原本借用
+// forest/castle/snowfield 頂著的暫代圖。目前每個主題只有 1 張（不是舊機制
+// 的 3 張變體），所以走單張路徑而不是 `${bgTheme}_${i+1}.jpg` 那套隨機
+// 變體邏輯；未來要補齊「同主題隨機三張」只要在這個資料夾多放
+// {theme}_2.jpg/{theme}_3.jpg 並在下面補對應陣列項目即可。
+const CAMPAIGN_STAGE_BG_PATH: Record<CampaignStage['bgTheme'], string[]> = {
+  forest_entrance: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/forest_entrance_1.jpg'],
+  poison_forest: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/poison_forest_1.jpg'],
+  ancient_ruins: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/ancient_ruins_1.jpg'],
+  ancient_altar: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/ancient_altar_1.jpg'],
+  dragon_nest: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/dragon_nest_1.jpg'],
 }
 
 export class ArenaGame {
@@ -547,6 +561,14 @@ export class ArenaGame {
     this.talentDamageReductionPct = cfg.talentDamageReductionPct ?? 0
     this.shieldCharges = cfg.talentStartShieldCharges ?? 0
     this.lifestealPct = cfg.talentLifestealPct ?? 0
+    // 即時制專屬裝備（2026-08）：跟天賦加成一樣開局套用，來源分開（天賦 vs
+    // 裝備）但套用的是同一組執行期欄位，疊加起來自然發生，不用另外處理。
+    this.talentDamageReductionPct += cfg.equipDamageReductionPct ?? 0
+    this.lifestealPct += cfg.equipLifestealPct ?? 0
+    this.atkCooldownMult *= cfg.equipAtkCooldownMult ?? 1
+    this.moveSpeedMult *= cfg.equipMoveSpeedMult ?? 1
+    this.pierceBonus += cfg.equipPierceBonus ?? 0
+    this.extraProjectiles += cfg.equipExtraProjectiles ?? 0
     this.campaign = cfg.campaign ?? 'main'
     // 遺物永久收藏（2026-08）：cfg.ownedRelicIds 是這個英雄先前 boss 戰利品累積下來
     // 的永久持有清單，開局就直接套用效果（不用等這局也打贏 boss 才有感），
@@ -614,10 +636,9 @@ export class ArenaGame {
     const allEnemyTypes = this.campaignStage
       ? this.getCampaignStageEnemyTypes(this.campaignStage)
       : [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
-    const bgTheme = this.campaignStage
-      ? CAMPAIGN_STAGE_BG_THEME[this.campaignStage.bgTheme]
-      : (CAMPAIGN_BG_THEME[this.campaign] ?? 'forest')
-    const bgPaths = Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${bgTheme}_${i + 1}.jpg`)
+    const bgPaths = this.campaignStage
+      ? CAMPAIGN_STAGE_BG_PATH[this.campaignStage.bgTheme]
+      : Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${CAMPAIGN_BG_THEME[this.campaign] ?? 'forest'}_${i + 1}.jpg`)
     const heroStars = Math.min(3, Math.max(0, this.cfg.stars ?? 0))
     const [heroFrames, bgTexList, enemyFrameList, portraitTex] = await Promise.all([
       loadCharacterFrames(`/assets/frames/heroes/${this.cfg.heroId}/s${heroStars}`),
@@ -2831,7 +2852,7 @@ export class ArenaGame {
 
   pauseForBossLoot() {
     this.app?.ticker.stop()
-    this.onBossLoot(pickRelicChoices(this.ownedRelicIds, 3))
+    this.onBossLoot(pickRelicChoices(this.ownedRelicIds, 3, this.cfg.equippedWeaponTag))
   }
 
   applyRelicEffect(e: ArenaRelicEffect): void {

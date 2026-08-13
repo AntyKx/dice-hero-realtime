@@ -22,6 +22,7 @@ import { getRandomCurse } from './curses'
 import { loadMeta, saveMeta, calcRunStardust } from './meta'
 import { saveRun, loadSavedRun, clearSavedRun, type RunSave } from './save'
 import { tryGenerateDrop, getEquippedItems, computeEquipBonus, SALVAGE_VALUE, generateEquipment, tryGenerateEclipseDrop, tryGenerateThroneDrops, tryGenerateBlackTideDrop, tryGenerateCovenantDrop } from './equipment'
+import { computeArenaEquipBonus, getEquippedArenaItems, defBonusToDamageReductionPct, getEquippedWeapon, generateRandomDrop } from './arena/equipment'
 import {
   computeTalentBonus, addHeroExp, checkStarConditions, calcRunExp, defaultHeroProgress,
   getHeroStarTitle, HERO_TALENT_TREES,
@@ -343,6 +344,27 @@ export default function App() {
 
   const getActiveTalentBonus = (heroId: string) =>
     computeTalentBonus(heroId, meta.heroProgress[heroId] ?? defaultHeroProgress())
+
+  // 即時制專屬裝備（2026-08 重整）：跟上面 getActiveEquipment 完全分開的
+  // 資料來源（meta.arenaInventory/arenaLoadouts），算好的加成直接對應
+  // ArenaConfig 的 equip* 欄位，呼叫端不用知道底層是怎麼算的。
+  const getActiveArenaEquipConfig = (heroId: string) => {
+    const items = getEquippedArenaItems(meta.arenaInventory ?? [], meta.arenaLoadouts?.[heroId])
+    const bonus = computeArenaEquipBonus(items)
+    const weapon = getEquippedWeapon(meta.arenaInventory ?? [], meta.arenaLoadouts?.[heroId])
+    return {
+      hpBonus: bonus.hpBonus,
+      equipDamageReductionPct: defBonusToDamageReductionPct(bonus.defBonus),
+      equipMoveSpeedMult: bonus.moveSpeedMult,
+      equipAtkCooldownMult: bonus.atkCooldownMult,
+      equipLifestealPct: bonus.lifestealPct,
+      equipExtraProjectiles: bonus.extraProjectiles,
+      equipPierceBonus: bonus.pierceBonus,
+      // 只有真的裝著那把武器才會解鎖武器專屬遺物池——沒裝備武器時完全不傳，
+      // 不要因為「這個英雄理論上能用這把武器」就預先解鎖。
+      equippedWeaponTag: weapon?.weaponTag,
+    }
+  }
 
   // Award EXP + update stars at end of run
   const awardRunExp = (heroId: string, won: boolean, floorsCleared: number) => {
@@ -1300,15 +1322,8 @@ export default function App() {
         meta={meta}
         savedRun={FEATURE_FLAGS.turnBasedMainline ? (() => { const s = loadSavedRun(); return (s?.phase.type === 'battle' && s.phase.dungeonId) ? null : s })() : null}
         onStartAdventure={() => setPhase({ type: 'adventure_ready' })}
-        onEquipment={() => setPhase({ type: 'equipment_manage' })}
-
         onContinue={handleContinueRun}
         user={user}
-        cloudMsg={cloudMsg}
-        onSignIn={handleSignIn}
-        onSignOut={handleSignOut}
-        onCloudSave={handleCloudSave}
-        onCloudLoad={handleCloudLoad}
         onSetFateLevel={lv => updateMeta(m => ({ ...m, activeFateLevel: Math.min(lv, m.fateLevel) }))}
         onGmMode={() => setPhase({ type: 'gm' })}
         onMetaUpdate={updateMeta}
@@ -1347,24 +1362,24 @@ export default function App() {
     // updateKeystone 行為）。
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
-    // 平衡調整（2026-08-10）：Arena 先前完全沒讀裝備，練回合制裝備對即時制
-    // 戰力毫無影響。裝備的 flatDamage/hpBonus 套用跟 hero.atk 換算成
-    // Arena 數值時同一個 ×0.6 係數，讓裝備投資在 Arena 裡有感，但不會蓋過
-    // 天賦樹跟等級成長的份量（裝備原本是照回合制骰子戰鬥的數值量級去調的，
-    // 直接 1:1 套用會遠超 Arena 現有的傷害/血量量級）。
-    const equipBonus = computeEquipBonus(getActiveEquipment(hero.id))
+    // 裝備系統重整（2026-08）：即時制不再讀回合制的 inventory/loadouts
+    // （原本套用 ×0.6 係數硬換算過去），改讀完全獨立的
+    // meta.arenaInventory/arenaLoadouts，數值本來就是照 Arena 量級設計的，
+    // 不需要額外係數。
+    const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp + talentBonus.hpBonus + Math.round(equipBonus.hpBonus * 0.6),
-          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage + Math.round(equipBonus.flatDamage * 0.6),
+          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus,
+          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
           atkCooldown: 0.80 * talentBonus.atkCooldownMult,
           moveSpeed: 180 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
           unlockedMajorSkillIds: talentBonus.unlockedMajorSkillIds,
           campaign: phase.campaign,
+          ...arenaEquipFields,
           stars: heroProgress.stars,
           attackType: getAttackType(hero.role),
           ultimateName: hero.skill,
@@ -1405,15 +1420,15 @@ export default function App() {
     const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
-    const equipBonus = computeEquipBonus(getActiveEquipment(hero.id))
+    const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
     const stageId = phase.stageId
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp + talentBonus.hpBonus + Math.round(equipBonus.hpBonus * 0.6),
-          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage + Math.round(equipBonus.flatDamage * 0.6),
+          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus,
+          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
           atkCooldown: 0.80 * talentBonus.atkCooldownMult,
           moveSpeed: 180 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
@@ -1423,12 +1438,19 @@ export default function App() {
           ultimateName: hero.skill,
           ownedRelicIds: heroProgress.ownedRelicIds,
           campaignStageId: stageId,
+          ...arenaEquipFields,
         }}
         onExit={() => setPhase({ type: 'campaign_map', heroId: hero.id })}
         onCampaignStageEnd={result => {
           updateMeta(m => {
             const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
             let next = recordStageResult(m, stageId, result.won ? result.stars : 0)
+            // 關卡掉落（2026-08 裝備系統重整）：每次通關都掉 1 件一般（normal）
+            // 稀有度裝備——特殊裝備留給抽獎系統，關卡掉落故意壓在最低稀有度。
+            if (result.won) {
+              const drop = generateRandomDrop(hero.id, [['normal', 100]])
+              next = { ...next, arenaInventory: [...(next.arenaInventory ?? []), drop] }
+            }
             if (result.won && !wasFirstClearClaimed) {
               const stage = getCampaignStage(stageId)
               if (stage) {
@@ -1453,6 +1475,7 @@ export default function App() {
     return <EquipmentScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'main_menu' })} onSilentCloudSave={silentCloudSave} />
   }
 
+
   if (phase.type === 'adventure_ready' || phase.type === 'hero_select' || phase.type === 'route_select') {
     return (
       <div className="page">
@@ -1464,6 +1487,13 @@ export default function App() {
           onBack={() => setPhase({ type: 'main_menu' })}
           onLeaderboard={() => setPhase({ type: 'leaderboard' })}
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_map', heroId })}
+          onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
+          user={user}
+          cloudMsg={cloudMsg}
+          onSignIn={handleSignIn}
+          onSignOut={handleSignOut}
+          onCloudSave={handleCloudSave}
+          onCloudLoad={handleCloudLoad}
         />
       </div>
     )

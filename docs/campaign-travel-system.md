@@ -97,6 +97,16 @@
 3. **陰影跟腳底同步縮放**：`.ctp-char-shadow` 用同一個 `pose.scale` 縮放，位置固定對齊角色錨點（同一個 `wrap` 內，`translate(-50%,-50%) scale(pose.scale)`）。
 4. **前景遮擋**：`.ctp-decor-slot-fg` 固定 `z-index: 1000`，永遠蓋在角色（`z-index` 最高約 80）之上，角色走到前景裝飾的視覺位置時下半身會被遮住。
 
+## 更新紀錄
+
+- **2026-08-14**：backdrop 換成森林遺跡專屬戰鬥場景圖（5 個 `bgTheme` 各
+  一張，`public/assets/backgrounds/forest_ruins_2026_08/`），取代原本借用
+  `forest_1-3.jpg`/`castle_1-3.jpg`/`snowfield_1-3.jpg` 的暫代方案。同一
+  `bgTheme` 目前只有 1 張圖，24 段裡同主題的段落背景會完全相同（例如
+  1-4 關的旅程段全部是同一張 `forest_entrance_1.jpg`）；等美術補齊每主題
+  的第 2、3 張變體，再依段落錯開即可有更多變化。地面/地標/前景/氣氛層仍是
+  CSS/emoji 暫代，還沒換真美術。
+
 ## 已知限制
 
 - 沒有玩家位置持久化——每次開旅程預覽都是從畫面左側/上方邊緣重新出發，

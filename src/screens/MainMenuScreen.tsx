@@ -5,7 +5,6 @@ import type { MetaState } from '../types'
 import type { RunSave } from '../save'
 import { relativeTime } from '../save'
 import type { User } from '../lib/firebase'
-import CompendiumScreen from './CompendiumScreen'
 import { getPlayerName } from '../scoring'
 import WorldCupModal from '../components/WorldCupModal'
 import { type WcMatch, fetchWorldCupMatches, findResolvable, findNextPredictable } from '../worldCup'
@@ -13,18 +12,56 @@ import { FEATURE_FLAGS } from '../featureFlags'
 
 const BUILD_VERSION = __APP_BUILD__
 
+/** 2026-08 首頁微動態：使用者要求尊重 prefers-reduced-motion，這裡用
+ * JS 判斷（不只是 CSS 隱藏）直接不掛載 <video>，避免降級使用者仍下載/
+ * 播放影片。 */
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = () => setReduced(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduced
+}
+
+/** 首頁背景影片只有 8 秒、~1.8MB，原本用 <source src="..."> 直接串流播放
+ * 時，瀏覽器在迴圈接點常常要重新跟網路要資料，造成使用者反映的「循環時
+ * 短暫延遲/卡頓」。改成先用 fetch 把整支影片抓成 Blob 存進記憶體，完全
+ * 載入完才掛載 <video src={blobUrl}>——迴圈時是從本地記憶體重播，不會再
+ * 卡在網路緩衝。載入完成前畫面維持顯示 poster 靜態圖（跟影片首幀同一張
+ * 圖），不會有明顯切換閃爍。 */
+function useVideoBlobUrl(src: string, enabled: boolean) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!enabled) { setBlobUrl(null); return }
+    let cancelled = false
+    let objectUrl: string | null = null
+    fetch(src)
+      .then(res => res.blob())
+      .then(blob => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [src, enabled])
+  return blobUrl
+}
+
 interface Props {
   meta: MetaState
   savedRun: RunSave | null
   onStartAdventure: () => void
-  onEquipment: () => void
   onContinue: (saved: RunSave) => void
   user: User | null
-  cloudMsg: string
-  onSignIn: () => void
-  onSignOut: () => void
-  onCloudSave: () => void
-  onCloudLoad: () => void
   onSetFateLevel: (lv: number) => void
   onGmMode: () => void
   onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void
@@ -57,18 +94,19 @@ function SavedRunInfo({ saved }: { saved: RunSave }) {
 
 export default function MainMenuScreen({
   meta, savedRun,
-  onStartAdventure, onEquipment, onContinue,
-  user, cloudMsg, onSignIn, onSignOut, onCloudSave, onCloudLoad,
+  onStartAdventure, onContinue,
+  user,
   onGmMode, onMetaUpdate,
 }: Props) {
-  const [showCloud, setShowCloud]           = useState(false)
-  const [showCompendium, setShowCompendium] = useState(false)
+  const prefersReducedMotion               = usePrefersReducedMotion()
+  const homeMotionBlobUrl = useVideoBlobUrl('/assets/astervow-home-motion.mp4', !prefersReducedMotion)
   const [confirmNew, setConfirmNew]         = useState(false)
   const [showWorldCup, setShowWorldCup]     = useState(false)
   const [wcMatches, setWcMatches]           = useState<WcMatch[]>([])
   const [wcRefreshing, setWcRefreshing]     = useState(false)
 
   useEffect(() => {
+    if (!FEATURE_FLAGS.worldCup) return
     fetchWorldCupMatches().then(setWcMatches)
     // 主畫面常常開著不關，定期檢查一次（內部仍依 30 分快取 TTL 判斷要不要真的打 API）
     const interval = window.setInterval(() => { fetchWorldCupMatches().then(setWcMatches) }, 5 * 60 * 1000)
@@ -92,9 +130,8 @@ export default function MainMenuScreen({
     (!!findNextPredictable(wcMatches, wcPicks) && !wcPicks.some(p => !p.resolved))
 
   return (
-    <div className="main-menu">
-      {showCompendium && <CompendiumScreen onClose={() => setShowCompendium(false)} />}
-      {showWorldCup && (
+    <div className="main-menu av-home">
+      {FEATURE_FLAGS.worldCup && showWorldCup && (
         <WorldCupModal
           meta={meta} matches={wcMatches} onMetaUpdate={onMetaUpdate} onClose={() => setShowWorldCup(false)}
           onRefresh={refreshWorldCup} refreshing={wcRefreshing}
@@ -108,97 +145,64 @@ export default function MainMenuScreen({
         </div>
       )}
 
-      <nav className="mm-nav">
+      {/* ASTERVOW 主視覺（2026-08 品牌重製）：圖片本身已經包含 logo/星環/
+          職業角色，用原生比例的 <img> 而不是 background-size:cover，確保
+          任何裝置寬高比都不會裁掉角色或 logo——寧可留白，不要裁切。
+          2026-08 微動態版：同一張構圖的 8 秒無聲循環影片（星塵漂移/星環
+          呼吸/角色髮絲披風微動）。整支影片先用 fetch 抓成 Blob 存進記憶體
+          （useVideoBlobUrl）才掛載 <video>，迴圈時從本地重播不會卡在網路
+          緩衝；載入完成前 / 載入失敗 / 瀏覽器不支援 / prefers-reduced-motion
+          時都維持顯示原本的靜態 <img>，兩者是同一張圖，切換不會閃爍。 */}
+      {!prefersReducedMotion && homeMotionBlobUrl ? (
+        <video
+          className="av-home-art"
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster="/assets/astervow-home-bg.png"
+          aria-label="ASTERVOW"
+          style={{ pointerEvents: 'none' }}
+          src={homeMotionBlobUrl}
+        />
+      ) : (
+        <img src="/assets/astervow-home-bg.png" alt="ASTERVOW" className="av-home-art" />
+      )}
 
-        {/* 繼續冒險：有存檔才顯示 */}
+      <div className="av-home-safe">
+        {/* 繼續冒險：有存檔才顯示，出現在主 CTA 上方的次要提示列 */}
         {savedRun && (
-          <button className="mm-btn mm-btn-continue" onClick={() => onContinue(savedRun)}>
-            <span className="mm-btn-icon">▶</span>
-            <div className="mm-btn-body">
-              <div className="mm-btn-title">繼續冒險</div>
-              <SavedRunInfo saved={savedRun} />
-            </div>
-            <span className="mm-btn-chevron">›</span>
+          <button className="av-glass-btn av-home-continue" onClick={() => onContinue(savedRun)}>
+            <span>▶ 繼續冒險</span>
+            <SavedRunInfo saved={savedRun} />
           </button>
         )}
 
-        {/* 開始冒險 */}
+        {/* 唯一主要 CTA：進入星界大廳 */}
         <button
-          className="mm-btn mm-btn-primary"
+          className="av-cta-btn av-home-cta"
           onClick={() => savedRun ? setConfirmNew(true) : onStartAdventure()}
         >
-          <span className="mm-btn-icon">⚔️</span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">{savedRun ? '開始新冒險' : '開始冒險'}</div>
-            <div className="mm-btn-sub">
-              {savedRun
-                ? '⚠️ 將覆蓋目前的存檔進度'
-                : `選擇英雄，踏上骰子旅途 · 副本 ${Object.values(meta.dungeonProgress ?? {}).filter(p => p.cleared).length}/${DUNGEON_DEFS.length} 通關`}
-            </div>
-          </div>
-          <span className="mm-btn-chevron">›</span>
+          <span>{savedRun ? '開始新遠征' : '進入星界大廳'}</span>
+          <span className="av-home-cta-sub">CONTINUE YOUR EXPEDITION</span>
         </button>
+        {savedRun && <div className="av-home-warn">⚠️ 將覆蓋目前的存檔進度</div>}
 
-        {/* 英雄 & 裝備（v1 即時制範圍先隱藏，見 FEATURE_FLAGS） */}
-        {FEATURE_FLAGS.equipment && (
-          <button className="mm-btn mm-btn-secondary" onClick={onEquipment}>
-            <span className="mm-btn-icon">🛡️</span>
-            <div className="mm-btn-body">
-              <div className="mm-btn-title">英雄 &amp; 裝備</div>
-              <div className="mm-btn-sub">管理裝備配置，強化你的英雄</div>
-            </div>
-            <div className="mm-badge-group">
-              <span className="mm-gold-badge">💰 {meta.gold}</span>
-              <span className="mm-stardust-badge">⭐ {meta.stardust}</span>
-            </div>
-          </button>
+        {/* 2026-08：英雄與裝備/雲端存檔/圖鑑/成就的入口移到大廳（見
+            AdventureReadyScreen 的左上玩家資訊列＋右上抽屜選單），首頁不
+            再重複放一份。世界盃目前仍是 FEATURE_FLAGS.worldCup 關閉狀態，
+            邏輯保留、UI 入口留在原地待之後開放。 */}
+        {FEATURE_FLAGS.worldCup && (
+          <div className="av-home-utility">
+            <button className="av-glass-btn av-home-icon-btn" onClick={openWorldCup} aria-label="世界盃競猜">
+              <span aria-hidden="true">🏆</span>
+              <span className="av-home-icon-label">競猜</span>
+              {wcHasNew && <span className="av-home-icon-badge" aria-hidden="true" />}
+            </button>
+          </div>
         )}
 
-        {/* 世界盃競猜 */}
-        <button className="mm-btn mm-btn-secondary" onClick={openWorldCup}>
-          <span className="mm-btn-icon mm-btn-icon-cup">
-            <img src="/assets/worldcup-logo.webp" alt="" className="mm-cup-icon-img" />
-          </span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">世界盃競猜</div>
-            <div className="mm-btn-sub">猜中勝/負/和局，獲得傳奇寶箱與星塵</div>
-          </div>
-          {wcHasNew && <span className="mm-stardust-badge" style={{ background: '#e07030' }}>NEW</span>}
-        </button>
-
-        {/* 雲端存檔 */}
-        <button className="mm-btn mm-btn-secondary" onClick={() => setShowCloud(true)}>
-          <span className="mm-btn-icon">☁️</span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">雲端存檔</div>
-            <div className="mm-btn-sub">
-              {user ? `已登入：${user.displayName}` : '使用 Google 帳號跨裝置同步進度'}
-            </div>
-          </div>
-          <span className="mm-btn-chevron">›</span>
-        </button>
-
-        {/* 圖鑑 */}
-        <button className="mm-btn mm-btn-secondary" onClick={() => setShowCompendium(true)}>
-          <span className="mm-btn-icon">📖</span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">圖鑑</div>
-            <div className="mm-btn-sub">查看所有遺物與增益卡效果</div>
-          </div>
-          <span className="mm-btn-chevron">›</span>
-        </button>
-
-        {/* 成就（鎖定） */}
-        <button className="mm-btn mm-btn-ghost" disabled>
-          <span className="mm-btn-icon">🏆</span>
-          <div className="mm-btn-body">
-            <div className="mm-btn-title">成就</div>
-            <div className="mm-btn-sub">即將推出</div>
-          </div>
-          <span className="mm-btn-chevron" style={{ opacity: .35 }}>🔒</span>
-        </button>
-
-      </nav>
+      </div>
 
       {/* 確認覆蓋 */}
       {confirmNew && (
@@ -211,37 +215,6 @@ export default function MainMenuScreen({
               <button className="mm-confirm-cancel" onClick={() => setConfirmNew(false)}>取消</button>
               <button className="mm-confirm-ok" onClick={() => { setConfirmNew(false); onStartAdventure() }}>覆蓋並開始</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 雲端面板 */}
-      {showCloud && (
-        <div className="mm-panel-overlay" onClick={() => setShowCloud(false)}>
-          <div className="cloud-panel" onClick={e => e.stopPropagation()}>
-            {!user ? (
-              <button className="cloud-google-btn" onClick={onSignIn}>
-                <img src="https://www.google.com/favicon.ico" width={18} height={18} alt="" />
-                使用 Google 帳號登入
-              </button>
-            ) : (
-              <>
-                <div className="cloud-user-row">
-                  {user.photoURL && <img src={user.photoURL} width={28} height={28} className="cloud-avatar" alt="" />}
-                  <span className="cloud-username">{user.displayName}</span>
-                  <button className="cloud-signout" onClick={onSignOut}>登出</button>
-                </div>
-                <div className="cloud-uid" title="點擊複製" onClick={() => navigator.clipboard?.writeText(user.uid)}>
-                  UID: {user.uid}
-                </div>
-                <div className="cloud-actions">
-                  <button className="primary cloud-btn" onClick={onCloudSave}>⬆ 上傳存檔</button>
-                  <button className="ghost cloud-btn" onClick={onCloudLoad}>⬇ 下載存檔</button>
-                </div>
-                {cloudMsg && <div className="cloud-msg">{cloudMsg}</div>}
-                <button className="ghost" style={{ marginTop: 8, width: '100%', fontSize: '0.85rem' }} onClick={() => setShowCloud(false)}>關閉</button>
-              </>
-            )}
           </div>
         </div>
       )}

@@ -12,11 +12,14 @@
  * 地面/地標/前景刻意收斂成 6 種地面模組、6 種地標、10 種前景遮罩重複使用
  * （而不是 24 段各自發明新代稱），對應 docs 文件要求的美術替換資產分類。
  *
- * backdrop 重用既有 /assets/backgrounds/{forest,castle,snowfield}_{1,2,3}.jpg，
- * 依 forestRuins.ts 各關卡實際的 bgTheme（見 ArenaGame.ts 的
- * CAMPAIGN_STAGE_BG_THEME 對照）挑同一個主題的素材，確保旅程畫面跟即將
- * 進入的戰鬥背景色調銜接：1-4 forest / 5-7 castle / 8-9 forest / 10-12
- * castle / 13-14 forest / 15 castle / 16 forest / 17 castle / 18-20 snowfield。
+ * backdrop 用森林遺跡專屬戰鬥場景圖（2026-08-14 美術交付，
+ * `D:\CLAUDE專案\三選一\戰鬥場景圖\森林遺跡`，已複製進
+ * public/assets/backgrounds/forest_ruins_2026_08/），依 forestRuins.ts
+ * 各關卡實際的 bgTheme 一對一對應同一張圖，確保旅程畫面跟即將進入的戰鬥
+ * 背景完全一致：1-4 forest_entrance / 5-7 ancient_ruins / 8-9,13-14,16
+ * poison_forest / 10-12,15,17 ancient_altar / 18-20 dragon_nest。目前每個
+ * 主題只有 1 張圖（不是舊的 forest/castle/snowfield 三張變體借用機制），
+ * 同主題的段落背景會相同，之後美術補齊變體再擴充。
  */
 import type { ChapterId, TravelLayer, TravelPathNode, TravelSegment } from './chapterTravelTypes'
 
@@ -56,112 +59,115 @@ function segment(
   }
 }
 
-const FOREST = (n: 1 | 2 | 3) => `/assets/backgrounds/forest_${n}.jpg`
-const CASTLE = (n: 1 | 2 | 3) => `/assets/backgrounds/castle_${n}.jpg`
-const SNOWFIELD = (n: 1 | 2 | 3) => `/assets/backgrounds/snowfield_${n}.jpg`
+const BG_DIR = '/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672'
+const FOREST_ENTRANCE = `${BG_DIR}/forest_entrance_1.jpg`
+const POISON_FOREST = `${BG_DIR}/poison_forest_1.jpg`
+const ANCIENT_RUINS = `${BG_DIR}/ancient_ruins_1.jpg`
+const ANCIENT_ALTAR = `${BG_DIR}/ancient_altar_1.jpg`
+const DRAGON_NEST = `${BG_DIR}/dragon_nest_1.jpg`
 
 export const ALL_TRAVEL_SEGMENTS: TravelSegment[] = [
   // ── 篇章 I：枯葉邊境（forest_1_1 ~ forest_1_5）── ambience: leaves
   segment('c1_01_watchpost', 'forest-ch1', 1, '枯木哨口', 'battle', 'forest_1_1',
-    layers(FOREST(1), 'dirt_path', ['wood_post', 'wood_post'], ['fallen_leaves']),
+    layers(FOREST_ENTRANCE, 'dirt_path', ['wood_post', 'wood_post'], ['fallen_leaves']),
     path([[0.06, 0.32, 0.55], [0.24, 0.42, 0.65], [0.46, 0.55, 0.78], [0.68, 0.68, 0.9], [0.86, 0.8, 1.0]]),
     'leaves'),
   segment('c1_02_moss_road', 'forest-ch1', 2, '苔蘚古道', 'battle', 'forest_1_2',
-    layers(FOREST(2), 'stone_path', ['stone_pillar'], ['moss_tuft', 'moss_tuft']),
+    layers(FOREST_ENTRANCE, 'stone_path', ['stone_pillar'], ['moss_tuft', 'moss_tuft']),
     path([[0.08, 0.3, 0.55], [0.3, 0.4, 0.65], [0.5, 0.5, 0.75], [0.7, 0.63, 0.88], [0.88, 0.78, 1.0]]),
     'leaves'),
   segment('c1_03_thorn_bend', 'forest-ch1', 3, '荊棘彎道', 'battle', 'forest_1_3',
-    layers(FOREST(3), 'wood_bridge', ['stone_pillar'], ['thorn_cluster', 'thorn_cluster']),
+    layers(FOREST_ENTRANCE, 'wood_bridge', ['stone_pillar'], ['thorn_cluster', 'thorn_cluster']),
     path([[0.07, 0.34, 0.55], [0.26, 0.46, 0.68], [0.44, 0.5, 0.72], [0.64, 0.62, 0.86], [0.82, 0.74, 0.96], [0.9, 0.82, 1.0]]),
     'leaves'),
   segment('c1_04_goblin_palisade', 'forest-ch1', 4, '哥布林木柵', 'battle', 'forest_1_4',
-    layers(FOREST(1), 'dirt_path', ['palisade', 'palisade'], ['ember_spark']),
+    layers(FOREST_ENTRANCE, 'dirt_path', ['palisade', 'palisade'], ['ember_spark']),
     path([[0.08, 0.33, 0.55], [0.28, 0.44, 0.66], [0.5, 0.56, 0.8], [0.7, 0.68, 0.9], [0.87, 0.79, 1.0]]),
     'leaves'),
   segment('c1_05_broken_arch', 'forest-ch1', 5, '崩塌拱門', 'transition', undefined,
-    layers(CASTLE(1), 'stone_stairs', ['ruin_gate'], ['fallen_rock']),
+    layers(ANCIENT_RUINS, 'stone_stairs', ['ruin_gate'], ['fallen_rock']),
     path([[0.1, 0.3, 0.55], [0.32, 0.44, 0.68], [0.56, 0.58, 0.82], [0.8, 0.74, 0.96]]),
     'leaves'),
   segment('c1_06_orc_ritual_ground', 'forest-ch1', 6, '獸人儀式台', 'battle', 'forest_1_5',
-    layers(CASTLE(2), 'ritual_platform', ['broken_altar', 'brazier'], ['ember_spark', 'ember_spark']),
+    layers(ANCIENT_RUINS, 'ritual_platform', ['broken_altar', 'brazier'], ['ember_spark', 'ember_spark']),
     path([[0.08, 0.34, 0.55], [0.3, 0.46, 0.7], [0.52, 0.58, 0.84], [0.72, 0.7, 0.94], [0.88, 0.82, 1.0]]),
     'leaves'),
 
   // ── 篇章 II：根脈低語（forest_1_6 ~ forest_1_10）── ambience: root-glow
   segment('c2_01_arrowfall_passage', 'forest-ch2', 1, '箭雨殘道', 'battle', 'forest_1_6',
-    layers(CASTLE(3), 'stone_path', ['stone_pillar', 'stone_pillar'], ['fallen_rock']),
+    layers(ANCIENT_RUINS, 'stone_path', ['stone_pillar', 'stone_pillar'], ['fallen_rock']),
     path([[0.06, 0.32, 0.55], [0.26, 0.44, 0.68], [0.48, 0.56, 0.8], [0.7, 0.68, 0.9], [0.88, 0.8, 1.0]]),
     'root-glow'),
   segment('c2_02_shaman_altar', 'forest-ch2', 2, '薩滿祭壇', 'battle', 'forest_1_7',
-    layers(CASTLE(1), 'stone_stairs', ['brazier', 'brazier'], ['ember_spark', 'ember_spark']),
+    layers(ANCIENT_RUINS, 'stone_stairs', ['brazier', 'brazier'], ['ember_spark', 'ember_spark']),
     path([[0.08, 0.28, 0.5], [0.24, 0.42, 0.62], [0.42, 0.52, 0.72], [0.6, 0.64, 0.84], [0.78, 0.74, 0.94], [0.88, 0.82, 1.0]]),
     'root-glow'),
   segment('c2_03_fungal_marsh', 'forest-ch2', 3, '毒菇濕地', 'battle', 'forest_1_8',
-    layers(FOREST(2), 'wood_bridge', ['stone_pillar'], ['mushroom_cluster', 'mist_wisp']),
+    layers(POISON_FOREST, 'wood_bridge', ['stone_pillar'], ['mushroom_cluster', 'mist_wisp']),
     path([[0.07, 0.33, 0.55], [0.28, 0.45, 0.68], [0.5, 0.55, 0.78], [0.7, 0.67, 0.9], [0.87, 0.79, 1.0]]),
     'root-glow'),
   segment('c2_04_root_maze', 'forest-ch2', 4, '樹根迷境', 'battle', 'forest_1_9',
-    layers(FOREST(3), 'dirt_path', [], ['root_tangle', 'root_tangle']),
+    layers(POISON_FOREST, 'dirt_path', [], ['root_tangle', 'root_tangle']),
     path([[0.08, 0.32, 0.55], [0.3, 0.4, 0.62], [0.5, 0.52, 0.74], [0.68, 0.62, 0.84], [0.86, 0.78, 1.0]]),
     'root-glow'),
   segment('c2_05_heartwood_gate', 'forest-ch2', 5, '心材之門', 'transition', undefined,
-    layers(CASTLE(2), 'ritual_platform', ['ruin_gate', 'broken_altar'], ['crystal_shard', 'root_tangle']),
+    layers(ANCIENT_ALTAR, 'ritual_platform', ['ruin_gate', 'broken_altar'], ['crystal_shard', 'root_tangle']),
     path([[0.1, 0.32, 0.55], [0.34, 0.46, 0.7], [0.58, 0.6, 0.84], [0.8, 0.76, 0.98]]),
     'root-glow'),
   segment('c2_06_ancient_tree_chamber', 'forest-ch2', 6, '古樹心室', 'battle', 'forest_1_10',
-    layers(CASTLE(3), 'ritual_platform', ['broken_altar', 'stone_pillar'], ['root_tangle', 'root_tangle']),
+    layers(ANCIENT_ALTAR, 'ritual_platform', ['broken_altar', 'stone_pillar'], ['root_tangle', 'root_tangle']),
     path([[0.08, 0.34, 0.55], [0.3, 0.46, 0.7], [0.52, 0.58, 0.84], [0.72, 0.7, 0.94], [0.88, 0.82, 1.0]]),
     'root-glow'),
 
   // ── 篇章 III：黑霧裂口（forest_1_11 ~ forest_1_15）── ambience: miasma
   segment('c3_01_shattered_core_court', 'forest-ch3', 1, '碎核庭院', 'battle', 'forest_1_11',
-    layers(CASTLE(1), 'stone_path', ['stone_pillar', 'broken_altar'], ['crystal_shard']),
+    layers(ANCIENT_ALTAR, 'stone_path', ['stone_pillar', 'broken_altar'], ['crystal_shard']),
     path([[0.07, 0.32, 0.55], [0.28, 0.44, 0.68], [0.5, 0.56, 0.8], [0.7, 0.68, 0.9], [0.88, 0.8, 1.0]]),
     'miasma'),
   segment('c3_02_shard_gallery', 'forest-ch3', 2, '碎片回廊', 'battle', 'forest_1_12',
-    layers(CASTLE(2), 'stone_path', ['stone_pillar'], ['crystal_shard', 'crystal_shard']),
+    layers(ANCIENT_ALTAR, 'stone_path', ['stone_pillar'], ['crystal_shard', 'crystal_shard']),
     path([[0.08, 0.3, 0.55], [0.3, 0.42, 0.66], [0.5, 0.54, 0.78], [0.7, 0.66, 0.9], [0.88, 0.8, 1.0]]),
     'miasma'),
   segment('c3_03_thorn_hunting_ground', 'forest-ch3', 3, '荊棘獵場', 'battle', 'forest_1_13',
-    layers(FOREST(1), 'scorched_rock', ['wood_post'], ['thorn_cluster', 'thorn_cluster']),
+    layers(POISON_FOREST, 'scorched_rock', ['wood_post'], ['thorn_cluster', 'thorn_cluster']),
     path([[0.06, 0.3, 0.5], [0.22, 0.4, 0.6], [0.4, 0.48, 0.68], [0.58, 0.6, 0.8], [0.76, 0.72, 0.92], [0.88, 0.82, 1.0]]),
     'miasma'),
   segment('c3_04_miasma_bridge', 'forest-ch3', 4, '毒霧低谷', 'battle', 'forest_1_14',
-    layers(FOREST(2), 'wood_bridge', [], ['mist_wisp', 'mist_wisp']),
+    layers(POISON_FOREST, 'wood_bridge', [], ['mist_wisp', 'mist_wisp']),
     path([[0.07, 0.32, 0.55], [0.28, 0.42, 0.65], [0.5, 0.52, 0.76], [0.7, 0.64, 0.88], [0.87, 0.78, 1.0]]),
     'miasma'),
   segment('c3_05_obsidian_rift_gate', 'forest-ch3', 5, '黑曜裂門', 'transition', undefined,
-    layers(CASTLE(3), 'scorched_rock', ['ruin_gate'], ['mist_wisp', 'mist_wisp']),
+    layers(ANCIENT_ALTAR, 'scorched_rock', ['ruin_gate'], ['mist_wisp', 'mist_wisp']),
     path([[0.1, 0.3, 0.55], [0.34, 0.44, 0.7], [0.58, 0.58, 0.84], [0.8, 0.74, 0.98]]),
     'miasma'),
   segment('c3_06_vanguard_duel_platform', 'forest-ch3', 6, '先鋒決鬥坪', 'battle', 'forest_1_15',
-    layers(CASTLE(1), 'ritual_platform', ['stone_pillar', 'brazier'], ['crystal_shard', 'fallen_rock']),
+    layers(ANCIENT_ALTAR, 'ritual_platform', ['stone_pillar', 'brazier'], ['crystal_shard', 'fallen_rock']),
     path([[0.08, 0.34, 0.55], [0.3, 0.46, 0.7], [0.52, 0.58, 0.84], [0.72, 0.7, 0.94], [0.88, 0.82, 1.0]]),
     'miasma'),
 
   // ── 篇章 IV：巢穴終焉（forest_1_16 ~ forest_1_20）── ambience: heat-haze
   segment('c4_01_blighted_trail', 'forest-ch4', 1, '腐敗林徑', 'battle', 'forest_1_16',
-    layers(FOREST(3), 'dirt_path', [], ['mushroom_cluster', 'mushroom_cluster']),
+    layers(POISON_FOREST, 'dirt_path', [], ['mushroom_cluster', 'mushroom_cluster']),
     path([[0.06, 0.32, 0.55], [0.26, 0.42, 0.66], [0.48, 0.54, 0.78], [0.7, 0.66, 0.9], [0.88, 0.8, 1.0]]),
     'heat-haze'),
   segment('c4_02_broken_defense', 'forest-ch4', 2, '殘破防線', 'battle', 'forest_1_17',
-    layers(CASTLE(2), 'stone_path', ['palisade', 'broken_altar'], ['banner_flag', 'banner_flag']),
+    layers(ANCIENT_ALTAR, 'stone_path', ['palisade', 'broken_altar'], ['banner_flag', 'banner_flag']),
     path([[0.08, 0.32, 0.55], [0.3, 0.44, 0.68], [0.5, 0.56, 0.8], [0.7, 0.68, 0.9], [0.87, 0.8, 1.0]]),
     'heat-haze'),
   segment('c4_03_orc_iron_gate', 'forest-ch4', 3, '獸人鐵關', 'battle', 'forest_1_18',
-    layers(SNOWFIELD(1), 'wood_bridge', ['palisade', 'palisade'], ['banner_flag', 'banner_flag']),
+    layers(DRAGON_NEST, 'wood_bridge', ['palisade', 'palisade'], ['banner_flag', 'banner_flag']),
     path([[0.07, 0.3, 0.55], [0.28, 0.42, 0.66], [0.5, 0.54, 0.78], [0.7, 0.66, 0.9], [0.88, 0.8, 1.0]]),
     'heat-haze'),
   segment('c4_04_dragon_nest_cavern', 'forest-ch4', 4, '龍巢岩穴', 'battle', 'forest_1_19',
-    layers(SNOWFIELD(2), 'scorched_rock', ['stone_pillar'], ['fallen_rock', 'fallen_rock']),
+    layers(DRAGON_NEST, 'scorched_rock', ['stone_pillar'], ['fallen_rock', 'fallen_rock']),
     path([[0.08, 0.32, 0.55], [0.3, 0.44, 0.68], [0.52, 0.56, 0.8], [0.72, 0.68, 0.9], [0.88, 0.8, 1.0]]),
     'heat-haze'),
   segment('c4_05_crater_ascent', 'forest-ch4', 5, '火山口上坡', 'transition', undefined,
-    layers(SNOWFIELD(3), 'stone_stairs', ['stone_pillar'], ['ember_spark']),
+    layers(DRAGON_NEST, 'stone_stairs', ['stone_pillar'], ['ember_spark']),
     path([[0.1, 0.26, 0.5], [0.3, 0.4, 0.62], [0.52, 0.52, 0.74], [0.72, 0.66, 0.88], [0.86, 0.78, 1.0]]),
     'heat-haze'),
   segment('c4_06_dragon_nest_oculus', 'forest-ch4', 6, '龍巢天井', 'battle', 'forest_1_20',
-    layers(SNOWFIELD(1), 'ritual_platform', ['broken_altar', 'stone_pillar'], ['ember_spark', 'ember_spark']),
+    layers(DRAGON_NEST, 'ritual_platform', ['broken_altar', 'stone_pillar'], ['ember_spark', 'ember_spark']),
     path([[0.08, 0.34, 0.55], [0.3, 0.46, 0.7], [0.52, 0.58, 0.84], [0.72, 0.7, 0.94], [0.88, 0.82, 1.0]]),
     'heat-haze'),
 ]

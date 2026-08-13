@@ -19,6 +19,7 @@ import {
   defaultHeroProgress, STAR_CONDITIONS, getHeroStarTitle, HERO_STAR_PASSIVES,
 } from '../talents'
 import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
+import ArenaEquipmentScreen from './ArenaEquipmentScreen'
 
 interface Props {
   meta: MetaState
@@ -529,7 +530,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
   }, [])
   const [filterSlot, setFilterSlot] = useState<EquipmentSlot | 'all'>('all')
   const [filterRole, setFilterRole] = useState<Role | 'all'>('all')
-  const [activeTab, setActiveTab] = useState<'equip' | 'talent' | 'items'>('equip')
+  const [activeTab, setActiveTab] = useState<'equip' | 'talent' | 'items' | 'arena'>('equip')
   const [openingChest, setOpeningChest] = useState<ChestType | null>(null)
   const [chestModalResult, setChestModalResult] = useState<{ equipment: Equipment[]; stardust: number } | null>(null)
   const [chestModalType, setChestModalType] = useState<ChestType | null>(null)
@@ -850,6 +851,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
           <div className="eq-tabs">
             <button className={`eq-tab ${activeTab === 'equip' ? 'active' : ''}`} onClick={() => setActiveTab('equip')}>裝備</button>
             <button className={`eq-tab ${activeTab === 'talent' ? 'active' : ''}`} onClick={() => setActiveTab('talent')}>天賦 & 成長</button>
+            <button className={`eq-tab ${activeTab === 'arena' ? 'active' : ''}`} onClick={() => setActiveTab('arena')}>⚔️ 即時制裝備</button>
             <button className={`eq-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
               道具
               {(meta.items ?? []).reduce((n, s) => n + s.count, 0) > 0 && (
@@ -864,6 +866,9 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
             <div className="eq-talent-container">
               <TalentTab heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
             </div>
+          )}
+          {activeTab === 'arena' && (
+            <ArenaEquipmentScreen heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
           )}
           {activeTab === 'items' && (
             <div className="eq-items-panel">
