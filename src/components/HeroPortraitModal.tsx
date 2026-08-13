@@ -52,20 +52,22 @@ export default function HeroPortraitModal({ hero, roleMeta, prog, eqBonus, talBo
           <div className="portrait-img-wrap">
             <img src={hero.portrait} alt={hero.name} className="portrait-img" />
             <div className="portrait-img-glow" style={{ background: `radial-gradient(ellipse at center, ${roleMeta.color}44 0%, transparent 70%)` }} />
+            <div className="portrait-img-scrim" />
+            <div className="portrait-img-caption">
+              <div className="portrait-role-badge" style={{ background: `${roleMeta.color}22`, color: roleMeta.color, border: `1px solid ${roleMeta.color}55` }}>
+                {roleMeta.icon} {roleMeta.label}
+              </div>
+              <div className="portrait-name">
+                {displayName}
+                {stars > 0 && <span className="portrait-star-badge">{'★'.repeat(stars)}</span>}
+              </div>
+              <div className="portrait-title">
+                {hero.title} · Lv{level}
+              </div>
+            </div>
           </div>
 
           <div className="portrait-info">
-            <div className="portrait-role-badge" style={{ background: `${roleMeta.color}22`, color: roleMeta.color, border: `1px solid ${roleMeta.color}55` }}>
-              {roleMeta.icon} {roleMeta.label}
-            </div>
-            <div className="portrait-name">
-              {displayName}
-              {stars > 0 && <span className="portrait-star-badge">{'★'.repeat(stars)}</span>}
-            </div>
-            <div className="portrait-title">
-              {hero.title} · Lv{level}
-            </div>
-
             <div className="portrait-stats">
               <span>
                 HP <strong>{hpTotal}</strong>

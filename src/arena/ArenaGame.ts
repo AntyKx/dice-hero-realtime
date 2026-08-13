@@ -292,6 +292,16 @@ interface GlowBurst {
 
 const PROJECTILE_SPEED = 620
 const PROJECTILE_RADIUS = 6
+
+// 各英雄普通攻擊特效主題色（2026-08）：沿用 AdventureReadyScreen.tsx 的
+// ROLE_META 配色，讓戰鬥內的攻擊特效（遠程彈道/近戰揮擊）跟角色選擇畫面
+// 的職業色系一致。原本全部英雄共用同一顆黃色圓點，這裡讓每個英雄的普攻
+// 有自己的辨識度（火法火球/公主冰箭/遊俠弓箭/騎士揮劍…）。
+const HERO_ATTACK_COLOR: Record<string, number> = {
+  knight: 0x6090ff, mage: 0xff6040, priest: 0xffd36e, rogue: 0xa060ff,
+  princess: 0x60c8ff, archer: 0x60d080, dwarf: 0xc08040, bard: 0xff80c0,
+  death_knight: 0xc03050, engineer: 0x90a0b0, fighter: 0xffa040,
+}
 const ENEMY_CONTACT_RADIUS = 34 // 敵人受擊判定半徑（玩家 Projectile 命中用），跟攻擊距離是兩件事
 const ENEMY_CONTACT_DAMAGE = 8  // 敵人攻擊基礎傷害，乘上 type.damageMult 就是 EnemyInstance.damage
 const ENEMY_BASE_HP = 30
@@ -613,10 +623,13 @@ export class ArenaGame {
       loadCharacterFrames(`/assets/frames/heroes/${this.cfg.heroId}/s${heroStars}`),
       Promise.all(bgPaths.map(p => Assets.load(p))),
       Promise.all(allEnemyTypes.map(t => loadCharacterFrames(`/assets/frames/enemies/${t.placeholderSpriteId ?? t.id}`))),
-      // 必殺技 Cut-in 立繪：先在集滿必殺技之前就把已有的角色立繪快取好，
-      // 第一次放技能不會有載入延遲。載入失敗（例如未來新英雄還沒補立繪）
-      // 就存 null，startUltimatePresentation() 會 fallback 成放大版 hero sprite。
-      Assets.load<Texture>(`/assets/portraits/${this.cfg.heroId}.png`).catch(() => null),
+      // 必殺技 Cut-in 立繪（2026-08-13：跟 data.ts 的 hero.portrait 分開存放，
+      // 各自可以用不同張圖——hero.portrait 是英雄選擇畫面的立繪預覽，這裡是
+      // 戰鬥內必殺技演出專用，不共用同一張）：先在集滿必殺技之前就把已有的
+      // Cut-in 圖快取好，第一次放技能不會有載入延遲。載入失敗（例如還沒有
+      // 專屬 Cut-in 圖的英雄）就存 null，startUltimatePresentation() 會
+      // fallback 成放大版 hero sprite。
+      Assets.load<Texture>(`/assets/cutin/${this.cfg.heroId}.png`).catch(() => null),
     ])
     if (this.destroyed) return
     this.heroFrames = heroFrames
@@ -1712,7 +1725,15 @@ export class ArenaGame {
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + damage * lifesteal)
       }
     }
-    this.spawnGlowBurst(this.player.x, this.player.y, 0xffd94a, MELEE_RANGE)
+    const color = HERO_ATTACK_COLOR[this.cfg.heroId] ?? 0xffd94a
+    this.spawnGlowBurst(this.player.x, this.player.y, color, MELEE_RANGE)
+    // 揮擊方向：優先朝實際打到的最近敵人，沒打到東西（範圍內剛好沒人，理論上
+    // 呼叫端已經檢查過，這裡防禦性處理）就用玩家最後的移動朝向頂著。
+    const aimTarget = inRange[0]
+    const slashAngle = aimTarget
+      ? Math.atan2(aimTarget.y - this.player.y, aimTarget.x - this.player.x)
+      : Math.atan2(this.facing.y, this.facing.x)
+    this.spawnSlashEffect(this.player.x, this.player.y, slashAngle, color, MELEE_RANGE)
   }
 
   fireProjectileAt(tx: number, ty: number) {
@@ -1745,7 +1766,7 @@ export class ArenaGame {
       const spread = shots > 1 ? (i - (shots - 1) / 2) * 0.18 : 0
       const angle = baseAngle + spread
       const gfx = this.projectilePool.acquire()
-      gfx.circle(0, 0, PROJECTILE_RADIUS).fill({ color: 0xffd94a })
+      this.drawProjectileVisual(gfx, this.cfg.heroId, angle)
       gfx.x = this.player.x
       gfx.y = this.player.y
       if (!gfx.parent) this.app.stage.addChild(gfx)
@@ -3103,6 +3124,54 @@ export class ArenaGame {
     gfx.scale.set(0.4)
     if (!gfx.parent) this.app.stage.addChild(gfx)
     this.glows.push({ gfx, life: 0, maxLife: 0.5, alive: true })
+  }
+
+  /** 近戰普攻的「揮擊」視覺（2026-08）：跟 spawnGlowBurst 共用同一套 glow 動畫
+   * （放大＋淡出），只是畫成朝目標方向展開的扇形弧線，比純圓環更有「揮出去」
+   * 的方向感。跟命中判定完全無關，純視覺——近戰命中範圍還是 meleeAttackAt()
+   * 的全方位半徑檢查，不會因為這個特效而漏判/誤判。 */
+  spawnSlashEffect(x: number, y: number, angle: number, color: number, radius: number) {
+    if (!this.app) return
+    const gfx = this.glowPool.acquire()
+    const arcHalfWidth = Math.PI * 0.3
+    gfx.arc(0, 0, radius, angle - arcHalfWidth, angle + arcHalfWidth).stroke({ color, width: 6, alpha: 0.95 })
+    gfx.x = x
+    gfx.y = y
+    gfx.scale.set(0.5)
+    if (!gfx.parent) this.app.stage.addChild(gfx)
+    this.glows.push({ gfx, life: 0, maxLife: 0.28, alive: true })
+  }
+
+  /** 依英雄畫出對應主題的遠程攻擊彈頭外觀（2026-08，見 HERO_ATTACK_COLOR）。沒有對應到的英雄（未來新角色）維持原本的黃色圓點，不會噴錯誤。 */
+  drawProjectileVisual(gfx: Graphics, heroId: string, angle: number) {
+    const color = HERO_ATTACK_COLOR[heroId] ?? 0xffd94a
+    switch (heroId) {
+      case 'mage': // 火球：外層橘紅、內層亮黃疊出燃燒感
+        gfx.circle(0, 0, 9).fill({ color: 0xff6a1a, alpha: 0.85 })
+        gfx.circle(0, 0, 5).fill({ color: 0xffe066 })
+        break
+      case 'princess': // 冰晶箭：菱形冰刃，朝行進方向對齊
+        gfx.poly([-10, 0, -2, -4, 10, 0, -2, 4]).fill({ color: 0xeaf7ff }).stroke({ color, width: 1.5 })
+        gfx.rotation = angle
+        break
+      case 'archer': // 弓箭：箭桿+箭頭
+        gfx.moveTo(-11, 0).lineTo(7, 0).stroke({ color: 0x6b4a2a, width: 2.5 })
+        gfx.poly([7, -3.5, 13, 0, 7, 3.5]).fill({ color })
+        gfx.rotation = angle
+        break
+      case 'priest': // 聖光彈：金色光球+外圈光環
+        gfx.circle(0, 0, 7).fill({ color: 0xfff2c9, alpha: 0.95 })
+        gfx.circle(0, 0, 9).stroke({ color, width: 1.5, alpha: 0.8 })
+        break
+      case 'bard': // 音波光點：五角星形小光點
+        gfx.star(0, 0, 5, 7, 3).fill({ color })
+        break
+      case 'engineer': // 機關彈頭：金屬灰圓+深色外框
+        gfx.circle(0, 0, 6.5).fill({ color: 0xc7d0d8 }).stroke({ color: 0x50565c, width: 2 })
+        break
+      default:
+        gfx.circle(0, 0, PROJECTILE_RADIUS).fill({ color })
+    }
   }
 
   updateGlows(dt: number) {
