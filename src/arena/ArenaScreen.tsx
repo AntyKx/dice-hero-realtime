@@ -7,6 +7,7 @@ import type { ArenaRelic } from './relics'
 import type { ArenaZoneType } from './dungeonZones'
 import { getCampaignStage } from '../campaign/campaignStages'
 import { FOREST_CAMPAIGN_ENEMIES } from './enemies'
+import AsterVowIcon from '../components/AsterVowIcon'
 
 interface Props {
   config: ArenaConfig
@@ -185,7 +186,7 @@ export default function ArenaScreen({ config, onExit, onRunEnd, onCampaignStageE
           </div>
         )}
         {hud.bossState === 'defeated' && (
-          <div className="arena-boss-defeated">👑 Boss 擊敗！</div>
+          <div className="arena-boss-defeated"><AsterVowIcon name="stage-boss" size={18} /> Boss 擊敗！</div>
         )}
 
         <div className="arena-fps">FPS {hud.fps} ｜ 敵 {hud.enemyCount}</div>
@@ -260,7 +261,7 @@ export default function ArenaScreen({ config, onExit, onRunEnd, onCampaignStageE
             <div className="arena-gameover-row"><span>存活時間</span><strong>{formatTime(hud.elapsed)}</strong></div>
             <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
             <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
-            {hud.bossState === 'defeated' && <div className="arena-gameover-boss">👑 擊敗了 Boss</div>}
+            {hud.bossState === 'defeated' && <div className="arena-gameover-boss"><AsterVowIcon name="stage-boss" size={18} /> 擊敗了 Boss</div>}
           </div>
           <button className="arena-gameover-btn" onClick={onExit}>返回主選單</button>
         </div>
@@ -274,7 +275,7 @@ export default function ArenaScreen({ config, onExit, onRunEnd, onCampaignStageE
             <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
             <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
             <div className="arena-gameover-row"><span>賺得金幣</span><strong>{hud.bonusGold}</strong></div>
-            <div className="arena-gameover-boss">👑 擊敗了 Boss</div>
+            <div className="arena-gameover-boss"><AsterVowIcon name="stage-boss" size={18} /> 擊敗了 Boss</div>
           </div>
           <button className="arena-gameover-btn" onClick={onExit}>返回主選單</button>
         </div>

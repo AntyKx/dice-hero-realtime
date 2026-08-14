@@ -1,31 +1,18 @@
 import { useState } from 'react'
 import { HEROES, getHeroSprite, type Hero } from '../data'
 import SpriteAnimator from '../components/SpriteAnimator'
+import AsterVowIcon from '../components/AsterVowIcon'
 import { getHeroStarTitle, computeTalentBonus } from '../talents'
 import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { MetaState } from '../types'
 import { sanitizeParty, replacePartySlot, type PartyState } from '../party'
+import { ROLE_ICON_META } from '../iconMeta'
 
 interface Props {
   meta: MetaState
   editingSlot: 0 | 1 | 2
   onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void
   onBack: () => void
-}
-
-const ROLE_META: Record<string, { icon: string; color: string }> = {
-  slash:  { icon: '⚔️',  color: '#6090ff' },
-  fire:   { icon: '🔥',  color: '#ff6040' },
-  holy:   { icon: '✨',  color: '#ffd36e' },
-  shadow: { icon: '🗡️', color: '#a060ff' },
-  ice:    { icon: '❄️',  color: '#60c8ff' },
-  arrow:  { icon: '🏹',  color: '#60d080' },
-  hammer: { icon: '🔨',  color: '#c08040' },
-  song:   { icon: '🎵',  color: '#ff80c0' },
-  beast:  { icon: '🐾',  color: '#d08040' },
-  gear:   { icon: '⚙️',  color: '#90a0b0' },
-  fighter:{ icon: '👊',  color: '#e07050' },
-  death:  { icon: '💀',  color: '#8060a0' },
 }
 
 const SLOT_LABEL = ['隊長', '夥伴 1', '夥伴 2'] as const
@@ -50,7 +37,7 @@ export default function PartySetupScreen({ meta, editingSlot, onMetaUpdate, onBa
     : { hpBonus: 0, defBonus: 0 }
   const stars = prog?.stars ?? 0
   const displayName = activeHero ? (stars > 0 ? (getHeroStarTitle(activeHero.id, stars) ?? activeHero.name) : activeHero.name) : ''
-  const rm = activeHero ? (ROLE_META[activeHero.role] ?? { icon: '⚔️', color: '#6090ff' }) : null
+  const rm = activeHero ? ROLE_ICON_META[activeHero.role] : null
 
   const handlePick = (hero: Hero) => {
     setDraft(prev => replacePartySlot(prev, activeSlot, hero.id))
@@ -90,7 +77,7 @@ export default function PartySetupScreen({ meta, editingSlot, onMetaUpdate, onBa
             </div>
             <div className="pss-preview-info">
               <div className="pss-preview-role" style={rm ? { color: rm.color, borderColor: rm.color + '55', background: rm.color + '18' } : undefined}>
-                {rm?.icon} {activeHero.role}
+                {rm && <AsterVowIcon name={rm.icon} size={12} />} {rm?.label}
               </div>
               <div className="pss-preview-name">
                 {displayName}{stars > 0 && <span className="pss-preview-stars">{'★'.repeat(stars)}</span>}
@@ -148,7 +135,7 @@ export default function PartySetupScreen({ meta, editingSlot, onMetaUpdate, onBa
           const scale = 52 / sprite.frameHeight
           const heroDisplayName = hStars > 0 ? (getHeroStarTitle(hero.id, hStars) ?? hero.name) : hero.name
           const occupiedSlot = ([0, 1, 2] as const).find(s => slotHeroId(draft, s) === hero.id)
-          const heroRm = ROLE_META[hero.role]
+          const heroRm = ROLE_ICON_META[hero.role]
           return (
             <button
               key={hero.id}

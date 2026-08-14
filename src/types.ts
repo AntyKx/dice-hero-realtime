@@ -835,3 +835,9 @@ export type GamePhase =
   // 出戰陣容設定（2026-08，見 src/party.ts）：大廳 3-slot 隊伍列點入的全頁
   // 編成畫面，不是 modal。editingSlot 記住從哪個格子點進來，離開時導回大廳。
   | { type: 'party_setup'; editingSlot: 0 | 1 | 2 }
+  // 星界商城（2026-08-14）：大廳「商店」磚/抽屜入口的全頁畫面。目前沒有
+  // 真實商城後端，商品是展示用原型資料，不接受真實購買（見
+  // AstralShopScreen.tsx）。取名 astral_shop 不是 shop，因為 shop 已經是
+  // Roguelite 副本節點商店（ShopScreen.tsx）在用的既有 phase，撞名的話
+  // TS union 判別會直接壞掉。
+  | { type: 'astral_shop' }

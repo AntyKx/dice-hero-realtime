@@ -1,11 +1,14 @@
 import type { DungeonDef, DungeonDifficulty } from '../dungeon'
 import type { Equipment } from '../types'
 import { ROLE_LABEL } from '../equipment'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { EQUIPMENT_SLOT_ICON, CHEST_ICON } from '../equipmentIconMeta'
+import { getDungeonIcon } from '../iconMeta'
 
-const CHEST_INFO: Record<DungeonDifficulty, { name: string; icon: string }> = {
-  normal:    { name: '一般寶箱', icon: '📦' },
-  hero:      { name: '英雄寶箱', icon: '🎁' },
-  legendary: { name: '傳奇寶箱', icon: '👑' },
+const CHEST_INFO: Record<DungeonDifficulty, { name: string; type: 'chest_normal' | 'chest_hero' | 'chest_legendary' }> = {
+  normal:    { name: '一般寶箱', type: 'chest_normal' },
+  hero:      { name: '英雄寶箱', type: 'chest_hero' },
+  legendary: { name: '傳奇寶箱', type: 'chest_legendary' },
 }
 
 interface Props {
@@ -27,8 +30,8 @@ export default function DungeonResultScreen({
   return (
     <div className="dungeon-result-wrap">
       <div className="dr-card" style={{ '--dungeon-color': dungeon.color } as React.CSSProperties}>
-        <div className="dr-icon">{cleared ? '🏆' : '💀'}</div>
-        <div className="dr-dungeon-name" style={{ color: dungeon.color }}>{dungeon.icon} {dungeon.name}</div>
+        <div className="dr-icon"><AsterVowIcon name={cleared ? 'system-leaderboard' : 'system-warning'} size={36} /></div>
+        <div className="dr-dungeon-name" style={{ color: dungeon.color }}><AsterVowIcon name={getDungeonIcon(dungeon.id)} size={20} /> {dungeon.name}</div>
         <div className="dr-status" style={{ color: cleared ? '#40ff88' : '#ff6060' }}>
           {cleared ? '地城通關！' : '挑戰失敗'}
         </div>
@@ -48,7 +51,7 @@ export default function DungeonResultScreen({
             {droppedItem && (
               <div className={`dr-reward-equip rarity-${droppedItem.rarity}`}>
                 <div className="dr-equip-name">
-                  ⚔️ {droppedItem.name}
+                  <AsterVowIcon name={EQUIPMENT_SLOT_ICON[droppedItem.slot]} size={17} /> {droppedItem.name}
                   {droppedItem.requiredRole && (
                     <span className="eir-role" style={{ marginLeft: 6 }}>{ROLE_LABEL[droppedItem.requiredRole]}</span>
                   )}
@@ -63,13 +66,13 @@ export default function DungeonResultScreen({
             )}
 
             <div className="dr-reward-row">
-              <span>💰 {goldEarned} 金幣 → ⭐ {goldEarned} 星塵</span>
+              <span><AsterVowIcon name="system-gold" size={15} /> {goldEarned} 金幣 → <AsterVowIcon name="system-stardust" size={15} /> {goldEarned} 星塵</span>
             </div>
             <div className="dr-reward-row">
-              <span>✨ {expEarned} 英雄經驗值</span>
+              <span><AsterVowIcon name="system-talent" size={15} /> {expEarned} 英雄經驗值</span>
             </div>
             <div className="dr-reward-row">
-              <span>{chest.icon} {chest.name} ×1（已入庫）</span>
+              <span><AsterVowIcon name={CHEST_ICON[chest.type]} size={16} /> {chest.name} ×1（已入庫）</span>
             </div>
           </div>
         )}

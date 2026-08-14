@@ -9,6 +9,7 @@ import { getPlayerName } from '../scoring'
 import WorldCupModal from '../components/WorldCupModal'
 import { type WcMatch, fetchWorldCupMatches, findResolvable, findNextPredictable } from '../worldCup'
 import { FEATURE_FLAGS } from '../featureFlags'
+import AsterVowIcon from '../components/AsterVowIcon'
 
 const BUILD_VERSION = __APP_BUILD__
 
@@ -123,7 +124,7 @@ export default function MainMenuScreen({
 
       {user && (
         <div className="mm-player-chip">
-          <span className="mm-player-icon">👤</span>
+          <span className="mm-player-icon"><AsterVowIcon name="system-player" size={18} /></span>
           <span className="mm-player-label">{getPlayerName()}</span>
         </div>
       )}
@@ -176,7 +177,7 @@ export default function MainMenuScreen({
           <span>{savedRun ? '開始新遠征' : '進入星界大廳'}</span>
           <span className="av-home-cta-sub">CONTINUE YOUR EXPEDITION</span>
         </button>
-        {savedRun && <div className="av-home-warn">⚠️ 將覆蓋目前的存檔進度</div>}
+        {savedRun && <div className="av-home-warn"><AsterVowIcon name="system-warning" size={14} /> 將覆蓋目前的存檔進度</div>}
 
         {/* 2026-08：英雄與裝備/雲端存檔/圖鑑/成就的入口移到大廳（見
             AdventureReadyScreen 的左上玩家資訊列＋右上抽屜選單），首頁不
@@ -185,7 +186,7 @@ export default function MainMenuScreen({
         {FEATURE_FLAGS.worldCup && (
           <div className="av-home-utility">
             <button className="av-glass-btn av-home-icon-btn" onClick={openWorldCup} aria-label="世界盃競猜">
-              <span aria-hidden="true">🏆</span>
+              <AsterVowIcon name="system-leaderboard" size={20} />
               <span className="av-home-icon-label">競猜</span>
               {wcHasNew && <span className="av-home-icon-badge" aria-hidden="true" />}
             </button>

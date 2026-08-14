@@ -16,9 +16,10 @@ import type { User } from '../lib/firebase'
 import { sanitizeParty, replacePartySlot, getPartyHeroIds } from '../party'
 import { getChapterStages } from '../campaign/campaignStages'
 import { getStageProgress, isStageUnlocked } from '../campaign/campaignProgress'
-import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
 import { StarRow } from './CampaignMapScreen'
 import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
+import { CHAPTER_ICON, getDungeonIcon, ROLE_ICON_META } from '../iconMeta'
+import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -40,6 +41,8 @@ interface Props {
   onOpenEquipment: () => void
   /** 出戰陣容編成（2026-08，見 src/party.ts）：點 3-slot 隊伍列的格子時開全頁編成畫面。 */
   onOpenPartySetup: (slot: 0 | 1 | 2) => void
+  /** 星界商城（2026-08-14，見 AstralShopScreen.tsx）入口，UI 原型，沒有真實商城後端。 */
+  onOpenShop: () => void
   /** 大廳右上抽屜選單（2026-08）的雲端存檔入口，跟原本 MainMenuScreen 用同一組 Firebase 帳號狀態。 */
   user: User | null
   cloudMsg: string
@@ -66,31 +69,15 @@ const FATE_DESCS: Record<number, string> = {
   10: '敵人詞綴數量再 +1（普通 3、精英 4、Boss 4）',
 }
 
-const ROUTES: { type: RouteType; icon: string; name: string; desc: string }[] = [
-  { type: 'safe', icon: '🛡️', name: '安全路線', desc: '多休息，精英較少，穩健推進。' },
-  { type: 'risk', icon: '⚔️', name: '風險路線', desc: '多精英、多事件，高風險高報酬。' },
-]
-
-const ROLE_META: Record<string, { icon: string; color: string }> = {
-  slash:  { icon: '⚔️',  color: '#6090ff' },
-  fire:   { icon: '🔥',  color: '#ff6040' },
-  holy:   { icon: '✨',  color: '#ffd36e' },
-  shadow: { icon: '🗡️', color: '#a060ff' },
-  ice:    { icon: '❄️',  color: '#60c8ff' },
-  arrow:  { icon: '🏹',  color: '#60d080' },
-  hammer: { icon: '🔨',  color: '#c08040' },
-  song:   { icon: '🎵',  color: '#ff80c0' },
-  beast:  { icon: '🐾',  color: '#d08040' },
-  gear:   { icon: '⚙️',  color: '#90a0b0' },
-}
-
 /** 大廳章節輪播（2026-08）：森林遺跡有真實的固定關卡星數進度，
  * 裂隙前兆篇/深海遺城篇目前仍是即時制 Roguelite 隨機章節，沒有逐關進度
- * 可顯示，卡片上只給類型說明，不能假造星數/進度條。 */
-const LOBBY_CHAPTERS: { pick: CampaignPick; icon: string; name: string; color: string; sub: string }[] = [
-  { pick: 'main',       icon: '🌲', name: '森林遺跡',   color: '#e9b85c', sub: '灰燼王國篇・20 關固定式主線' },
-  { pick: 'rift_omen',  icon: '🌌', name: '裂隙前兆篇', color: '#8fa6e6', sub: '星蝕・空間裂隙・異界侵略' },
-  { pick: 'deep_sea',   icon: '🌊', name: '深海遺城篇', color: '#6fc0d8', sub: '氧氣・潮汐・深壓・亂流' },
+ * 可顯示，卡片上只給類型說明，不能假造星數/進度條。bgImage 是 2026-08-14
+ * 補的大廳關卡預覽圖（16:9，見 public/assets/backgrounds/lobby_preview_2026_08/），
+ * 大廳地圖卡三個章節統一用這張固定圖。 */
+const LOBBY_CHAPTERS: { pick: CampaignPick; icon: AsterVowIconName; name: string; color: string; sub: string; bgImage: string }[] = [
+  { pick: 'main',       icon: CHAPTER_ICON.main,      name: '森林遺跡',   color: '#e9b85c', sub: '灰燼王國篇・20 關固定式主線', bgImage: '/assets/backgrounds/lobby_preview_2026_08/forest_ruins.jpg' },
+  { pick: 'rift_omen',  icon: CHAPTER_ICON.rift_omen, name: '裂隙前兆篇', color: '#8fa6e6', sub: '星蝕・空間裂隙・異界侵略', bgImage: '/assets/backgrounds/lobby_preview_2026_08/rift_omen.jpg' },
+  { pick: 'deep_sea',   icon: CHAPTER_ICON.deep_sea,  name: '深海遺城篇', color: '#6fc0d8', sub: '氧氣・潮汐・深壓・亂流', bgImage: '/assets/backgrounds/lobby_preview_2026_08/deep_sea.jpg' },
 ]
 
 /** 地城副本瀏覽順序（2026-08-14）：跟舊版清單式 UI 的 DG_GROUPS 分組順序
@@ -98,10 +85,18 @@ const LOBBY_CHAPTERS: { pick: CampaignPick; icon: string; name: string; color: s
  * 供大廳統一卡片版面左右切換用，不再用可展開/收合的分組清單。 */
 const DUNGEON_BROWSE_ORDER: string[] = ['burning_throne', 'ash_covenant', 'star_eclipse', 'black_tide']
 
+/** 地城副本大廳預覽圖（2026-08-14，16:9），跟上面 LOBBY_CHAPTERS.bgImage
+ * 同一批素材，取代純 CSS 漸層色塊當背景。 */
+const DUNGEON_BG_IMAGE: Record<string, string> = {
+  burning_throne: '/assets/backgrounds/lobby_preview_2026_08/burning_throne.jpg',
+  ash_covenant: '/assets/backgrounds/lobby_preview_2026_08/ash_covenant.jpg',
+  star_eclipse: '/assets/backgrounds/lobby_preview_2026_08/star_eclipse.jpg',
+  black_tide: '/assets/backgrounds/lobby_preview_2026_08/black_tide.jpg',
+}
+
 /** 森林遺跡關卡預覽卡（2026-08）：目標類型的文字/icon 對照，跟
  * CampaignMapScreen.tsx 的 OBJECTIVE_LABEL 同一份資料，但 icon 換成
- * AsterVowIcon（大廳明確要求不用 emoji），兩邊各自維護一份小 map，
- * 不特別抽共用（跟 ROLE_META 在多個檔案各自重複的既有慣例一致）。 */
+ * AsterVowIcon（大廳明確要求不用 emoji）。 */
 const OBJECTIVE_LABEL: Record<StageObjectiveType, string> = {
   elimination: '殲滅', survival: '生存', defense: '防守', hunt: '狩獵',
   destroy: '破壞', collection: '收集', escape: '逃脫', boss: 'BOSS',
@@ -112,7 +107,7 @@ const OBJECTIVE_ICON_NAME: Record<StageObjectiveType, AsterVowIconName> = {
 }
 
 export default function AdventureReadyScreen({
-  meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard, onOpenCampaignMap, onOpenEquipment, onOpenPartySetup,
+  meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard, onOpenCampaignMap, onOpenEquipment, onOpenPartySetup, onOpenShop,
   user, cloudMsg, onSignIn, onSignOut, onCloudSave, onCloudLoad,
 }: Props) {
   const [modeTab, setModeTab]           = useState<ModeTab>('main')
@@ -254,16 +249,16 @@ export default function AdventureReadyScreen({
           （回到主線冒險），不會再有分頁自己的返回鍵跳過大廳直接回首頁。 */}
       <header className="av-lobby-topbar">
         <button className="av-lobby-player-chip" onClick={() => setDrawerOpen(true)} aria-label="開啟玩家選單">
-          <span className="av-lobby-player-avatar" aria-hidden="true">👤</span>
+          <span className="av-lobby-player-avatar" aria-hidden="true"><AsterVowIcon name="system-player" size={22} /></span>
           <span className="av-lobby-player-info">
             <b>{getPlayerName()}</b>
             <small>★ {totalStars} 總星數</small>
           </span>
         </button>
         <div className="av-lobby-toolbar">
-          {meta.gold > 0 && <span className="mm-gold-badge">💰 {meta.gold}</span>}
-          {meta.stardust > 0 && <span className="mm-stardust-badge">⭐ {meta.stardust}</span>}
-          <button className="av-glass-btn av-lobby-menu-btn" onClick={() => setDrawerOpen(true)} aria-label="開啟選單">☰</button>
+          {meta.gold > 0 && <span className="mm-gold-badge"><AsterVowIcon name="system-gold" size={15} /> {meta.gold}</span>}
+          <span className="mm-stardust-badge"><AsterVowIcon name="system-stardust" size={15} /> {meta.stardust}</span>
+          <button className="av-glass-btn av-lobby-menu-btn" onClick={() => setDrawerOpen(true)} aria-label="開啟選單"><AsterVowIcon name="nav-menu" size={20} /></button>
         </div>
       </header>
 
@@ -281,11 +276,11 @@ export default function AdventureReadyScreen({
           <div
             className="av-lobby-map-card"
             style={
-              modeTab === 'dungeon'
-                ? { background: `linear-gradient(160deg, ${currentDungeon.color}33, #0a1226 78%)` }
-                : activeChapter.pick === 'main'
-                ? { backgroundImage: `linear-gradient(180deg, rgba(8,15,36,.25) 0%, rgba(8,15,36,.4) 55%, rgba(6,11,28,.9) 100%), url(${getCampaignStageBgPath(previewStage.bgTheme)})` }
-                : { background: `linear-gradient(160deg, ${activeChapter.color}33, #0a1226 78%)` }
+              {
+                backgroundImage: `linear-gradient(180deg, rgba(8,15,36,.25) 0%, rgba(8,15,36,.4) 55%, rgba(6,11,28,.9) 100%), url(${
+                  modeTab === 'dungeon' ? DUNGEON_BG_IMAGE[currentDungeon.id] : activeChapter.bgImage
+                })`,
+              }
             }
           >
             {/* 出戰陣容（2026-08，見 src/party.ts）：右上角小圓鈕，點格子開
@@ -294,7 +289,7 @@ export default function AdventureReadyScreen({
               {([0, 1, 2] as const).map(slot => {
                 const heroId = slot === 0 ? party.leaderId : party.supportIds[slot - 1]
                 const hero = HEROES.find(h => h.id === heroId)
-                const rm = hero ? ROLE_META[hero.role] : null
+                const rm = hero ? ROLE_ICON_META[hero.role] : null
                 const label = slot === 0 ? '隊長' : `夥伴 ${slot}`
                 const sprite = hero ? getHeroSprite(hero, meta.heroProgress[hero.id]?.stars ?? 0) : null
                 const scale = sprite ? 34 / sprite.frameHeight : 1
@@ -335,11 +330,11 @@ export default function AdventureReadyScreen({
 
             <div className="av-lobby-map-caption">
               {modeTab === 'dungeon' ? (
-                <span>{currentDungeon.icon} {currentDungeon.name}</span>
+                <span><AsterVowIcon name={getDungeonIcon(currentDungeon.id)} size={19} /> {currentDungeon.name}</span>
               ) : activeChapter.pick === 'main' ? (
-                <span>{activeChapter.icon} {activeChapter.name}・第 {previewStage.stageNumber} 關</span>
+                <span><AsterVowIcon name={activeChapter.icon} size={19} /> {activeChapter.name}・第 {previewStage.stageNumber} 關</span>
               ) : (
-                <span>{activeChapter.icon} {activeChapter.name}</span>
+                <span><AsterVowIcon name={activeChapter.icon} size={19} /> {activeChapter.name}</span>
               )}
             </div>
           </div>
@@ -352,8 +347,8 @@ export default function AdventureReadyScreen({
               <div className="av-lobby-chaptercard">
                 <button className="av-lobby-chaptercard-nav" disabled={dungeonIdx <= 0} onClick={() => cyclePreviewDungeon(-1)} aria-label="上一座地城">‹</button>
                 <div className="av-lobby-chaptercard-body">
-                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: currentDungeon.color + '66', background: currentDungeon.color + '18' }}>
-                    {currentDungeon.icon}
+                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: currentDungeon.color + '66', background: currentDungeon.color + '18', color: currentDungeon.color }}>
+                    <AsterVowIcon name={getDungeonIcon(currentDungeon.id)} size={32} />
                   </div>
                   <div className="av-lobby-chaptercard-text">
                     <div className="av-lobby-chaptercard-label">地城副本</div>
@@ -375,8 +370,8 @@ export default function AdventureReadyScreen({
               <div className="av-lobby-chaptercard">
                 <button className="av-lobby-chaptercard-nav" onClick={() => cycleChapter(-1)} aria-label="上一篇章">‹</button>
                 <div className="av-lobby-chaptercard-body">
-                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: activeChapter.color + '66', background: activeChapter.color + '18' }}>
-                    {activeChapter.icon}
+                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: activeChapter.color + '66', background: activeChapter.color + '18', color: activeChapter.color }}>
+                    <AsterVowIcon name={activeChapter.icon} size={32} />
                   </div>
                   <div className="av-lobby-chaptercard-text">
                     <div className="av-lobby-chaptercard-label">CHAPTER {chapterIdx + 1}</div>
@@ -405,7 +400,7 @@ export default function AdventureReadyScreen({
               {!currentDungeonUnlocked ? (
                 <div className="av-lobby-stageinfo-row">
                   <span className="av-lobby-stageinfo-lock">
-                    🔒 {currentDungeon.requireCampaign ? '需先通關灰燼王國篇' : `等級需求 Lv.${currentDungeon.minLevel}`}
+                    <AsterVowIcon name="system-lock" size={15} /> {currentDungeon.requireCampaign ? '需先通關灰燼王國篇' : `等級需求 Lv.${currentDungeon.minLevel}`}
                   </span>
                 </div>
               ) : (
@@ -430,14 +425,14 @@ export default function AdventureReadyScreen({
                     const rarityZH = currentDungeon.equipRarity === 'magic' ? '魔法' : currentDungeon.equipRarity === 'rare' ? '稀有' : '傳奇'
                     return (
                       <div className="av-lobby-stageinfo-row">
-                        <span className="av-lobby-stageinfo-reward">💰{gold}　✨{exp}　⚔ {rarityZH}裝備</span>
+                        <span className="av-lobby-stageinfo-reward"><AsterVowIcon name="system-gold" size={14} />{gold}　<AsterVowIcon name="system-stardust" size={14} />{exp}　<AsterVowIcon name="nav-equipment" size={14} /> {rarityZH}裝備</span>
                       </div>
                     )
                   })()}
                 </>
               )}
               <div className="av-lobby-stageinfo-row">
-                <button className="av-lobby-stageinfo-lbbtn" onClick={onLeaderboard}>👑 排行榜</button>
+                <button className="av-lobby-stageinfo-lbbtn" onClick={onLeaderboard}><AsterVowIcon name="system-leaderboard" size={15} /> 排行榜</button>
               </div>
             </div>
           ) : activeChapter.pick === 'main' ? (
@@ -450,17 +445,17 @@ export default function AdventureReadyScreen({
                 <span className="av-lobby-stageinfo-objective">
                   <AsterVowIcon name={OBJECTIVE_ICON_NAME[previewStage.objective.type]} size={15} /> {OBJECTIVE_LABEL[previewStage.objective.type]}
                 </span>
-                <span>⏱ {previewStage.estimatedDurationSec[0]}–{previewStage.estimatedDurationSec[1]}秒</span>
+                <span><AsterVowIcon name="system-clock" size={15} /> {previewStage.estimatedDurationSec[0]}–{previewStage.estimatedDurationSec[1]}秒</span>
                 {previewStage.boss && <span className="av-lobby-stageinfo-boss"><AsterVowIcon name="stage-boss" size={14} /> BOSS</span>}
               </div>
               <div className="av-lobby-stageinfo-row">
                 {previewUnlocked ? (
                   <>
                     <StarRow stars={previewProg.stars} />
-                    <span className="av-lobby-stageinfo-reward">💰{previewStage.firstClearReward.gold}　✨{previewStage.firstClearReward.heroExp}</span>
+                    <span className="av-lobby-stageinfo-reward"><AsterVowIcon name="system-gold" size={14} />{previewStage.firstClearReward.gold}　<AsterVowIcon name="system-stardust" size={14} />{previewStage.firstClearReward.heroExp}</span>
                   </>
                 ) : (
-                  <span className="av-lobby-stageinfo-lock">🔒 通關上一關解鎖</span>
+                  <span className="av-lobby-stageinfo-lock"><AsterVowIcon name="system-lock" size={15} /> 通關上一關解鎖</span>
                 )}
               </div>
             </div>
@@ -496,12 +491,11 @@ export default function AdventureReadyScreen({
                 <span>地城副本</span>
               </button>
             )}
-            {/* 商店（2026-08-14）：先佔位，實際商品/貨幣系統還沒做，比照
-                右側抽屜「禮物與郵件」既有的即將推出慣例，不假造內容。 */}
-            <button className="av-lobby-tile" disabled aria-label="商店（即將推出）">
+            {/* 星界商城（2026-08-14，見 AstralShopScreen.tsx）：UI 原型，商品/
+                貨幣系統還沒真的接後端，但頁面本身可以逛，不再是純佔位。 */}
+            <button className="av-lobby-tile" onClick={onOpenShop}>
               <AsterVowIcon name="nav-shop" size={22} />
-              <span>商店</span>
-              <span className="av-lobby-tile-tag">即將推出</span>
+              <span>星界商城</span>
             </button>
             <button className="av-lobby-tile" onClick={() => setShowCompendium(true)}>
               <AsterVowIcon name="nav-compendium" size={22} />
@@ -544,10 +538,10 @@ export default function AdventureReadyScreen({
         </nav>
 
       {/* ── 右側抽屜選單（2026-08，僅主線冒險分頁會開啟）：品牌列+關閉、
-          玩家資訊、禮物與郵件／星界圖鑑／雲端存檔／遊戲設定、回到首頁。
-          禮物與郵件、遊戲設定目前沒有對應的真實系統，比照 MainMenuScreen
-          既有的「成就（即將推出）」慣例標示即將推出，不假造內容；星界
-          圖鑑／雲端存檔／回到首頁都是真實功能。 ── */}
+          玩家資訊、禮物與郵件／星界商城／星界圖鑑／雲端存檔／遊戲設定、
+          回到首頁。禮物與郵件、遊戲設定目前沒有對應的真實系統，比照
+          MainMenuScreen 既有的「成就（即將推出）」慣例標示即將推出，不
+          假造內容；星界商城／星界圖鑑／雲端存檔／回到首頁都是真實功能。 ── */}
       {drawerOpen && (
         <div className="av-drawer-overlay" role="dialog" aria-modal="true">
           <button className="av-drawer-scrim" aria-label="關閉選單" onClick={() => setDrawerOpen(false)} />
@@ -561,7 +555,7 @@ export default function AdventureReadyScreen({
             </div>
 
             <div className="av-drawer-profile">
-              <span className="av-lobby-player-avatar" aria-hidden="true">👤</span>
+              <span className="av-lobby-player-avatar" aria-hidden="true"><AsterVowIcon name="system-player" size={22} /></span>
               <span className="av-lobby-player-info">
                 <b>{getPlayerName()}</b>
                 <small>★ {totalStars} 總星數</small>
@@ -570,22 +564,27 @@ export default function AdventureReadyScreen({
 
             <div className="av-drawer-list">
               <button className="av-drawer-item" disabled aria-label="禮物與郵件（即將推出）">
-                <span aria-hidden="true">🎁</span>
+                <AsterVowIcon name="system-gift" size={19} />
                 <span>禮物與郵件</span>
                 <span className="av-drawer-item-tag">即將推出</span>
               </button>
+              <button className="av-drawer-item" onClick={() => { setDrawerOpen(false); onOpenShop() }}>
+                <AsterVowIcon name="nav-shop" size={19} />
+                <span>星界商城</span>
+                <span className="av-drawer-item-tag av-drawer-item-tag--new">NEW</span>
+              </button>
               <button className="av-drawer-item" onClick={() => { setDrawerOpen(false); setShowCompendium(true) }}>
-                <span aria-hidden="true">📖</span>
+                <AsterVowIcon name="nav-compendium" size={19} />
                 <span>星界圖鑑</span>
                 <span className="av-drawer-item-arrow">›</span>
               </button>
               <button className="av-drawer-item" onClick={() => { setDrawerOpen(false); setShowCloud(true) }}>
-                <span aria-hidden="true">☁️</span>
+                <AsterVowIcon name="system-cloud" size={19} />
                 <span>雲端存檔</span>
                 <span className="av-drawer-item-arrow">›</span>
               </button>
               <button className="av-drawer-item" disabled aria-label="遊戲設定（即將推出）">
-                <span aria-hidden="true">⚙️</span>
+                <AsterVowIcon name="system-settings" size={19} />
                 <span>遊戲設定</span>
                 <span className="av-drawer-item-tag">即將推出</span>
               </button>
@@ -636,11 +635,7 @@ export default function AdventureReadyScreen({
       {portraitHero && (
         <HeroPortraitModal
           hero={portraitHero}
-          roleMeta={{
-            icon: ROLE_META[portraitHero.role]?.icon ?? '⚔️',
-            color: ROLE_META[portraitHero.role]?.color ?? '#6090ff',
-            label: portraitHero.role,
-          }}
+          roleMeta={ROLE_ICON_META[portraitHero.role]}
           prog={portraitProg}
           eqBonus={portraitEqB}
           talBon={portraitTalB}
@@ -661,11 +656,11 @@ export default function AdventureReadyScreen({
       {equipViewHero && (() => {
         const equipHeroId = equipViewHero.id
         const equip = getEquippedItems(meta.inventory, meta.loadouts?.[equipHeroId])
-        const rm = ROLE_META[equipViewHero.role] ?? { icon: '⚔️', color: '#6090ff' }
+        const rm = ROLE_ICON_META[equipViewHero.role]
         const SLOT_ORDER = ['weapon', 'head', 'body', 'hands', 'boots', 'ring', 'accessory'] as const
         const SLOT_LABEL: Record<string, string> = {
-          weapon: '⚔️ 武器', head: '🪖 頭盔', body: '🛡 護甲', hands: '🧤 手套',
-          boots: '👢 靴子', ring: '💍 戒指', accessory: '🔮 飾品',
+          weapon: '武器', head: '頭盔', body: '護甲', hands: '手套',
+          boots: '靴子', ring: '戒指', accessory: '飾品',
         }
         const RARITY_COLOR: Record<string, string> = {
           normal: '#8090a8', magic: '#6db8ff', rare: '#c79bff', legendary: '#ff9a3c',
@@ -677,7 +672,7 @@ export default function AdventureReadyScreen({
           <div className="talent-view-overlay" onClick={() => setEquipViewHero(null)}>
             <div className="talent-view-modal" onClick={e => e.stopPropagation()}>
               <div className="tvm-header" style={{ color: rm.color }}>
-                {rm.icon} {equipViewHero.name} — 裝備配置
+                <AsterVowIcon name={rm.icon} size={20} /> {equipViewHero.name} — 裝備配置
               </div>
 
               {equip.length === 0 ? (
@@ -695,7 +690,7 @@ export default function AdventureReadyScreen({
                         borderRadius: 10, padding: '10px 12px',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                          <span style={{ fontSize: '0.7rem', color: '#5070a0' }}>{SLOT_LABEL[slot]}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#5070a0', display: 'inline-flex', alignItems: 'center', gap: 4 }}><AsterVowIcon name={EQUIPMENT_SLOT_ICON[slot]} size={14} /> {SLOT_LABEL[slot]}</span>
                           <span style={{ fontSize: '0.68rem', color: RARITY_COLOR[item.rarity], fontWeight: 700 }}>
                             {RARITY_LABEL[item.rarity]}
                           </span>
@@ -737,7 +732,7 @@ export default function AdventureReadyScreen({
         const heroId = talentViewHero.id
         const tree = generateHeroTalentTree(heroId)
         const prog = meta.heroProgress[heroId] ?? defaultHeroProgress()
-        const rm   = ROLE_META[talentViewHero.role] ?? { icon: '⚔️', color: '#6090ff' }
+        const rm   = ROLE_ICON_META[talentViewHero.role]
         const allocated = prog.allocatedTalentIds ?? []
 
         const confirmAllocate = (node: ArenaTalentNode) => {
@@ -765,9 +760,9 @@ export default function AdventureReadyScreen({
           <div className="talent-view-overlay" onClick={() => { setTalentViewHero(null); setTalentPendingNode(null) }}>
             <div className="talent-view-modal" onClick={e => e.stopPropagation()}>
               <div className="tvm-header" style={{ color: rm.color }}>
-                {rm.icon} {talentViewHero.name} — 天賦樹
+                <AsterVowIcon name={rm.icon} size={20} /> {talentViewHero.name} — 天賦樹
               </div>
-              <div className="tvm-points-badge">🔷 剩餘天賦點數：{prog.talentPoints}</div>
+              <div className="tvm-points-badge"><AsterVowIcon name="system-talent" size={16} /> 剩餘天賦點數：{prog.talentPoints}</div>
 
               <div className="tvm-tree">
                 {tree.map((node, i) => {
@@ -783,7 +778,12 @@ export default function AdventureReadyScreen({
                         onClick={() => (isAvailable ? setTalentPendingNode(node) : undefined)}
                         disabled={!isAvailable}
                       >
-                        <div className="tvm-node-name">{node.kind === 'mastery' ? '👑 ' : isMajor ? '⭐ ' : ''}{node.name}</div>
+                        <div className="tvm-node-name">
+                          {node.kind === 'mastery'
+                            ? <AsterVowIcon name="system-leaderboard" size={15} />
+                            : isMajor ? <AsterVowIcon name="system-talent" size={15} /> : null}
+                          {node.name}
+                        </div>
                         <div className="tvm-node-desc">{node.desc}</div>
                         {prog.level < requiredLevel && (
                           <div className="tvm-node-lockhint">需角色等級 {requiredLevel}</div>

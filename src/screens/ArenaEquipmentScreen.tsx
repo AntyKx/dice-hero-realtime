@@ -7,6 +7,8 @@ import {
   getEquippedArenaItems,
   gachaPull, gachaPullTen, GACHA_SINGLE_COST, GACHA_TEN_COST,
 } from '../arena/equipment'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { getEquipmentSlotIcon } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -14,10 +16,6 @@ interface Props {
   onMetaUpdate: (fn: (prev: MetaState) => MetaState) => void
 }
 
-const SLOT_ICON: Record<ArenaLoadoutSlot, string> = {
-  weapon: '⚔️', head: '⛑️', body: '🛡️', hands: '🧤',
-  boots: '🥾', ring1: '💍', ring2: '💍', accessory: '📿',
-}
 const SLOT_LABEL: Record<ArenaLoadoutSlot, string> = {
   weapon: '武器', head: '頭盔', body: '護甲', hands: '手套',
   boots: '靴子', ring1: '戒指', ring2: '戒指', accessory: '飾品',
@@ -101,13 +99,13 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
   return (
     <div className="aeq-panel">
       <div className="aeq-gacha-panel">
-        <div className="aeq-gacha-title">🎰 裝備抽獎 <span className="aeq-gacha-hint">特殊裝備（魔法／稀有／傳說）幾乎都要靠抽獎，關卡掉落只會是普通品質；抽獎不限職業，11 位英雄的武器都可能抽到</span></div>
+        <div className="aeq-gacha-title"><AsterVowIcon name="system-gift" size={18} /> 裝備抽獎 <span className="aeq-gacha-hint">特殊裝備（魔法／稀有／傳說）幾乎都要靠抽獎，關卡掉落只會是普通品質；抽獎不限職業，11 位英雄的武器都可能抽到</span></div>
         <div className="aeq-gacha-btns">
           <button className="ghost" onClick={() => doGacha(1)} disabled={meta.gold < GACHA_SINGLE_COST}>
-            單抽 💰{GACHA_SINGLE_COST}
+            單抽 <AsterVowIcon name="system-gold" size={14} />{GACHA_SINGLE_COST}
           </button>
           <button className="ghost" onClick={() => doGacha(10)} disabled={meta.gold < GACHA_TEN_COST}>
-            十連抽 💰{GACHA_TEN_COST}
+            十連抽 <AsterVowIcon name="system-gold" size={14} />{GACHA_TEN_COST}
           </button>
         </div>
       </div>
@@ -123,7 +121,7 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
               style={item ? { borderColor: `${ARENA_RARITY_COLOR[item.rarity]}88` } : undefined}
               onClick={() => item ? unequip(slot) : setPickingSlot(slot)}
             >
-              <span className="aeq-slot-icon">{SLOT_ICON[slot]}</span>
+              <span className="aeq-slot-icon"><AsterVowIcon name={getEquipmentSlotIcon(slot)} size={21} /></span>
               <span className="aeq-slot-label">{SLOT_LABEL[slot]}</span>
               {item ? (
                 <>

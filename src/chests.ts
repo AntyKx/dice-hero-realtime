@@ -7,25 +7,24 @@ export interface ChestDef {
   id: ChestType
   name: string
   color: string
-  icon: string
   desc: string
 }
 
 export const CHEST_DEFS: Record<ChestType, ChestDef> = {
   chest_normal: {
-    id: 'chest_normal', name: '一般寶箱', color: '#60b8e0', icon: '📦',
+    id: 'chest_normal', name: '一般寶箱', color: '#60b8e0',
     desc: '副本一般難度通關獎勵',
   },
   chest_hero: {
-    id: 'chest_hero', name: '英雄寶箱', color: '#b060ff', icon: '🎁',
+    id: 'chest_hero', name: '英雄寶箱', color: '#b060ff',
     desc: '副本英雄難度通關獎勵',
   },
   chest_legendary: {
-    id: 'chest_legendary', name: '傳奇寶箱', color: '#ffd36e', icon: '👑',
+    id: 'chest_legendary', name: '傳奇寶箱', color: '#ffd36e',
     desc: '副本傳奇難度通關獎勵',
   },
   chest_role_legendary: {
-    id: 'chest_role_legendary', name: '自選套裝寶箱', color: '#ff6fa8', icon: '🏆',
+    id: 'chest_role_legendary', name: '自選套裝寶箱', color: '#ff6fa8',
     desc: '世界盃競猜累積5次成功獎勵：開啟前自選1個職業，獲得該職業套裝的1件傳奇裝備',
   },
 }

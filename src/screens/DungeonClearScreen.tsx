@@ -5,6 +5,9 @@ import { getDungeonChallenges, setPlayerName, getPlayerName, saveLeaderboardReco
 import type { DungeonDef } from '../dungeon'
 import type { Equipment } from '../types'
 import { ROLE_LABEL as ROLE_LABEL_MAP } from '../equipment'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { EQUIPMENT_SLOT_ICON, CHEST_ICON } from '../equipmentIconMeta'
+import { getDungeonIcon } from '../iconMeta'
 const ROLE_LABEL = ROLE_LABEL_MAP as Record<string, string>
 
 const GRADE_COLOR: Record<string, string> = {
@@ -69,10 +72,10 @@ export default function DungeonClearScreen({
       <div className="dcs-card" style={{ '--dungeon-color': dungeon.color } as React.CSSProperties}>
         {/* Header */}
         <div className="dcs-dungeon-name" style={{ color: dungeon.color }}>
-          {dungeon.icon} {dungeon.name}
+          <AsterVowIcon name={getDungeonIcon(dungeon.id)} size={20} /> {dungeon.name}
         </div>
         <div className="dcs-difficulty">
-          {isLegendary ? '👑 傳奇' : clearRecord.difficulty === 'hero' ? '🔵 英雄' : '⚔ 一般'} 難度
+          <AsterVowIcon name={isLegendary ? 'system-leaderboard' : clearRecord.difficulty === 'hero' ? 'system-talent' : 'equip-weapon'} size={15} /> {isLegendary ? '傳奇' : clearRecord.difficulty === 'hero' ? '英雄' : '一般'} 難度
         </div>
         <div className="dcs-status" style={{ color: clearRecord.clearSuccess ? '#40ff88' : '#ff6060' }}>
           {clearRecord.clearSuccess ? '副本通關！' : '挑戰失敗'}
@@ -183,7 +186,7 @@ export default function DungeonClearScreen({
             {droppedItem && (
               <div className={`dr-reward-equip rarity-${droppedItem.rarity}`}>
                 <div className="dr-equip-name">
-                  ⚔️ {droppedItem.name}
+                  <AsterVowIcon name={EQUIPMENT_SLOT_ICON[droppedItem.slot]} size={17} /> {droppedItem.name}
                   {droppedItem.requiredRole && (
                     <span className="eir-role" style={{ marginLeft: 6 }}>{ROLE_LABEL[droppedItem.requiredRole]}</span>
                   )}
@@ -196,9 +199,9 @@ export default function DungeonClearScreen({
                 </div>
               </div>
             )}
-            <div className="dcs-reward-row">💰 {goldEarned} 金幣 → ⭐ {goldEarned} 星塵</div>
-            <div className="dcs-reward-row">✨ {expEarned} 英雄經驗值</div>
-            <div className="dcs-reward-row">👑 傳奇寶箱 ×1（已入庫）</div>
+            <div className="dcs-reward-row"><AsterVowIcon name="system-gold" size={15} /> {goldEarned} 金幣 → <AsterVowIcon name="system-stardust" size={15} /> {goldEarned} 星塵</div>
+            <div className="dcs-reward-row"><AsterVowIcon name="system-talent" size={15} /> {expEarned} 英雄經驗值</div>
+            <div className="dcs-reward-row"><AsterVowIcon name={CHEST_ICON.chest_legendary} size={16} /> 傳奇寶箱 ×1（已入庫）</div>
           </div>
         )}
 

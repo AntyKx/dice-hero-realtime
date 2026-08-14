@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Equipment, MetaState } from '../types'
-import { RARITY_LABEL, SLOT_ICON, SLOT_LABEL, SALVAGE_VALUE, ROLE_LABEL, SET_DEFS } from '../equipment'
+import { RARITY_LABEL, SLOT_LABEL, SALVAGE_VALUE, ROLE_LABEL, SET_DEFS } from '../equipment'
 import { INVENTORY_MAX } from '../types'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
 
 interface Props {
   item: Equipment
@@ -19,19 +21,19 @@ function ItemCard({ eq, selected, onClick }: { eq: Equipment; selected: boolean;
       onClick={onClick}
     >
       <div className="dic-slot-row">
-        <span className="dic-slot-icon">{SLOT_ICON[eq.slot as keyof typeof SLOT_ICON]}</span>
+        <span className="dic-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[eq.slot]} size={22} /></span>
         <span className="dic-slot-label">{SLOT_LABEL[eq.slot as keyof typeof SLOT_LABEL]}</span>
         <span className="dic-rarity">{RARITY_LABEL[eq.rarity]}</span>
       </div>
       <div className="dic-name">{eq.name}</div>
       {eq.requiredRole && (
         <div className="dic-role">
-          {eq.setId ? '🎽' : '⚔️'}
+          <AsterVowIcon name={eq.setId ? 'equip-set' : 'equip-weapon'} size={15} />
           {' '}{ROLE_LABEL[eq.requiredRole]} {eq.setId ? `套裝（${setName}）` : '職業專屬'}
         </div>
       )}
       {!eq.requiredRole && setName && (
-        <div className="dic-role">🎽 {setName}</div>
+        <div className="dic-role"><AsterVowIcon name="equip-set" size={15} /> {setName}</div>
       )}
       {eq.legendaryDesc && <div className="dic-legendary">✦ {eq.legendaryDesc}</div>}
       <ul className="dic-affixes">
@@ -112,7 +114,7 @@ export default function EquipmentDropScreen({ item, meta, onKeep, onSalvage, onR
           onClick={onSalvage}
         >
           分解
-          <span className="drop-btn-sub">+{SALVAGE_VALUE[item.rarity]} ⭐ 星塵</span>
+          <span className="drop-btn-sub">+{SALVAGE_VALUE[item.rarity]} <AsterVowIcon name="system-stardust" size={13} /> 星塵</span>
         </button>
       </div>
     </div>

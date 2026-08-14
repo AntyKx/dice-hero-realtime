@@ -6,7 +6,7 @@ import { INVENTORY_MAX } from '../types'
 import { type ChestType, CHEST_DEFS, openChest, openRoleLegendaryChest } from '../chests'
 import ChestOpenModal from '../components/ChestOpenModal'
 import {
-  RARITY_LABEL, SLOT_ICON, SLOT_LABEL, SALVAGE_VALUE, ROLE_LABEL,
+  RARITY_LABEL, SLOT_LABEL, SALVAGE_VALUE, ROLE_LABEL,
   getEquippedItems, computeEquipBonus, computeSetBonus,
   LOADOUT_SLOTS, LOADOUT_SLOT_META, loadoutSlotsForItem,
   removeUidFromLoadout, effectiveSlot, SET_DEFS, autoEquipBest,
@@ -20,6 +20,8 @@ import {
 } from '../talents'
 import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
 import ArenaEquipmentScreen from './ArenaEquipmentScreen'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { CHEST_ICON, EQUIPMENT_SLOT_ICON, LOADOUT_SLOT_ICON } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -62,19 +64,19 @@ const ItemCard = memo(function ItemCard({
       onClick={handleClick}
     >
       {selectMode && !locked && <span className="eir-check">{checked ? '☑' : '☐'}</span>}
-      <span className="eir-slot">{SLOT_ICON[item.slot]}</span>
+      <span className="eir-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={18} /></span>
       <span className="eir-name">
         {item.name}
         {(item.enhanceLevel ?? 0) > 0 && <span className="eir-enhance">+{item.enhanceLevel}</span>}
       </span>
       <span className="eir-badges">
-        {item.legendaryEffectId && <span className="eir-tag eir-leg">✨</span>}
+        {item.legendaryEffectId && <span className="eir-tag eir-leg"><AsterVowIcon name="system-stardust" size={13} /></span>}
         {item.setId && <span className="eir-tag eir-set">套</span>}
       </span>
       {item.requiredRole && <span className="eir-role">{ROLE_LABEL[item.requiredRole]}</span>}
       <span className="eir-rarity">{RARITY_LABEL[item.rarity]}</span>
       {equipped && <span className="eir-equipped">裝備中</span>}
-      {locked && !selectMode && <span className="eir-locked">🔒</span>}
+      {locked && !selectMode && <span className="eir-locked"><AsterVowIcon name="system-lock" size={14} /></span>}
     </button>
   )
 })
@@ -137,7 +139,7 @@ function ItemDetail({
   return (
     <div className={`item-detail rarity-${item.rarity}`}>
       <div className="id-header">
-        <span className="id-slot-icon">{SLOT_ICON[item.slot]}</span>
+        <span className="id-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={26} /></span>
         <div style={{ flex: 1 }}>
           <div className="id-name">
             {item.name}
@@ -145,24 +147,24 @@ function ItemDetail({
               <span className="id-enhance-badge">+{item.enhanceLevel}</span>
             )}
             {item.requiredRole && item.requiredRole !== heroRole && (
-              <span className="id-cannot-equip-badge">⚠ 僅限{ROLE_LABEL[item.requiredRole]}</span>
+              <span className="id-cannot-equip-badge"><AsterVowIcon name="system-warning" size={13} /> 僅限{ROLE_LABEL[item.requiredRole]}</span>
             )}
           </div>
           <div className="id-meta">
             {SLOT_LABEL[item.slot]} · {RARITY_LABEL[item.rarity]}
-            {item.requiredRole && ` · ${item.setId ? '🎽' : '⚔️'} ${ROLE_LABEL[item.requiredRole]}${item.setId ? '套裝' : '專屬武器'}`}
+            {item.requiredRole && <>{' · '}<AsterVowIcon name={item.setId ? 'equip-set' : 'equip-weapon'} size={13} /> {ROLE_LABEL[item.requiredRole]}{item.setId ? '套裝' : '專屬武器'}</>}
           </div>
         </div>
         <button className="id-close" onClick={onClose}>✕</button>
       </div>
 
       {item.legendaryDesc && (
-        <div className="id-legendary">✨ {item.legendaryDesc}</div>
+        <div className="id-legendary"><AsterVowIcon name="system-stardust" size={15} /> {item.legendaryDesc}</div>
       )}
 
       {item.setId && (
         <div className="id-set">
-          <div className="id-set-name">🎽 {SET_DEFS[item.setId].name} 套裝</div>
+          <div className="id-set-name"><AsterVowIcon name="equip-set" size={16} /> {SET_DEFS[item.setId].name} 套裝</div>
           <div className="id-set-line">(2) {SET_DEFS[item.setId].desc2}</div>
           <div className="id-set-line">(4) {SET_DEFS[item.setId].desc4}</div>
         </div>
@@ -192,7 +194,7 @@ function ItemDetail({
               {enhBonus > 0 && <span className="affix-enhance-bonus"> (+{enhBonus})</span>}
               {item.rarity !== 'normal' && (
                 <button className={`affix-lock-btn ${affixLocked ? 'active' : ''}`} onClick={toggleLock} title={affixLocked ? '解鎖（重鑄時重新隨機）' : '鎖定（重鑄時保留此詞墜）'}>
-                  {affixLocked ? '🔒' : '🔓'}
+                  <AsterVowIcon name={affixLocked ? 'system-lock' : 'system-unlock'} size={14} />
                 </button>
               )}
             </li>
@@ -210,7 +212,7 @@ function ItemDetail({
               {!isNew && delta < 0 && <span className="affix-delta down"> ▼{delta}</span>}
               {item.rarity !== 'normal' && (
                 <button className={`affix-lock-btn ${affixLocked ? 'active' : ''}`} onClick={toggleLock} title={affixLocked ? '解鎖' : '鎖定'}>
-                  {affixLocked ? '🔒' : '🔓'}
+                  <AsterVowIcon name={affixLocked ? 'system-lock' : 'system-unlock'} size={14} />
                 </button>
               )}
             </li>
@@ -219,7 +221,7 @@ function ItemDetail({
       </ul>
       {(item.enhanceLevel ?? 0) > 0 && (
         <div className="id-enhance-info">
-          ⚒ 強化 +{item.enhanceLevel}（詞綴數值已乘以 ×{(1 + (item.enhanceLevel ?? 0) * 0.1).toFixed(1)}）
+          <AsterVowIcon name="action-enhance" size={15} /> 強化 +{item.enhanceLevel}（詞綴數值已乘以 ×{(1 + (item.enhanceLevel ?? 0) * 0.1).toFixed(1)}）
         </div>
       )}
 
@@ -248,12 +250,12 @@ function ItemDetail({
           onClick={onToggleLock}
           title={isLocked ? '點擊解除鎖定' : '鎖定防止誤分解'}
         >
-          {isLocked ? '🔒 已鎖定' : '🔓 鎖定'}
+          <AsterVowIcon name={isLocked ? 'system-lock' : 'system-unlock'} size={15} /> {isLocked ? '已鎖定' : '鎖定'}
         </button>
         {isLocked
           ? (
             <button className="ghost" disabled title="請先解鎖才能分解">
-              分解 (+{SALVAGE_VALUE[item.rarity]} ⭐)
+              <AsterVowIcon name="action-salvage" size={15} /> 分解 (+{SALVAGE_VALUE[item.rarity]} <AsterVowIcon name="system-stardust" size={13} />)
             </button>
           )
           : confirmSalvage
@@ -266,7 +268,7 @@ function ItemDetail({
           )
           : (
             <button className="ghost" onClick={() => setConfirmSalvage(true)}>
-              分解 (+{SALVAGE_VALUE[item.rarity]} ⭐)
+              <AsterVowIcon name="action-salvage" size={15} /> 分解 (+{SALVAGE_VALUE[item.rarity]} <AsterVowIcon name="system-stardust" size={13} />)
             </button>
           )
         }
@@ -274,7 +276,7 @@ function ItemDetail({
 
       {item.rarity !== 'normal' && (
         <div className="id-forge-section">
-          <div className="id-forge-title">🔨 鍛造</div>
+          <div className="id-forge-title"><AsterVowIcon name="action-forge" size={15} /> 鍛造</div>
           <div className="id-forge-row">
             {confirmForge === 'reroll' ? (
               <div className="id-confirm">
@@ -294,9 +296,9 @@ function ItemDetail({
                     title={`重鑄詞綴，費用 ${rerollCost} 星塵${lockedAffixIndices.size > 0 ? `（含 ${lockedAffixIndices.size} 條鎖定加成）` : ''}${discountNote}`}
                     onClick={() => setConfirmForge('reroll')}
                   >
-                    🔄 重鑄詞綴
-                    <span className="id-forge-cost"> -{rerollCost} ⭐</span>
-                    {lockedAffixIndices.size > 0 && <span className="id-forge-cost"> 🔒{lockedAffixIndices.size}</span>}
+                    <AsterVowIcon name="action-reroll" size={15} /> 重鑄詞綴
+                    <span className="id-forge-cost"> -{rerollCost} <AsterVowIcon name="system-stardust" size={13} /></span>
+                    {lockedAffixIndices.size > 0 && <span className="id-forge-cost"> <AsterVowIcon name="system-lock" size={13} />{lockedAffixIndices.size}</span>}
                     {forgeDiscount > 0 && <span className="id-forge-cost"> -{forgeDiscount}%折</span>}
                     {stardust < rerollCost && <span className="id-forge-lack"> (不足)</span>}
                   </button>
@@ -317,8 +319,8 @@ function ItemDetail({
                   title={`晉升品質為${RARITY_LABEL[RARITY_NEXT[item.rarity]!]}，費用 ${UPGRADE_COST[item.rarity]} 星塵`}
                   onClick={() => setConfirmForge('upgrade')}
                 >
-                  ⬆ 晉升 →{RARITY_LABEL[RARITY_NEXT[item.rarity]!]}
-                  <span className="id-forge-cost"> -{UPGRADE_COST[item.rarity]} ⭐</span>
+                  <AsterVowIcon name="action-upgrade" size={15} /> 晉升 →{RARITY_LABEL[RARITY_NEXT[item.rarity]!]}
+                  <span className="id-forge-cost"> -{UPGRADE_COST[item.rarity]} <AsterVowIcon name="system-stardust" size={13} /></span>
                   {stardust < (UPGRADE_COST[item.rarity] ?? Infinity) && <span className="id-forge-lack"> (不足)</span>}
                 </button>
               )
@@ -342,7 +344,7 @@ function ItemDetail({
                 title={`消耗 ${need} 件同名同品質裝備，強化詞綴 +${nextLv * 10}%`}
                 onClick={() => setConfirmForge('enhance')}
               >
-                ⚒ 強化 +{nextLv}
+                <AsterVowIcon name="action-enhance" size={15} /> 強化 +{nextLv}
                 <span className="id-forge-cost"> ×{need} 重複件</span>
                 <span className={duplicateCount >= need ? 'id-forge-have' : 'id-forge-lack'}>
                   {' '}（庫存 {duplicateCount} 件）
@@ -426,7 +428,7 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
       {/* Star conditions */}
       <div className="talent-star-conditions">
         <div className="tsc-item tsc-runs">
-          🏆 通關次數（主線＋副本）<strong>{progress.runsWon ?? 0}</strong> 次
+          <AsterVowIcon name="system-leaderboard" size={15} /> 通關次數（主線＋副本）<strong>{progress.runsWon ?? 0}</strong> 次
         </div>
         {STAR_CONDITIONS.map(sc => (
           <div key={sc.stars} className={`tsc-item ${progress.stars >= sc.stars ? 'done' : ''}`}>
@@ -454,7 +456,12 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
                 onClick={() => (isAvailable ? setPendingNode(node) : undefined)}
                 disabled={!isAvailable}
               >
-                <div className="tvm-node-name">{node.kind === 'mastery' ? '👑 ' : isMajor ? '⭐ ' : ''}{node.name}</div>
+                <div className="tvm-node-name">
+                  {node.kind === 'mastery'
+                    ? <AsterVowIcon name="system-leaderboard" size={15} />
+                    : isMajor ? <AsterVowIcon name="system-talent" size={15} /> : null}
+                  {node.name}
+                </div>
                 <div className="tvm-node-desc">{node.desc}</div>
                 {progress.level < requiredLevel && (
                   <div className="tvm-node-lockhint">需角色等級 {requiredLevel}</div>
@@ -837,7 +844,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                     {(() => {
                       const lo = meta.loadouts[h.id]
                       const n = lo ? LOADOUT_SLOTS.filter(s => lo[s]).length + (lo.armor ? 1 : 0) : 0
-                      return n > 0 ? <span>⚔ {n}/8</span> : null
+                      return n > 0 ? <span><AsterVowIcon name="nav-equipment" size={14} /> {n}/8</span> : null
                     })()}
                   </div>
                 </div>
@@ -851,7 +858,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
           <div className="eq-tabs">
             <button className={`eq-tab ${activeTab === 'equip' ? 'active' : ''}`} onClick={() => setActiveTab('equip')}>裝備</button>
             <button className={`eq-tab ${activeTab === 'talent' ? 'active' : ''}`} onClick={() => setActiveTab('talent')}>天賦 & 成長</button>
-            <button className={`eq-tab ${activeTab === 'arena' ? 'active' : ''}`} onClick={() => setActiveTab('arena')}>⚔️ 即時制裝備</button>
+            <button className={`eq-tab ${activeTab === 'arena' ? 'active' : ''}`} onClick={() => setActiveTab('arena')}><AsterVowIcon name="nav-equipment" size={15} /> 即時制裝備</button>
             <button className={`eq-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
               道具
               {(meta.items ?? []).reduce((n, s) => n + s.count, 0) > 0 && (
@@ -874,7 +881,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
             <div className="eq-items-panel">
               {(meta.items ?? []).length === 0 ? (
                 <div className="eq-items-empty">
-                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>📦</div>
+                  <div style={{ marginBottom: 8 }}><AsterVowIcon name="system-gift" size={32} /></div>
                   <div>目前沒有道具</div>
                   <div style={{ fontSize: '0.8rem', color: '#4a6080', marginTop: 6 }}>完成副本即可獲得寶箱！</div>
                 </div>
@@ -890,7 +897,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                           className={`chest-stack-btn ${openingChest === stack.id ? 'active' : ''}`}
                           onClick={() => setOpeningChest(openingChest === stack.id ? null : stack.id as ChestType)}
                         >
-                          <span className="csb-icon" style={{ color: def.color }}>{def.icon}</span>
+                          <span className="csb-icon" style={{ color: def.color }}><AsterVowIcon name={CHEST_ICON[def.id]} size={28} /></span>
                           <span className="csb-name" style={{ color: def.color }}>{def.name}</span>
                           <span className="csb-desc" style={{ fontSize: '0.7rem', color: '#5878a0' }}>{def.desc}</span>
                           <span className="csb-count">×{stack.count}</span>
@@ -904,7 +911,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                       return (
                         <div className="chest-open-panel">
                           <div className="cop-title" style={{ color: def.color }}>
-                            {def.icon} {def.name}
+                            <AsterVowIcon name={CHEST_ICON[def.id]} size={19} /> {def.name}
                           </div>
                           <div className="cop-desc">
                             請先選擇 1 個職業，將獲得該職業套裝的 1 件傳奇裝備：
@@ -936,7 +943,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                     return (
                       <div className="chest-open-panel">
                         <div className="cop-title" style={{ color: def.color }}>
-                          {def.icon} {def.name}
+                          <AsterVowIcon name={CHEST_ICON[def.id]} size={19} /> {def.name}
                         </div>
                         <div className="cop-desc">
                           隨機職業套裝，任何英雄都可能出現！
@@ -960,7 +967,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
             <div className="eq-slots-title-row">
               <span className="eq-slots-title">{(() => { const s = meta.heroProgress[selectedHeroId]?.stars ?? 0; return s > 0 ? (getHeroStarTitle(hero.id, s) ?? hero.name) : hero.name })()}{' '}裝備配置</span>
               <button className="eq-auto-btn" onClick={autoEquipAll} title="自動穿上每個部位最強的裝備；若湊套裝（2件/4件）總體更強，會優先湊套裝">
-                ⚡ 一鍵裝備
+                <AsterVowIcon name="action-equip" size={16} /> 一鍵裝備
               </button>
             </div>
             {(eqBonus.hpBonus > 0 || eqBonus.flatDamage > 0 || eqBonus.defBonus > 0 || setStatus.some(s => s.active2)) && (
@@ -975,7 +982,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                 )}
                 {setStatus.filter(s => s.active2 || s.active4).map(s => (
                   <span key={s.name} className="eq-bonus-set-tag">
-                    🎽 {s.name} {s.active4 ? '4件套' : '2件套'}
+                    <AsterVowIcon name="equip-set" size={14} /> {s.name} {s.active4 ? '4件套' : '2件套'}
                   </span>
                 ))}
               </div>
@@ -991,7 +998,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                     className={`eq-slot rarity-${item?.rarity ?? 'empty'} ${selectedItem?.uid && selectedItem.uid === uid ? 'active-slot' : ''}`}
                     onClick={() => { if (item) setSelectedItemUid(item.uid) }}
                   >
-                    <div className="es-icon">{meta2.icon}</div>
+                    <div className="es-icon"><AsterVowIcon name={LOADOUT_SLOT_ICON[slot]} size={22} /></div>
                     {item ? (
                       <>
                         <div className="es-name">
@@ -1036,7 +1043,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                       {s === 'rarity' ? '品質' : s === 'slot' ? '部位' : '名稱'}
                     </button>
                   ))}
-                  <span className="eq-sort-stardust">⭐ {meta.stardust}</span>
+                  <span className="eq-sort-stardust"><AsterVowIcon name="system-stardust" size={14} /> {meta.stardust}</span>
                 </div>
               </div>
               <div className="eq-filter-section">
@@ -1053,7 +1060,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                       onClick={() => setFilterSlot(prev => prev === f ? 'all' : f)}
                       title={SLOT_LABEL[f]}
                     >
-                      {SLOT_ICON[f]}
+                      <AsterVowIcon name={EQUIPMENT_SLOT_ICON[f]} size={16} />
                     </button>
                   ))}
                 </div>
@@ -1079,14 +1086,14 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
                 className={`eq-batch-btn ${selectMode ? 'active' : ''}`}
                 onClick={toggleSelectMode}
               >
-                {selectMode ? '✕ 取消' : '🗑️ 批次分解'}
+                {selectMode ? '✕ 取消' : <><AsterVowIcon name="action-salvage" size={15} /> 批次分解</>}
               </button>
             </div>
 
             {/* 批次分解工具列 */}
             {selectMode && (
               <div className="eq-batch-bar">
-                <span className="eq-batch-info">已選 {selectedUids.size} 件 · +{selectedSalvageValueMemo} ⭐</span>
+                <span className="eq-batch-info">已選 {selectedUids.size} 件 · +{selectedSalvageValueMemo} <AsterVowIcon name="system-stardust" size={14} /></span>
                 <div className="eq-batch-actions">
                   <button className="ghost" onClick={selectAllSalvageable}>全選(可分解)</button>
                   <button className="ghost" onClick={() => setSelectedUids(new Set())}>清除</button>

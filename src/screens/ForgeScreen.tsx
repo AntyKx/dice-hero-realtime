@@ -2,10 +2,12 @@ import { useState } from 'react'
 import type { Equipment, EquipmentSlot, EquipmentRarity, MetaState } from '../types'
 import { INVENTORY_MAX } from '../types'
 import {
-  RARITY_LABEL, SLOT_ICON, SALVAGE_VALUE, ROLE_LABEL,
+  RARITY_LABEL, SALVAGE_VALUE, ROLE_LABEL,
   REROLL_COST, UPGRADE_COST,
   forgeReroll, forgeUpgrade,
 } from '../equipment'
+import AsterVowIcon from '../components/AsterVowIcon'
+import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -25,12 +27,12 @@ function ItemMini({ item, selected, onClick }: {
       className={`forge-item rarity-${item.rarity} ${selected ? 'selected' : ''}`}
       onClick={onClick}
     >
-      <span className="fi-slot">{SLOT_ICON[item.slot]}</span>
+      <span className="fi-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={19} /></span>
       <div className="fi-info">
         <div className="fi-name">{item.name}</div>
         <div className="fi-rarity">{RARITY_LABEL[item.rarity]}</div>
       </div>
-      {item.legendaryEffectId && <span className="fi-leg">✨</span>}
+      {item.legendaryEffectId && <span className="fi-leg"><AsterVowIcon name="system-stardust" size={14} /></span>}
     </button>
   )
 }
@@ -77,7 +79,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
           <p className="forge-sub">花費星塵重鑄詞墜或晉升裝備品質</p>
         </div>
         <div className="forge-header-right">
-          <span className="forge-stardust">⭐ {stardust} 星塵</span>
+          <span className="forge-stardust"><AsterVowIcon name="system-stardust" size={15} /> {stardust} 星塵</span>
           <span className="eq-inv-count">{meta.inventory.length}/{INVENTORY_MAX}</span>
           <button className="ghost" onClick={onBack}>← 返回</button>
         </div>
@@ -93,7 +95,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
                 className={`eq-filter-tab ${filterSlot === f ? 'active' : ''}`}
                 onClick={() => setFilterSlot(f)}
               >
-                {f === 'all' ? '全部' : SLOT_ICON[f]}
+                {f === 'all' ? '全部' : <AsterVowIcon name={EQUIPMENT_SLOT_ICON[f]} size={16} />}
               </button>
             ))}
           </div>
@@ -118,7 +120,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
         <div className="forge-right">
           {!selected && (
             <div className="forge-placeholder">
-              <div className="fp-icon">🔨</div>
+              <div className="fp-icon"><AsterVowIcon name="action-forge" size={34} /></div>
               <div>從左側選擇一件裝備開始鍛造</div>
             </div>
           )}
@@ -128,14 +130,14 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
               {/* Item detail */}
               <div className={`forge-detail rarity-${selected.rarity}`}>
                 <div className="fd-header">
-                  <span className="fd-slot">{SLOT_ICON[selected.slot]}</span>
+                  <span className="fd-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[selected.slot]} size={28} /></span>
                   <div>
                     <div className="fd-name">{selected.name}</div>
-                    <div className="fd-meta">{RARITY_LABEL[selected.rarity]}{selected.requiredRole ? ` · 🎽 ${ROLE_LABEL[selected.requiredRole]}套裝` : ''}</div>
+                    <div className="fd-meta">{RARITY_LABEL[selected.rarity]}{selected.requiredRole && <> · <AsterVowIcon name="equip-set" size={13} /> {ROLE_LABEL[selected.requiredRole]}套裝</>}</div>
                   </div>
                 </div>
                 {selected.legendaryDesc && (
-                  <div className="fd-legendary">✨ {selected.legendaryDesc}</div>
+                  <div className="fd-legendary"><AsterVowIcon name="system-stardust" size={15} /> {selected.legendaryDesc}</div>
                 )}
                 <ul className="fd-affixes">
                   {selected.affixes.length === 0 && <li className="id-no-affix">無詞墜</li>}
@@ -146,7 +148,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
               {/* Result banner */}
               {forgeResult && (
                 <div className="forge-result-banner">
-                  ✅ 鍛造完成！
+                  <AsterVowIcon name="action-forge" size={17} /> 鍛造完成！
                 </div>
               )}
 
@@ -154,7 +156,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
               {!confirmOp && (
                 <div className="forge-ops">
                   <div className="forge-op-card">
-                    <div className="foc-title">重鑄詞墜</div>
+                    <div className="foc-title"><AsterVowIcon name="action-reroll" size={16} /> 重鑄詞墜</div>
                     <div className="foc-desc">
                       重新隨機所有詞墜，品質與部位不變。
                       {selected.rarity === 'legendary' && selected.slot === 'weapon'
@@ -163,7 +165,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
                           ? '傳奇效果也會重新隨機。'
                           : ''}
                     </div>
-                    <div className="foc-cost">⭐ {REROLL_COST[selected.rarity]} 星塵</div>
+                    <div className="foc-cost"><AsterVowIcon name="system-stardust" size={14} /> {REROLL_COST[selected.rarity]} 星塵</div>
                     <button
                       className="primary foc-btn"
                       disabled={!canReroll}
@@ -175,12 +177,12 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
 
                   {nextRarity && upgradeCost && (
                     <div className="forge-op-card">
-                      <div className="foc-title">晉升品質</div>
+                      <div className="foc-title"><AsterVowIcon name="action-upgrade" size={16} /> 晉升品質</div>
                       <div className="foc-desc">
                         {RARITY_LABEL[selected.rarity]} → {RARITY_LABEL[nextRarity]}
                         ，重新生成詞墜與效果（品質更高）。
                       </div>
-                      <div className="foc-cost">⭐ {upgradeCost} 星塵</div>
+                      <div className="foc-cost"><AsterVowIcon name="system-stardust" size={14} /> {upgradeCost} 星塵</div>
                       <button
                         className="primary foc-btn"
                         disabled={!canUpgrade}
@@ -193,7 +195,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
 
                   {!nextRarity && (
                     <div className="forge-op-card forge-op-disabled">
-                      <div className="foc-title">晉升品質</div>
+                      <div className="foc-title"><AsterVowIcon name="action-upgrade" size={16} /> 晉升品質</div>
                       <div className="foc-desc">傳奇裝備已是最高品質，無法繼續晉升。</div>
                     </div>
                   )}
@@ -207,7 +209,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
                     確認{confirmOp === 'reroll' ? '重鑄' : '晉升'}？
                   </div>
                   <div className="fc-cost">
-                    消耗 ⭐ {confirmOp === 'reroll' ? REROLL_COST[selected.rarity] : upgradeCost} 星塵
+                    消耗 <AsterVowIcon name="system-stardust" size={14} /> {confirmOp === 'reroll' ? REROLL_COST[selected.rarity] : upgradeCost} 星塵
                   </div>
                   {confirmOp === 'upgrade' && (
                     <div className="fc-warn">晉升後詞墜將完全重置，無法還原</div>

@@ -7,6 +7,7 @@ import { getChapterStages } from '../campaign/campaignStages'
 import { getStageProgress, getChapterTotalStars, getChapterMaxStars, isStageUnlocked } from '../campaign/campaignProgress'
 import { hasTravelSegments, getTravelSegmentsForStage } from '../campaign/chapterTravelData'
 import CampaignTravelPreview from '../components/CampaignTravelPreview'
+import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
 
 interface Props {
   meta: MetaState
@@ -19,9 +20,9 @@ const OBJECTIVE_LABEL: Record<StageObjectiveType, string> = {
   elimination: '殲滅', survival: '生存', defense: '防守', hunt: '狩獵',
   destroy: '破壞', collection: '收集', escape: '逃脫', boss: 'BOSS',
 }
-const OBJECTIVE_ICON: Record<StageObjectiveType, string> = {
-  elimination: '⚔️', survival: '⏱️', defense: '🛡️', hunt: '🎯',
-  destroy: '💥', collection: '✨', escape: '🚪', boss: '👑',
+const OBJECTIVE_ICON: Record<StageObjectiveType, AsterVowIconName> = {
+  elimination: 'stage-elimination', survival: 'stage-survival', defense: 'stage-defense', hunt: 'stage-hunt',
+  destroy: 'stage-destroy', collection: 'stage-collection', escape: 'stage-escape', boss: 'stage-boss',
 }
 
 /** 大廳關卡預覽卡（2026-08）共用這個星數列，見 AdventureReadyScreen.tsx。 */
@@ -64,7 +65,7 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
       </header>
 
       <div className="cms-summary">
-        <div className="cms-summary-title">🌲 森林遺跡　{totalStars} / {maxStars} ★</div>
+        <div className="cms-summary-title"><AsterVowIcon name="chapter-forest" size={20} /> 森林遺跡　{totalStars} / {maxStars} ★</div>
         <div className="cms-milestones">
           {CHAPTER_STAR_MILESTONES.map(m => (
             <div key={m} className={`cms-milestone${totalStars >= m ? ' reached' : ''}`}>
@@ -90,16 +91,16 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
               <div className="cms-node-num">{stage.stageNumber}</div>
               <div className="cms-node-body">
                 <div className="cms-node-name">
-                  {isBoss && '👑 '}{stage.name}
-                  {!unlocked && <span className="cms-node-lock"> 🔒</span>}
+                  {isBoss && <AsterVowIcon name="stage-boss" size={16} />}{stage.name}
+                  {!unlocked && <span className="cms-node-lock"> <AsterVowIcon name="system-lock" size={14} /></span>}
                 </div>
                 <div className="cms-node-meta">
-                  <span className="cms-node-objective">{OBJECTIVE_ICON[stage.objective.type]} {OBJECTIVE_LABEL[stage.objective.type]}</span>
-                  <span className="cms-node-duration">⏱ {stage.estimatedDurationSec[0]}–{stage.estimatedDurationSec[1]}秒</span>
+                  <span className="cms-node-objective"><AsterVowIcon name={OBJECTIVE_ICON[stage.objective.type]} size={14} /> {OBJECTIVE_LABEL[stage.objective.type]}</span>
+                  <span className="cms-node-duration"><AsterVowIcon name="system-clock" size={14} /> {stage.estimatedDurationSec[0]}–{stage.estimatedDurationSec[1]}秒</span>
                 </div>
               </div>
               <div className="cms-node-side">
-                {unlocked ? <StarRow stars={prog.stars} /> : <span className="cms-node-lock-icon">🔒</span>}
+                {unlocked ? <StarRow stars={prog.stars} /> : <span className="cms-node-lock-icon"><AsterVowIcon name="system-lock" size={19} /></span>}
               </div>
             </button>
           )

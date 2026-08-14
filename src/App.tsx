@@ -73,6 +73,7 @@ import CampaignMapScreen from './screens/CampaignMapScreen'
 import { getCampaignStage } from './campaign/campaignStages'
 import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
 import PartySetupScreen from './screens/PartySetupScreen'
+import AstralShopScreen from './screens/AstralShopScreen'
 import { sanitizeParty, computePartyBonus } from './party'
 
 const APP_VERSION = __APP_BUILD__
@@ -1496,6 +1497,14 @@ export default function App() {
     )
   }
 
+  // 星界商城（2026-08-14，見 src/screens/AstralShopScreen.tsx，跟 Roguelite
+  // 副本節點的 ShopScreen.tsx／phase 'shop' 是兩個不同元件與 phase，故意
+  // 取名 astral_shop 避免撞名）：大廳「商店」磚/抽屜入口的全頁畫面，UI
+  // 原型，目前沒有真實商城後端，離開時導回大廳。
+  if (phase.type === 'astral_shop') {
+    return <AstralShopScreen meta={meta} onBack={() => setPhase({ type: 'adventure_ready' })} />
+  }
+
 
   if (phase.type === 'adventure_ready' || phase.type === 'hero_select' || phase.type === 'route_select') {
     return (
@@ -1510,6 +1519,7 @@ export default function App() {
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_map', heroId })}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
           onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}
+          onOpenShop={() => setPhase({ type: 'astral_shop' })}
           user={user}
           cloudMsg={cloudMsg}
           onSignIn={handleSignIn}

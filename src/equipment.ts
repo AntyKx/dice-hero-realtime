@@ -1174,15 +1174,15 @@ export const LOADOUT_SLOTS: LoadoutSlot[] = [
   'weapon', 'head', 'body', 'hands', 'boots', 'ring1', 'ring2', 'accessory',
 ]
 
-export const LOADOUT_SLOT_META: Record<LoadoutSlot, { icon: string; label: string; itemSlot: EquipmentSlot }> = {
-  weapon:    { icon: '⚔️', label: '武器',    itemSlot: 'weapon' },
-  head:      { icon: '⛑️', label: '頭部',    itemSlot: 'head' },
-  body:      { icon: '🛡️', label: '身體',    itemSlot: 'body' },
-  hands:     { icon: '🧤', label: '手部',    itemSlot: 'hands' },
-  boots:     { icon: '🥾', label: '鞋子',    itemSlot: 'boots' },
-  ring1:     { icon: '💍', label: '戒指 I',  itemSlot: 'ring' },
-  ring2:     { icon: '💍', label: '戒指 II', itemSlot: 'ring' },
-  accessory: { icon: '📿', label: '飾品',    itemSlot: 'accessory' },
+export const LOADOUT_SLOT_META: Record<LoadoutSlot, { label: string; itemSlot: EquipmentSlot }> = {
+  weapon:    { label: '武器',    itemSlot: 'weapon' },
+  head:      { label: '頭部',    itemSlot: 'head' },
+  body:      { label: '身體',    itemSlot: 'body' },
+  hands:     { label: '手部',    itemSlot: 'hands' },
+  boots:     { label: '鞋子',    itemSlot: 'boots' },
+  ring1:     { label: '戒指 I',  itemSlot: 'ring' },
+  ring2:     { label: '戒指 II', itemSlot: 'ring' },
+  accessory: { label: '飾品',    itemSlot: 'accessory' },
 }
 
 // 將 item.slot 正規化（legacy armor → body）
@@ -1351,11 +1351,6 @@ export function autoEquipBest(
 
 export const RARITY_LABEL: Record<EquipmentRarity, string> = {
   normal: '普通', magic: '魔法', rare: '稀有', legendary: '傳奇',
-}
-
-export const SLOT_ICON: Record<EquipmentSlot, string> = {
-  weapon: '⚔️', head: '⛑️', body: '🛡️', hands: '🧤',
-  boots: '🥾', ring: '💍', accessory: '📿', armor: '🛡️',
 }
 
 // 產生一件星蝕觀測者套裝部位（全職業，不綁定職業）

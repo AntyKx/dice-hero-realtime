@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import type { Equipment, EquipmentSlot, EquipmentRarity } from '../types'
 import type { ChestType } from '../chests'
 import { CHEST_DEFS } from '../chests'
-import { RARITY_LABEL, SLOT_ICON, SLOT_LABEL, ROLE_LABEL, SET_DEFS } from '../equipment'
+import { RARITY_LABEL, SLOT_LABEL, ROLE_LABEL, SET_DEFS } from '../equipment'
+import AsterVowIcon from './AsterVowIcon'
+import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
 
 interface Props {
   chestType: ChestType
@@ -80,18 +82,18 @@ export default function ChestOpenModal({ chestType, result, onClose }: Props) {
                     style={{ animationDelay: `${i * 0.12}s` }}
                   >
                     <div className="dic-slot-row">
-                      <span className="dic-slot-icon">{SLOT_ICON[eq.slot as EquipmentSlot]}</span>
+                      <span className="dic-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[eq.slot as EquipmentSlot]} size={22} /></span>
                       <span className="dic-slot-label">{SLOT_LABEL[eq.slot as EquipmentSlot]}</span>
                       <span className="dic-rarity">{RARITY_LABEL[eq.rarity as EquipmentRarity]}</span>
                     </div>
                     <div className="dic-name">{eq.name}</div>
                     {eq.requiredRole && (
                       <div className="dic-role">
-                        {eq.setId ? '🎽' : '⚔️'} {ROLE_LABEL[eq.requiredRole]} {eq.setId ? `套裝（${setName}）` : '職業專屬'}
+                        <AsterVowIcon name={eq.setId ? 'equip-set' : 'equip-weapon'} size={15} /> {ROLE_LABEL[eq.requiredRole]} {eq.setId ? `套裝（${setName}）` : '職業專屬'}
                       </div>
                     )}
                     {!eq.requiredRole && setName && (
-                      <div className="dic-role">🎽 {setName}</div>
+                      <div className="dic-role"><AsterVowIcon name="equip-set" size={15} /> {setName}</div>
                     )}
                     {eq.legendaryDesc && (
                       <div className="dic-legendary">✦ {eq.legendaryDesc}</div>
@@ -103,7 +105,7 @@ export default function ChestOpenModal({ chestType, result, onClose }: Props) {
                 )
               })}
             </div>
-            {result.stardust > 0 && <div className="chest-stardust-reward">⭐ +{result.stardust} 星塵</div>}
+            {result.stardust > 0 && <div className="chest-stardust-reward"><AsterVowIcon name="system-stardust" size={17} /> +{result.stardust} 星塵</div>}
             <button className="secondary chest-confirm-btn" onClick={onClose}>
               確認入庫
             </button>
