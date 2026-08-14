@@ -4,6 +4,7 @@ import type { ArenaCard } from './cards'
 import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, FOREST_CAMPAIGN_ENEMIES, type EnemyTypeDef } from './enemies'
 import { getCampaignStage } from '../campaign/campaignStages'
 import type { CampaignStage, EnemyWave, WaveTrigger } from '../campaign/campaignTypes'
+import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
 import {
   isObjectiveWon, isObjectiveLost, updateObjectiveState, spawnCollectibles,
   onHuntTargetDefeated, onDestroyTargetDefeated, markCustomStarFailed, type ObjectiveState,
@@ -388,19 +389,6 @@ const CAMPAIGN_BG_THEME: Record<string, string> = {
 }
 const BG_VARIANTS_PER_THEME = 3
 
-// 森林遺跡固定關卡（2026-08-14）的 5 種場景主題專屬美術——取代原本借用
-// forest/castle/snowfield 頂著的暫代圖。目前每個主題只有 1 張（不是舊機制
-// 的 3 張變體），所以走單張路徑而不是 `${bgTheme}_${i+1}.jpg` 那套隨機
-// 變體邏輯；未來要補齊「同主題隨機三張」只要在這個資料夾多放
-// {theme}_2.jpg/{theme}_3.jpg 並在下面補對應陣列項目即可。
-const CAMPAIGN_STAGE_BG_PATH: Record<CampaignStage['bgTheme'], string[]> = {
-  forest_entrance: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/forest_entrance_1.jpg'],
-  poison_forest: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/poison_forest_1.jpg'],
-  ancient_ruins: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/ancient_ruins_1.jpg'],
-  ancient_altar: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/ancient_altar_1.jpg'],
-  dragon_nest: ['/assets/backgrounds/forest_ruins_2026_08/arena_ready_941x1672/dragon_nest_1.jpg'],
-}
-
 export class ArenaGame {
   app: Application | null = null
   destroyed = false
@@ -637,7 +625,7 @@ export class ArenaGame {
       ? this.getCampaignStageEnemyTypes(this.campaignStage)
       : [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
     const bgPaths = this.campaignStage
-      ? CAMPAIGN_STAGE_BG_PATH[this.campaignStage.bgTheme]
+      ? [getCampaignStageBgPath(this.campaignStage.bgTheme)]
       : Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${CAMPAIGN_BG_THEME[this.campaign] ?? 'forest'}_${i + 1}.jpg`)
     const heroStars = Math.min(3, Math.max(0, this.cfg.stars ?? 0))
     const [heroFrames, bgTexList, enemyFrameList, portraitTex] = await Promise.all([

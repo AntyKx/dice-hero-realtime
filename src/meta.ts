@@ -3,6 +3,7 @@ import type { ArenaLoadout } from './arena/equipment'
 import { HEROES } from './data'
 import { defaultHeroProgress } from './talents'
 import { refreshLegendaryDesc, migrateEquipment } from './equipment'
+import { sanitizeParty } from './party'
 
 const META_KEY = 'dice_hero_meta_v2'
 
@@ -53,6 +54,7 @@ export function defaultMeta(): MetaState {
     talentTreeSchemaVersion: TALENT_TREE_SCHEMA_VERSION,
     arenaInventory: [],
     arenaLoadouts: defaultArenaLoadouts(),
+    party: { leaderId: HEROES[0].id, supportIds: [null, null] },
   }
 }
 
@@ -116,6 +118,7 @@ export function loadMeta(): MetaState {
       talentTreeSchemaVersion: TALENT_TREE_SCHEMA_VERSION,
       arenaInventory: parsed.arenaInventory ?? [],
       arenaLoadouts: { ...def.arenaLoadouts, ...(parsed.arenaLoadouts ?? {}) },
+      party: sanitizeParty(parsed.party, HEROES.map(h => h.id), def.party!.leaderId),
     }
   } catch {
     return defaultMeta()

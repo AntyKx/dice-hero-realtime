@@ -3,17 +3,22 @@ import type { RouteType, MetaState } from '../types'
 import { HEROES, getHeroSprite, type Hero } from '../data'
 import SpriteAnimator from '../components/SpriteAnimator'
 import HeroPortraitModal from '../components/HeroPortraitModal'
-import { DUNGEON_DEFS, DIFFICULTY_CONFIG, type DungeonDifficulty } from '../dungeon'
+import { DUNGEON_DEFS, DIFFICULTY_CONFIG, type DungeonDifficulty, type DungeonDef } from '../dungeon'
 import { getHeroStarTitle, computeTalentBonus, defaultHeroProgress } from '../talents'
 import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { Equipment } from '../types'
 import { FEATURE_FLAGS } from '../featureFlags'
 import { generateHeroTalentTree, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
-import { getChapterTotalStars, getChapterMaxStars } from '../campaign/campaignProgress'
-import { CAMPAIGN_ID_FOREST_RUINS } from '../campaign/campaignTypes'
+import { CAMPAIGN_ID_FOREST_RUINS, type StageObjectiveType } from '../campaign/campaignTypes'
 import { getPlayerName } from '../scoring'
 import CompendiumScreen from './CompendiumScreen'
 import type { User } from '../lib/firebase'
+import { sanitizeParty, replacePartySlot, getPartyHeroIds } from '../party'
+import { getChapterStages } from '../campaign/campaignStages'
+import { getStageProgress, isStageUnlocked } from '../campaign/campaignProgress'
+import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
+import { StarRow } from './CampaignMapScreen'
+import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -33,6 +38,8 @@ interface Props {
   onOpenCampaignMap: (heroId: string) => void
   /** 大廳版面（2026-08 ASTERVOW 改版）「英雄與裝備」磚塊入口，導向 EquipmentScreen。 */
   onOpenEquipment: () => void
+  /** 出戰陣容編成（2026-08，見 src/party.ts）：點 3-slot 隊伍列的格子時開全頁編成畫面。 */
+  onOpenPartySetup: (slot: 0 | 1 | 2) => void
   /** 大廳右上抽屜選單（2026-08）的雲端存檔入口，跟原本 MainMenuScreen 用同一組 Firebase 帳號狀態。 */
   user: User | null
   cloudMsg: string
@@ -86,8 +93,26 @@ const LOBBY_CHAPTERS: { pick: CampaignPick; icon: string; name: string; color: s
   { pick: 'deep_sea',   icon: '🌊', name: '深海遺城篇', color: '#6fc0d8', sub: '氧氣・潮汐・深壓・亂流' },
 ]
 
+/** 地城副本瀏覽順序（2026-08-14）：跟舊版清單式 UI 的 DG_GROUPS 分組順序
+ * 一致（灰燼王國篇→裂隙前兆篇→深海遺城篇），只是攤平成一個線性陣列，
+ * 供大廳統一卡片版面左右切換用，不再用可展開/收合的分組清單。 */
+const DUNGEON_BROWSE_ORDER: string[] = ['burning_throne', 'ash_covenant', 'star_eclipse', 'black_tide']
+
+/** 森林遺跡關卡預覽卡（2026-08）：目標類型的文字/icon 對照，跟
+ * CampaignMapScreen.tsx 的 OBJECTIVE_LABEL 同一份資料，但 icon 換成
+ * AsterVowIcon（大廳明確要求不用 emoji），兩邊各自維護一份小 map，
+ * 不特別抽共用（跟 ROLE_META 在多個檔案各自重複的既有慣例一致）。 */
+const OBJECTIVE_LABEL: Record<StageObjectiveType, string> = {
+  elimination: '殲滅', survival: '生存', defense: '防守', hunt: '狩獵',
+  destroy: '破壞', collection: '收集', escape: '逃脫', boss: 'BOSS',
+}
+const OBJECTIVE_ICON_NAME: Record<StageObjectiveType, AsterVowIconName> = {
+  elimination: 'stage-elimination', survival: 'stage-survival', defense: 'stage-defense', hunt: 'stage-hunt',
+  destroy: 'stage-destroy', collection: 'stage-collection', escape: 'stage-escape', boss: 'stage-boss',
+}
+
 export default function AdventureReadyScreen({
-  meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard, onOpenCampaignMap, onOpenEquipment,
+  meta, onStart, onSetFateLevel, onMetaUpdate, onBack, onLeaderboard, onOpenCampaignMap, onOpenEquipment, onOpenPartySetup,
   user, cloudMsg, onSignIn, onSignOut, onCloudSave, onCloudLoad,
 }: Props) {
   const [modeTab, setModeTab]           = useState<ModeTab>('main')
@@ -95,43 +120,87 @@ export default function AdventureReadyScreen({
   const [showCloud, setShowCloud]       = useState(false)
   const [showCompendium, setShowCompendium] = useState(false)
   const [campaignPick, setCampaignPick] = useState<CampaignPick>('main')
-  const [ashGroupOpen, setAshGroupOpen]         = useState(false)
-  const [riftGroupOpen, setRiftGroupOpen]       = useState(false)
-  const [deepSeaGroupOpen, setDeepSeaGroupOpen] = useState(false)
-  const [dungeonAshOpen, setDungeonAshOpen]     = useState(false)
-  const [dungeonRiftOpen, setDungeonRiftOpen]   = useState(false)
-  const [dungeonDeepOpen, setDungeonDeepOpen]   = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<RouteType>('risk')
-  const [selectedDungeonId, setSelectedDungeonId] = useState<string | null>(null)
   const [selectedDifficulty, setSelectedDifficulty] = useState<DungeonDifficulty>('normal')
-  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null)
   const [portraitHero, setPortraitHero]     = useState<Hero | null>(null)
   const [talentViewHero, setTalentViewHero] = useState<Hero | null>(null)
   const [equipViewHero, setEquipViewHero]   = useState<Hero | null>(null)
   const [talentPendingNode, setTalentPendingNode] = useState<ArenaTalentNode | null>(null) // 點了還沒確認花費的節點
 
-  const canStart =
-    selectedHeroId !== null &&
-    (modeTab !== 'dungeon' || selectedDungeonId !== null)
+  // 出戰陣容（2026-08，見 src/party.ts）：隊長＝目前實際出戰的英雄，跟原本
+  // 「選英雄」是同一件事（使用者確認過要合一，不要拆成兩套機制）——
+  // selectedHeroId 現在直接從 meta.party.leaderId 衍生，恆有值（預設
+  // HEROES[0]），不再是 null，大廳一進來就有預設出戰英雄，不用每次手動選。
+  const allHeroIds = HEROES.map(h => h.id)
+  const party = sanitizeParty(meta.party, allHeroIds, HEROES[0].id)
+  const selectedHeroId = party.leaderId
+  const setLeaderId = (heroId: string) => {
+    onMetaUpdate(m => ({ ...m, party: replacePartySlot(sanitizeParty(m.party, allHeroIds, heroId), 0, heroId) }))
+  }
+
+  // 森林遺跡關卡預覽卡（2026-08）：大廳章節輪播的「森林遺跡」分支換成
+  // 單關卡預覽，預設停在第一個「已解鎖但尚未通關」的關卡，全部通關時停在
+  // 最後一關。左右切換只在 20 關陣列範圍內移動，不循環繞回（關卡是線性
+  // 解鎖，繞回去沒有意義）；鎖定中的關卡仍可預覽（顯示鎖頭+解鎖條件），
+  // 只是不能真正進入。
+  const forestStages = getChapterStages(CAMPAIGN_ID_FOREST_RUINS)
+  const [previewStageId, setPreviewStageId] = useState<string>(() => {
+    const firstOpen = forestStages.find(s => isStageUnlocked(meta, s.id) && !getStageProgress(meta, s.id).cleared)
+    return (firstOpen ?? forestStages[forestStages.length - 1]).id
+  })
+  const previewStageIdx = Math.max(0, forestStages.findIndex(s => s.id === previewStageId))
+  const previewStage = forestStages[previewStageIdx] ?? forestStages[0]
+  const previewProg = getStageProgress(meta, previewStage.id)
+  const previewUnlocked = isStageUnlocked(meta, previewStage.id)
+  const cyclePreviewStage = (dir: 1 | -1) => {
+    const next = previewStageIdx + dir
+    if (next < 0 || next >= forestStages.length) return
+    setPreviewStageId(forestStages[next].id)
+  }
+
+  const isDungeonUnlocked = (d: { minLevel?: number; requireCampaign?: string }) => {
+    if (d.requireCampaign && !meta.campaignCleared?.[d.requireCampaign]) return false
+    if (!d.minLevel) return true
+    return HEROES.some(h => (meta.heroProgress[h.id]?.level ?? 1) >= d.minLevel!)
+  }
+
+  // 地城副本預覽（2026-08-14）：跟森林遺跡關卡預覽同一套模式——大廳統一用
+  // 卡片版面瀏覽，不再切到另一個清單畫面。預設停在第一個已解鎖的地城，
+  // 全部鎖定時停在第一個（讓玩家看到鎖定條件）。
+  const browseDungeons = DUNGEON_BROWSE_ORDER.map(id => DUNGEON_DEFS.find(d => d.id === id)).filter((d): d is DungeonDef => !!d)
+  const [selectedDungeonId, setSelectedDungeonId] = useState<string>(() => {
+    const firstUnlocked = browseDungeons.find(isDungeonUnlocked)
+    return (firstUnlocked ?? browseDungeons[0]).id
+  })
+  const dungeonIdx = Math.max(0, browseDungeons.findIndex(d => d.id === selectedDungeonId))
+  const currentDungeon = browseDungeons[dungeonIdx] ?? browseDungeons[0]
+  const currentDungeonUnlocked = isDungeonUnlocked(currentDungeon)
+  const cyclePreviewDungeon = (dir: 1 | -1) => {
+    const next = dungeonIdx + dir
+    if (next < 0 || next >= browseDungeons.length) return
+    setSelectedDungeonId(browseDungeons[next].id)
+  }
+
+  const canStart = modeTab !== 'dungeon' || currentDungeonUnlocked
 
   const handleHeroClick = (hero: Hero) => {
     if (hero.portrait) {
       setPortraitHero(hero)
     } else {
-      setSelectedHeroId(hero.id)
+      setLeaderId(hero.id)
     }
   }
 
   const handlePortraitSelect = (heroId: string) => {
-    setSelectedHeroId(heroId)
+    setLeaderId(heroId)
     setPortraitHero(null)
   }
 
   const handlePortraitStart = (heroId: string) => {
-    setSelectedHeroId(heroId)
+    setLeaderId(heroId)
     setPortraitHero(null)
     // auto-start if ready
-    if (modeTab !== 'dungeon' || selectedDungeonId !== null) {
+    if (modeTab !== 'dungeon' || currentDungeonUnlocked) {
       fireStart(heroId)
     }
   }
@@ -144,23 +213,15 @@ export default function AdventureReadyScreen({
       onOpenCampaignMap(heroId)
     } else if (modeTab === 'main') {
       onStart({ campaign: campaignPick, heroId, routeType: selectedRoute })
-    } else if (selectedDungeonId) {
-      onStart({ campaign: 'dungeon', heroId, dungeonId: selectedDungeonId, difficulty: selectedDifficulty })
+    } else if (currentDungeonUnlocked) {
+      onStart({ campaign: 'dungeon', heroId, dungeonId: currentDungeon.id, difficulty: selectedDifficulty })
     }
   }
 
   const handleStart = () => {
-    if (!selectedHeroId || !canStart) return
+    if (!canStart) return
     fireStart(selectedHeroId)
   }
-
-  const isDungeonUnlocked = (d: { minLevel?: number; requireCampaign?: string }) => {
-    if (d.requireCampaign && !meta.campaignCleared?.[d.requireCampaign]) return false
-    if (!d.minLevel) return true
-    return HEROES.some(h => (meta.heroProgress[h.id]?.level ?? 1) >= d.minLevel!)
-  }
-  const isUnlocked = (minLevel?: number) =>
-    !minLevel || HEROES.some(h => (meta.heroProgress[h.id]?.level ?? 1) >= minLevel)
 
   const portraitHeroId = portraitHero?.id
   const portraitProg   = portraitHeroId ? meta.heroProgress[portraitHeroId] : undefined
@@ -168,13 +229,8 @@ export default function AdventureReadyScreen({
   const portraitEqB    = computeEquipBonus(portraitEquip)
   const portraitTalB   = portraitHeroId ? computeTalentBonus(portraitHeroId, meta.heroProgress[portraitHeroId] ?? { level: 1, exp: 0, wins: 0, stars: 0, selectedTalents: {} }) : { hpBonus: 0, defBonus: 0 }
 
-  // 大廳英雄站台（2026-08）：預設顯示第一位英雄當背景預覽，實際「出戰選擇」
-  // 仍然是 selectedHeroId（未選擇時出發按鈕維持 disabled，行為不變）。
+  // 大廳底部導覽「英雄」按鈕沿用既有立繪 Modal 入口，指向目前出戰隊長。
   const stageHero = HEROES.find(h => h.id === selectedHeroId) ?? HEROES[0]
-  const stageProg = meta.heroProgress[stageHero.id]
-  const stageStars = stageProg?.stars ?? 0
-  const stageDisplayName = stageStars > 0 ? (getHeroStarTitle(stageHero.id, stageStars) ?? stageHero.name) : stageHero.name
-  const stageRm = ROLE_META[stageHero.role]
 
   const chapterIdx = LOBBY_CHAPTERS.findIndex(c => c.pick === campaignPick)
   const activeChapter = LOBBY_CHAPTERS[chapterIdx] ?? LOBBY_CHAPTERS[0]
@@ -182,8 +238,6 @@ export default function AdventureReadyScreen({
     const next = (chapterIdx + dir + LOBBY_CHAPTERS.length) % LOBBY_CHAPTERS.length
     setCampaignPick(LOBBY_CHAPTERS[next].pick)
   }
-  const chapterStars = activeChapter.pick === 'main' ? getChapterTotalStars(meta, CAMPAIGN_ID_FOREST_RUINS) : null
-  const chapterMaxStars = activeChapter.pick === 'main' ? getChapterMaxStars(CAMPAIGN_ID_FOREST_RUINS) : null
   const chapterEnterLabel = activeChapter.pick === 'main' ? '查看關卡地圖' : '出發！'
 
   // 玩家資訊列/抽屜的「等級」用真實的全英雄總星數代替（沒有帳號等級系統，
@@ -193,343 +247,301 @@ export default function AdventureReadyScreen({
 
   return (
     <div className="ar-screen">
-      {/* 主線冒險分頁：改成大廳版面的玩家資訊列（左上頭像+暱稱+總星數／
-          右上資源+選單），取代原本的品牌列+返回鍵——回首頁改放進右側抽屜
-          選單（見下方 av-drawer），跟使用者提供的 mockup 版面一致。地城
-          副本分頁維持原本的品牌列+返回鍵不變。 */}
-      {modeTab === 'main' ? (
-        <header className="av-lobby-topbar">
-          <button className="av-lobby-player-chip" onClick={() => setDrawerOpen(true)} aria-label="開啟玩家選單">
-            <span className="av-lobby-player-avatar" aria-hidden="true">👤</span>
-            <span className="av-lobby-player-info">
-              <b>{getPlayerName()}</b>
-              <small>★ {totalStars} 總星數</small>
-            </span>
-          </button>
-          <div className="av-lobby-toolbar">
-            {meta.gold > 0 && <span className="mm-gold-badge">💰 {meta.gold}</span>}
-            {meta.stardust > 0 && <span className="mm-stardust-badge">⭐ {meta.stardust}</span>}
-            <button className="av-glass-btn av-lobby-menu-btn" onClick={() => setDrawerOpen(true)} aria-label="開啟選單">☰</button>
-          </div>
-        </header>
-      ) : (
-        <header className="topbar">
-          <div>
-            <div className="eyebrow av-wordmark" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="av-sigil" style={{ width: 16, height: 16 }} aria-hidden="true"><span /><i /></span>
-              ASTER<b>VOW</b>
-            </div>
-            <h1>遠征準備</h1>
-          </div>
-          <button className="ghost" onClick={onBack}>← 返回</button>
-        </header>
-      )}
-
-      {/* ── 主標籤（v1 即時制範圍先隱藏地城副本，見 FEATURE_FLAGS） ── */}
-      {FEATURE_FLAGS.dungeons && (
-        <div className="ar-mode-tabs">
-          <button className={`ar-tab${modeTab === 'main' ? ' active' : ''}`}
-            onClick={() => setModeTab('main')}>
-            ⚔️ 主線冒險
-          </button>
-          <button className={`ar-tab${modeTab === 'dungeon' ? ' active' : ''}`}
-            onClick={() => setModeTab('dungeon')}>
-            🏰 地城副本
-          </button>
+      {/* 玩家資訊列（左上頭像+暱稱+總星數／右上資源+選單），主線冒險／地城
+          副本兩個分頁共用同一條，不再各自有一條分頁切換列——切換模式統一
+          走下面的四宮格捷徑磚＋底部導覽，「返回」永遠只有兩種明確語意：
+          抽屜選單「↩ 回到首頁」（離開大廳）跟四宮格/底部導覽的「大廳」
+          （回到主線冒險），不會再有分頁自己的返回鍵跳過大廳直接回首頁。 */}
+      <header className="av-lobby-topbar">
+        <button className="av-lobby-player-chip" onClick={() => setDrawerOpen(true)} aria-label="開啟玩家選單">
+          <span className="av-lobby-player-avatar" aria-hidden="true">👤</span>
+          <span className="av-lobby-player-info">
+            <b>{getPlayerName()}</b>
+            <small>★ {totalStars} 總星數</small>
+          </span>
+        </button>
+        <div className="av-lobby-toolbar">
+          {meta.gold > 0 && <span className="mm-gold-badge">💰 {meta.gold}</span>}
+          {meta.stardust > 0 && <span className="mm-stardust-badge">⭐ {meta.stardust}</span>}
+          <button className="av-glass-btn av-lobby-menu-btn" onClick={() => setDrawerOpen(true)} aria-label="開啟選單">☰</button>
         </div>
-      )}
+      </header>
 
-      {/* ── 主線冒險：大廳版面（2026-08 ASTERVOW 改版）── 英雄站台＋章節輪播
-          ＋功能磚，取代原本的左右兩欄選項清單。地城副本分頁維持原本的清單式
-          版面（見下方 modeTab === 'dungeon' 分支），兩者邏輯完全共用既有的
-          selectedHeroId/canStart/fireStart，只有主線這邊改了呈現方式。 */}
-      {modeTab === 'main' && (
-        <div className="av-lobby">
-          {/* 英雄站台：用現有的長方形立繪重新排版，取代 mockup 原本要求的
-              去背全身立繪（本專案沒有這類素材，見任務討論）。 */}
-          <div className="av-lobby-stage">
-            <button
-              className="av-lobby-stage-art"
-              style={stageRm ? { boxShadow: `0 0 32px ${stageRm.color}33` } : undefined}
-              onClick={() => handleHeroClick(stageHero)}
-              aria-label={`查看 ${stageHero.name} 詳情`}
-            >
-              {stageHero.portrait
-                ? <img src={stageHero.portrait} alt={stageHero.name} />
-                : <SpriteAnimator sprite={getHeroSprite(stageHero, stageStars)} state="idle" scale={2} />}
-              <div className="av-lobby-stage-scrim" />
-              <div className="av-lobby-stage-caption">
-                <div className="av-lobby-stage-name">
-                  {stageDisplayName}
-                  {stageStars > 0 && <span className="av-lobby-stage-star">{'★'.repeat(stageStars)}</span>}
-                </div>
-                <div className="av-lobby-stage-sub">
-                  {stageHero.title}{stageProg && stageProg.level > 1 ? ` · Lv${stageProg.level}` : ''}
-                </div>
-              </div>
-            </button>
-
-            <div className="av-lobby-stage-switcher" role="tablist" aria-label="選擇出戰英雄">
-              {HEROES.map(hero => {
-                const prog = meta.heroProgress[hero.id]
-                const stars = prog?.stars ?? 0
-                const sprite = getHeroSprite(hero, stars)
-                const scale = 40 / sprite.frameHeight
-                const active = stageHero.id === hero.id
-                const rm = ROLE_META[hero.role]
+      {/* ── 大廳統一版面（2026-08-14 v4）：主線冒險／地城副本共用同一套
+          「大圖預覽卡＋章節切換卡＋資訊列＋CTA＋四宮格」版面，只有卡片
+          內容依 modeTab 換掉，不再各自有獨立的畫面（使用者反饋：地城
+          副本點進去也要用主線那套呈現方式，都在大廳完成，不要切到另一個
+          入口）。舊版地城副本清單式版面（.ar-body 兩欄式）已整個移除。 */}
+      <div className="av-lobby">
+          {/* 大廳首屏核心 v3（2026-08-14）：大圖預覽卡（先留素面背景，真實
+              關卡插畫之後補）＋右上角出戰陣容小圓鈕＋地圖上緩慢走動的英雄
+              小模組；下方另外是章節切換卡（含分頁圓點）、關卡資訊列、CTA、
+              最後是四宮格捷徑磚，整段版面依序把首屏空間都用上，取代 v2
+              把所有資訊硬疊在同一張卡片上的做法。 */}
+          <div
+            className="av-lobby-map-card"
+            style={
+              modeTab === 'dungeon'
+                ? { background: `linear-gradient(160deg, ${currentDungeon.color}33, #0a1226 78%)` }
+                : activeChapter.pick === 'main'
+                ? { backgroundImage: `linear-gradient(180deg, rgba(8,15,36,.25) 0%, rgba(8,15,36,.4) 55%, rgba(6,11,28,.9) 100%), url(${getCampaignStageBgPath(previewStage.bgTheme)})` }
+                : { background: `linear-gradient(160deg, ${activeChapter.color}33, #0a1226 78%)` }
+            }
+          >
+            {/* 出戰陣容（2026-08，見 src/party.ts）：右上角小圓鈕，點格子開
+                全頁編成畫面；跟下面純裝飾的走動模組分開，是唯一的編成入口。 */}
+            <div className="av-lobby-map-picons" role="group" aria-label="出戰陣容">
+              {([0, 1, 2] as const).map(slot => {
+                const heroId = slot === 0 ? party.leaderId : party.supportIds[slot - 1]
+                const hero = HEROES.find(h => h.id === heroId)
+                const rm = hero ? ROLE_META[hero.role] : null
+                const label = slot === 0 ? '隊長' : `夥伴 ${slot}`
+                const sprite = hero ? getHeroSprite(hero, meta.heroProgress[hero.id]?.stars ?? 0) : null
+                const scale = sprite ? 34 / sprite.frameHeight : 1
                 return (
                   <button
-                    key={hero.id}
-                    className={`av-lobby-switch-btn${active ? ' active' : ''}`}
-                    style={active && rm ? { borderColor: rm.color, boxShadow: `0 0 10px ${rm.color}55` } : undefined}
-                    onClick={() => setSelectedHeroId(hero.id)}
-                    aria-label={hero.name}
-                    aria-selected={active}
+                    key={slot}
+                    className={`av-lobby-map-picon${!hero ? ' empty' : ''}`}
+                    style={hero && rm ? { borderColor: rm.color, boxShadow: `0 0 8px ${rm.color}66` } : undefined}
+                    onClick={() => onOpenPartySetup(slot)}
+                    aria-label={`編成－${label}`}
                   >
-                    <SpriteAnimator sprite={sprite} state="idle" scale={scale} />
+                    {hero && sprite ? (
+                      <SpriteAnimator sprite={sprite} state="idle" scale={scale} idleFrame={0} />
+                    ) : (
+                      <span className="av-lobby-map-picon-plus" aria-hidden="true">＋</span>
+                    )}
                   </button>
                 )
               })}
             </div>
-            {!selectedHeroId && <p className="ar-hero-hint">點選下方頭像出戰；點擊立繪可預覽完整詳情</p>}
+
+            {/* 純裝飾：地圖右下角站立的英雄小模組，跟右上角編成入口分開，不可
+                點擊。原本是走動動畫＋分散在左下角，改成站立不動＋統一大小
+                （使用者反饋：走動會互相穿越很醜、大小不一致）。 */}
+            <div className="av-lobby-map-party-stand" aria-hidden="true">
+              {getPartyHeroIds(party).map((heroId, i) => {
+                const hero = HEROES.find(h => h.id === heroId)
+                if (!hero) return null
+                const sprite = getHeroSprite(hero, meta.heroProgress[hero.id]?.stars ?? 0)
+                const scale = 50 / sprite.frameHeight
+                return (
+                  <div key={heroId} className={`av-lobby-map-stand-unit slot-${i}`}>
+                    <SpriteAnimator sprite={sprite} state="idle" scale={scale} />
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="av-lobby-map-caption">
+              {modeTab === 'dungeon' ? (
+                <span>{currentDungeon.icon} {currentDungeon.name}</span>
+              ) : activeChapter.pick === 'main' ? (
+                <span>{activeChapter.icon} {activeChapter.name}・第 {previewStage.stageNumber} 關</span>
+              ) : (
+                <span>{activeChapter.icon} {activeChapter.name}</span>
+              )}
+            </div>
           </div>
 
-          {/* 章節輪播：森林遺跡有真實固定關卡星數進度，其餘兩篇仍是即時制
-              Roguelite 隨機章節，卡片不假造進度，只給類型說明。 */}
-          <div className="av-lobby-chapter">
-            <button className="av-lobby-chapter-nav" onClick={() => cycleChapter(-1)} aria-label="上一篇章">‹</button>
-            <div className="av-lobby-chapter-card" style={{ borderColor: activeChapter.color + '55' }}>
-              <div className="av-lobby-chapter-icon">{activeChapter.icon}</div>
-              <div className="av-lobby-chapter-name">{activeChapter.name}</div>
-              <div className="av-lobby-chapter-sub">{activeChapter.sub}</div>
-              {chapterStars !== null ? (
-                <div className="av-lobby-chapter-progress">
-                  <div className="av-lobby-chapter-progress-bar">
-                    <div className="av-lobby-chapter-progress-fill" style={{ width: `${Math.min(100, (chapterStars / (chapterMaxStars || 1)) * 100)}%`, background: activeChapter.color }} />
+          {/* 章節/地城切換卡＋分頁圓點：跟大圖預覽分開的獨立區塊，主線冒險
+              左右切換 3 個篇章，地城副本左右切換 4 座地城，兩者共用同一套
+              卡片＋圓點樣式，只是資料來源不同。 */}
+          {modeTab === 'dungeon' ? (
+            <>
+              <div className="av-lobby-chaptercard">
+                <button className="av-lobby-chaptercard-nav" disabled={dungeonIdx <= 0} onClick={() => cyclePreviewDungeon(-1)} aria-label="上一座地城">‹</button>
+                <div className="av-lobby-chaptercard-body">
+                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: currentDungeon.color + '66', background: currentDungeon.color + '18' }}>
+                    {currentDungeon.icon}
                   </div>
-                  <span>⭐ {chapterStars}/{chapterMaxStars}</span>
+                  <div className="av-lobby-chaptercard-text">
+                    <div className="av-lobby-chaptercard-label">地城副本</div>
+                    <div className="av-lobby-chaptercard-name">{currentDungeon.name}</div>
+                    <div className="av-lobby-chaptercard-sub">{currentDungeon.subtitle}</div>
+                  </div>
+                </div>
+                <button className="av-lobby-chaptercard-nav" disabled={dungeonIdx >= browseDungeons.length - 1} onClick={() => cyclePreviewDungeon(1)} aria-label="下一座地城">›</button>
+              </div>
+              <div className="av-lobby-chapterdots" role="tablist" aria-label="切換地城">
+                {browseDungeons.map((d, i) => (
+                  <button key={d.id} className={`av-lobby-chapterdot${i === dungeonIdx ? ' active' : ''}`}
+                    onClick={() => setSelectedDungeonId(d.id)} aria-label={d.name} aria-selected={i === dungeonIdx} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="av-lobby-chaptercard">
+                <button className="av-lobby-chaptercard-nav" onClick={() => cycleChapter(-1)} aria-label="上一篇章">‹</button>
+                <div className="av-lobby-chaptercard-body">
+                  <div className="av-lobby-chaptercard-thumb" style={{ borderColor: activeChapter.color + '66', background: activeChapter.color + '18' }}>
+                    {activeChapter.icon}
+                  </div>
+                  <div className="av-lobby-chaptercard-text">
+                    <div className="av-lobby-chaptercard-label">CHAPTER {chapterIdx + 1}</div>
+                    <div className="av-lobby-chaptercard-name">{activeChapter.name}</div>
+                    <div className="av-lobby-chaptercard-sub">
+                      {activeChapter.pick === 'main' ? previewStage.name : activeChapter.sub}
+                    </div>
+                  </div>
+                </div>
+                <button className="av-lobby-chaptercard-nav" onClick={() => cycleChapter(1)} aria-label="下一篇章">›</button>
+              </div>
+              <div className="av-lobby-chapterdots" role="tablist" aria-label="切換篇章">
+                {LOBBY_CHAPTERS.map((c, i) => (
+                  <button key={c.pick} className={`av-lobby-chapterdot${i === chapterIdx ? ' active' : ''}`}
+                    onClick={() => setCampaignPick(c.pick)} aria-label={c.name} aria-selected={i === chapterIdx} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 資訊列：地城副本顯示難度選擇＋獎勵預覽＋鎖定條件＋排行榜；森林
+              遺跡分支顯示真實逐關資料（目標/時長/獎勵/星數/鎖定）；裂隙
+              前兆篇/深海遺城篇沒有逐關資料，不假造。 */}
+          {modeTab === 'dungeon' ? (
+            <div className="av-lobby-stageinfo">
+              {!currentDungeonUnlocked ? (
+                <div className="av-lobby-stageinfo-row">
+                  <span className="av-lobby-stageinfo-lock">
+                    🔒 {currentDungeon.requireCampaign ? '需先通關灰燼王國篇' : `等級需求 Lv.${currentDungeon.minLevel}`}
+                  </span>
                 </div>
               ) : (
-                <div className="av-lobby-chapter-progress-note">隨機生成關卡・無固定進度</div>
-              )}
-              <button
-                className="av-cta-btn av-lobby-chapter-enter"
-                disabled={!selectedHeroId}
-                onClick={() => selectedHeroId && fireStart(selectedHeroId)}
-              >
-                {selectedHeroId ? chapterEnterLabel : '請先選擇英雄'}
-              </button>
-            </div>
-            <button className="av-lobby-chapter-nav" onClick={() => cycleChapter(1)} aria-label="下一篇章">›</button>
-          </div>
-
-        </div>
-      )}
-
-      {/* ── 底部導覽（僅主線冒險分頁）：跟 mockup 一致的固定式底部導覽，
-          是大廳唯一的跨功能導覽入口（原本另外有一列功能磚，跟這裡的
-          地城/英雄/裝備重複，使用者反映「入口重複」後拿掉了，避免同一個
-          功能兩個地方都能點）。排行榜是每個地城副本各自的榜單，本來就
-          跟地城資料綁在一起，改成只留在地城副本分頁裡原有的排行榜按鈕。 ── */}
-      {modeTab === 'main' && (
-        <nav className="av-lobby-dock" aria-label="大廳導覽">
-          <button className="av-lobby-dock-btn active" aria-label="大廳">
-            <span aria-hidden="true">🧭</span>
-            <span>大廳</span>
-          </button>
-          {FEATURE_FLAGS.dungeons && (
-            <button className="av-lobby-dock-btn" onClick={() => setModeTab('dungeon')} aria-label="地城副本">
-              <span aria-hidden="true">🏰</span>
-              <span>地城</span>
-            </button>
-          )}
-          <button
-            className="av-lobby-dock-btn av-lobby-dock-primary"
-            disabled={!selectedHeroId}
-            onClick={() => selectedHeroId && fireStart(selectedHeroId)}
-            aria-label="開始"
-          >
-            <span aria-hidden="true">✨</span>
-            <span>開始</span>
-          </button>
-          <button className="av-lobby-dock-btn" onClick={() => handleHeroClick(stageHero)} aria-label="英雄">
-            <span aria-hidden="true">👥</span>
-            <span>英雄</span>
-          </button>
-          {FEATURE_FLAGS.equipment && (
-            <button className="av-lobby-dock-btn" onClick={onOpenEquipment} aria-label="英雄與裝備">
-              <span aria-hidden="true">🛡️</span>
-              <span>裝備</span>
-            </button>
-          )}
-        </nav>
-      )}
-
-      {/* ── 地城副本：維持原本的清單式版面（左：地城清單／右：英雄選擇） ── */}
-      {modeTab === 'dungeon' && (
-        <div className="ar-body">
-          <div className="ar-options">
-            <div className="ar-dungeon-header">
-              <div className="ar-label" style={{ margin: 0 }}>選擇地城</div>
-              <button className="ar-lb-btn" onClick={onLeaderboard}>👑 排行榜</button>
-            </div>
-            <div className="ar-dungeon-list">
-              {(() => {
-                const DG_GROUPS = [
-                  { key: 'ash',     label: '🔥 灰燼王國篇', color: '#c07030', ids: ['burning_throne', 'ash_covenant'], open: dungeonAshOpen,  setOpen: setDungeonAshOpen },
-                  { key: 'rift',    label: '🌌 裂隙前兆篇', color: '#5070d0', ids: ['star_eclipse'],                  open: dungeonRiftOpen, setOpen: setDungeonRiftOpen },
-                  { key: 'deepsea', label: '🌊 深海遺城篇', color: '#3090b0', ids: ['black_tide'],                    open: dungeonDeepOpen, setOpen: setDungeonDeepOpen },
-                ]
-                const GROUPED = new Set(DG_GROUPS.flatMap(g => g.ids))
-                const renderBtn = (d: typeof DUNGEON_DEFS[0]) => {
-                  const unlocked = isDungeonUnlocked(d)
-                  const prog = meta.dungeonProgress?.[d.id]
-                  const active = selectedDungeonId === d.id
-                  const lockMsg = d.requireCampaign ? '需先通關灰燼王國篇' : `🔒 Lv${d.minLevel}`
-                  return (
-                    <button
-                      key={d.id}
-                      className={`ar-dg-btn${active ? ' active' : ''}${unlocked ? '' : ' locked'}`}
-                      style={{ '--dungeon-color': d.color } as React.CSSProperties}
-                      disabled={!unlocked}
-                      onClick={() => setSelectedDungeonId(d.id)}
-                    >
-                      <span className="ar-dg-icon">{d.icon}</span>
-                      <div className="ar-dg-info">
-                        <div className="ar-dg-name">{d.name}</div>
-                        <div className="ar-dg-sub">{d.subtitle}</div>
-                      </div>
-                      {prog?.cleared && <span className="ar-dg-cleared">✓ 通關</span>}
-                      {!unlocked && <span className="ar-dg-lock">{lockMsg}</span>}
-                    </button>
-                  )
-                }
-                return (
-                  <>
-                    {DG_GROUPS.map(grp => (
-                      <div key={grp.key} className="ar-dg-group">
-                        <button
-                          className="ar-dg-group-header"
-                          style={{ color: grp.color, borderColor: grp.color }}
-                          onClick={() => grp.setOpen((o: boolean) => !o)}
-                        >
-                          <span className="ar-dg-group-label">{grp.label}</span>
-                          <span className="ar-campaign-group-arrow">{grp.open ? '▲' : '▼'}</span>
-                        </button>
-                        {grp.open && DUNGEON_DEFS.filter(d => grp.ids.includes(d.id)).map(renderBtn)}
-                      </div>
-                    ))}
-                    {DUNGEON_DEFS.filter(d => !GROUPED.has(d.id)).map(renderBtn)}
-                  </>
-                )
-              })()}
-            </div>
-
-            {selectedDungeonId && (() => {
-              const d = DUNGEON_DEFS.find(x => x.id === selectedDungeonId)!
-              return (
                 <>
-                  <div className="ar-label" style={{ marginTop: 14 }}>難度</div>
-                  <div className="ar-diff-row">
+                  <div className="av-lobby-stageinfo-nav">
                     {(['normal', 'hero', 'legendary'] as DungeonDifficulty[]).map(dif => {
                       const cfg = DIFFICULTY_CONFIG[dif]
                       const isActive = selectedDifficulty === dif
                       return (
-                        <button
-                          key={dif}
-                          className={`ar-diff-btn${isActive ? ' active' : ''}`}
-                          style={isActive ? { borderColor: cfg.color, color: cfg.color, background: cfg.color + '18' } : {}}
-                          onClick={() => setSelectedDifficulty(dif)}
-                        >
-                          <div className="ar-diff-label">{cfg.label}</div>
-                          <div className="ar-diff-desc">{cfg.desc}</div>
+                        <button key={dif} className={isActive ? 'active' : ''}
+                          style={isActive ? { color: cfg.color } : undefined}
+                          onClick={() => setSelectedDifficulty(dif)}>
+                          {cfg.label}
                         </button>
                       )
                     })}
                   </div>
                   {(() => {
                     const cfg = DIFFICULTY_CONFIG[selectedDifficulty]
-                    const gold = Math.floor(d.goldReward * cfg.goldMult)
-                    const exp  = Math.floor(d.expReward  * cfg.expMult)
-                    const chestName = selectedDifficulty === 'normal' ? '一般寶箱 📦' : selectedDifficulty === 'hero' ? '英雄寶箱 🎁' : '傳奇寶箱 👑'
-                    const chestDesc = selectedDifficulty === 'normal'
-                      ? '藍裝 80% / 紫裝 20% + 15星塵'
-                      : selectedDifficulty === 'hero'
-                      ? '紫裝通用 55% / 紫職業套裝 33% / 橙裝 12% + 35~50星塵'
-                      : '紫職業套裝 38% / 紫通用 22% / 橙通用 12% / 橙職業套裝 15% / 橙職業武器 8% / 雙件 5% + 70~100星塵'
-                    const rarityZH = d.equipRarity === 'magic' ? '魔法' : d.equipRarity === 'rare' ? '稀有' : '傳奇'
+                    const gold = Math.floor(currentDungeon.goldReward * cfg.goldMult)
+                    const exp = Math.floor(currentDungeon.expReward * cfg.expMult)
+                    const rarityZH = currentDungeon.equipRarity === 'magic' ? '魔法' : currentDungeon.equipRarity === 'rare' ? '稀有' : '傳奇'
                     return (
-                      <div className="ar-dg-reward-preview" style={{ borderColor: cfg.color + '55' }}>
-                        <div className="ar-dg-rp-title" style={{ color: cfg.color }}>通關獎勵預覽</div>
-                        <div className="ar-dg-rp-row"><span>💰 金幣</span><strong>{gold}</strong></div>
-                        <div className="ar-dg-rp-row"><span>✨ 經驗</span><strong>{exp}</strong></div>
-                        <div className="ar-dg-rp-row"><span>⚔ 裝備</span><strong><span className={`rarity-${d.equipRarity}`}>{rarityZH}裝備</span> ×1</strong></div>
-                        <div className="ar-dg-rp-row"><span>🎁 寶箱</span><strong>{chestName}</strong></div>
-                        <div className="ar-dg-rp-chest">{chestDesc}</div>
+                      <div className="av-lobby-stageinfo-row">
+                        <span className="av-lobby-stageinfo-reward">💰{gold}　✨{exp}　⚔ {rarityZH}裝備</span>
                       </div>
                     )
                   })()}
                 </>
-              )
-            })()}
-          </div>
-
-          {/* ── 右欄：英雄選擇 ── */}
-          <div className="ar-hero-panel">
-            <div className="ar-label">選擇英雄</div>
-            <div className="ar-hero-grid">
-              {HEROES.map(hero => {
-                const prog  = meta.heroProgress[hero.id]
-                const stars = prog?.stars ?? 0
-                const sprite = getHeroSprite(hero, stars)
-                // 高度優先縮放（維持原本大小觀感），.dhm-sprite 格子已加寬，
-                // 詳見 styles.css 該 class 註解。
-                const scale  = 52 / sprite.frameHeight
-                const displayName = stars > 0 ? (getHeroStarTitle(hero.id, stars) ?? hero.name) : hero.name
-                const active = selectedHeroId === hero.id
-                const rm = ROLE_META[hero.role]
-                return (
-                  <button
-                    key={hero.id}
-                    className={`ar-hero-btn${active ? ' active' : ''}`}
-                    style={active && rm ? { borderColor: rm.color, boxShadow: `0 0 12px ${rm.color}44` } : {}}
-                    onClick={() => handleHeroClick(hero)}
-                  >
-                    <div className="dhm-sprite">
-                      <SpriteAnimator sprite={sprite} state="idle" scale={scale} />
-                    </div>
-                    <div className="dhm-hero-name">{displayName}</div>
-                    {prog && prog.level > 1 && (
-                      <div className="dhm-hero-level">
-                        Lv{prog.level}{stars > 0 ? ' ' + '★'.repeat(stars) : ''}
-                      </div>
-                    )}
-                    {hero.portrait && <div className="ar-hero-portrait-dot" title="有立繪" />}
-                  </button>
-                )
-              })}
+              )}
+              <div className="av-lobby-stageinfo-row">
+                <button className="av-lobby-stageinfo-lbbtn" onClick={onLeaderboard}>👑 排行榜</button>
+              </div>
             </div>
-            <p className="ar-hero-hint">點擊英雄選擇；有立繪的英雄點擊後可預覽詳情</p>
+          ) : activeChapter.pick === 'main' ? (
+            <div className="av-lobby-stageinfo">
+              <div className="av-lobby-stageinfo-nav">
+                <button disabled={previewStageIdx <= 0} onClick={() => cyclePreviewStage(-1)} aria-label="上一關">‹ 上一關</button>
+                <button disabled={previewStageIdx >= forestStages.length - 1} onClick={() => cyclePreviewStage(1)} aria-label="下一關">下一關 ›</button>
+              </div>
+              <div className="av-lobby-stageinfo-row">
+                <span className="av-lobby-stageinfo-objective">
+                  <AsterVowIcon name={OBJECTIVE_ICON_NAME[previewStage.objective.type]} size={15} /> {OBJECTIVE_LABEL[previewStage.objective.type]}
+                </span>
+                <span>⏱ {previewStage.estimatedDurationSec[0]}–{previewStage.estimatedDurationSec[1]}秒</span>
+                {previewStage.boss && <span className="av-lobby-stageinfo-boss"><AsterVowIcon name="stage-boss" size={14} /> BOSS</span>}
+              </div>
+              <div className="av-lobby-stageinfo-row">
+                {previewUnlocked ? (
+                  <>
+                    <StarRow stars={previewProg.stars} />
+                    <span className="av-lobby-stageinfo-reward">💰{previewStage.firstClearReward.gold}　✨{previewStage.firstClearReward.heroExp}</span>
+                  </>
+                ) : (
+                  <span className="av-lobby-stageinfo-lock">🔒 通關上一關解鎖</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="av-lobby-stageinfo">
+              <div className="av-lobby-stageinfo-row"><span>{activeChapter.sub}・隨機生成關卡，無固定進度</span></div>
+            </div>
+          )}
+
+          <div className="av-lobby-cta-row">
+            <button className="ghost" onClick={() => onOpenPartySetup(0)}>隊伍編成</button>
+            {modeTab === 'dungeon' ? (
+              <button className="av-cta-btn" disabled={!canStart} onClick={handleStart}>
+                {currentDungeonUnlocked ? '出發！' : '尚未解鎖'}
+              </button>
+            ) : (
+              <button className="av-cta-btn" onClick={() => fireStart(selectedHeroId)}>
+                {activeChapter.pick === 'main' ? '查看關卡地圖' : chapterEnterLabel}
+              </button>
+            )}
+          </div>
+
+          {/* 四宮格捷徑磚：跟底部導覽的入口部分重疊是刻意設計（很多手機遊戲
+              大廳首頁捷徑跟底部導覽本來就會重複），全部指向真實既有功能。 */}
+          <div className="av-lobby-tiles">
+            <button className={`av-lobby-tile${modeTab === 'main' ? ' active' : ''}`} onClick={() => setModeTab('main')}>
+              <AsterVowIcon name="nav-campaign" size={22} />
+              <span>主線冒險</span>
+            </button>
+            {FEATURE_FLAGS.dungeons && (
+              <button className={`av-lobby-tile${modeTab === 'dungeon' ? ' active' : ''}`} onClick={() => setModeTab('dungeon')}>
+                <AsterVowIcon name="nav-dungeon" size={22} />
+                <span>地城副本</span>
+              </button>
+            )}
+            {/* 商店（2026-08-14）：先佔位，實際商品/貨幣系統還沒做，比照
+                右側抽屜「禮物與郵件」既有的即將推出慣例，不假造內容。 */}
+            <button className="av-lobby-tile" disabled aria-label="商店（即將推出）">
+              <AsterVowIcon name="nav-shop" size={22} />
+              <span>商店</span>
+              <span className="av-lobby-tile-tag">即將推出</span>
+            </button>
+            <button className="av-lobby-tile" onClick={() => setShowCompendium(true)}>
+              <AsterVowIcon name="nav-compendium" size={22} />
+              <span>星界圖鑑</span>
+            </button>
           </div>
         </div>
-      )}
 
-      {/* ── 出發按鈕（僅地城副本分頁——主線冒險的出發入口在章節卡片內） ── */}
-      {modeTab === 'dungeon' && (
-        <div className="ar-footer">
-          <button
-            className="primary ar-start-btn"
-            disabled={!canStart}
-            onClick={handleStart}
-          >
-            {!selectedHeroId
-              ? '請先在右側選擇英雄'
-              : !selectedDungeonId
-              ? '請選擇地城'
-              : '出發！'}
+      {/* ── 底部導覽：2026-08 改版拿掉中間的「開始」主按鈕（出發 CTA 併入
+          上方關卡預覽卡），固定 5 格：大廳／地城／英雄／裝備／選單，主線
+          冒險／地城副本兩個模式共用同一條（原本只在主線分頁顯示，2026-
+          08-14 起兩個模式統一版面後不再需要分開）。「選單」跟頂部工具列的
+          選單按鈕功能重複，是刻意的設計（很多手機遊戲大廳選單入口本來就
+          不只一個）。 ── */}
+      <nav className="av-lobby-dock" aria-label="大廳導覽">
+          <button className={`av-lobby-dock-btn${modeTab === 'main' ? ' active' : ''}`} onClick={() => setModeTab('main')} aria-label="大廳">
+            <AsterVowIcon name="nav-lobby" />
+            <span>大廳</span>
           </button>
-        </div>
-      )}
+          {FEATURE_FLAGS.dungeons && (
+            <button className={`av-lobby-dock-btn${modeTab === 'dungeon' ? ' active' : ''}`} onClick={() => setModeTab('dungeon')} aria-label="地城副本">
+              <AsterVowIcon name="nav-dungeon" />
+              <span>地城</span>
+            </button>
+          )}
+          <button className="av-lobby-dock-btn" onClick={() => handleHeroClick(stageHero)} aria-label="英雄">
+            <AsterVowIcon name="nav-heroes" />
+            <span>英雄</span>
+          </button>
+          {FEATURE_FLAGS.equipment && (
+            <button className="av-lobby-dock-btn" onClick={onOpenEquipment} aria-label="英雄與裝備">
+              <AsterVowIcon name="nav-equipment" />
+              <span>裝備</span>
+            </button>
+          )}
+          <button className="av-lobby-dock-btn" onClick={() => setDrawerOpen(true)} aria-label="選單">
+            <AsterVowIcon name="nav-menu" />
+            <span>選單</span>
+          </button>
+        </nav>
 
       {/* ── 右側抽屜選單（2026-08，僅主線冒險分頁會開啟）：品牌列+關閉、
           玩家資訊、禮物與郵件／星界圖鑑／雲端存檔／遊戲設定、回到首頁。
@@ -634,7 +646,7 @@ export default function AdventureReadyScreen({
           talBon={portraitTalB}
           equip={portraitEquip}
           startLabel={
-            (modeTab !== 'dungeon' || selectedDungeonId !== null)
+            (modeTab !== 'dungeon' || currentDungeonUnlocked)
               ? '選擇此英雄，出發！'
               : '確認選擇'
           }

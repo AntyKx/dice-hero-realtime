@@ -3287,6 +3287,13 @@ h1, h2, h3, p { margin: 0; }
   .dhm-hero-name { font-size: 0.62rem; }
   .ar-diff-desc { display: none; }
   .av-lobby { overflow: visible; }
+  .av-lobby-map-card { aspect-ratio: 16 / 8; }
+  .av-lobby-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .av-lobby-tile { padding: 10px 12px; font-size: 0.8rem; }
+  .pss-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pss-preview { flex-direction: column; text-align: center; }
+  .pss-preview-info { align-items: center; }
+  .pss-preview-role { align-self: center; }
 }
 
 /* ── 大廳版面（主線冒險分頁，2026-08）：英雄站台＋章節輪播＋功能磚，
@@ -3351,6 +3358,159 @@ h1, h2, h3, p { margin: 0; }
 .av-lobby-chapter-progress-note { font-size: 0.68rem; color: #6888a8; margin-top: 4px; }
 .av-lobby-chapter-enter { margin-top: 8px; width: 100%; }
 .av-lobby-chapter-enter:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+/* ── 大廳首屏 v3（2026-08-14）：取代 v2 把所有資訊疊在同一張卡片上的做法，
+   改成「大圖預覽卡（先素面，之後補真實插畫）＋右上角出戰陣容小圓鈕＋地圖
+   上走動的英雄小模組」，下面依序接章節切換卡＋分頁圓點、關卡資訊列、CTA
+   列、四宮格捷徑磚，把首屏空間分段用滿。v1/v2 的 .av-lobby-stage*／
+   .av-party-*／.av-lobby-stagecard* 規則已不再被 JSX 使用，先保留未清，
+   避免這次改動範圍過大。 ── */
+.av-lobby-map-card {
+  width: 100%; max-width: 420px; position: relative; overflow: hidden;
+  aspect-ratio: 16 / 9; border-radius: 20px; border: 1px solid var(--av-gold-soft);
+  background-color: var(--av-navy); background-size: cover; background-position: center;
+}
+.av-lobby-map-picons { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
+.av-lobby-map-picon {
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; padding: 0; overflow: hidden;
+  background: rgba(6,11,28,.55); border: 1px solid rgba(255,255,255,.3);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s;
+}
+.av-lobby-map-picon:hover { background: rgba(233,184,92,.25); }
+.av-lobby-map-picon.empty { border-style: dashed; }
+.av-lobby-map-picon-plus { font-size: 1.1rem; color: rgba(255,255,255,.6); line-height: 1; }
+
+/* 出戰英雄站在地圖右下角（2026-08-14 三修：原本走動動畫會讓三人互相穿越
+   疊圖，改成站定不動；大小也統一成同一個目標高度，不再隊長特別大）。 */
+.av-lobby-map-party-stand { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: flex-end; gap: 2px; z-index: 2; }
+.av-lobby-map-stand-unit.slot-0 { z-index: 3; }
+.av-lobby-map-stand-unit.slot-1 { z-index: 2; margin-left: -6px; }
+.av-lobby-map-stand-unit.slot-2 { z-index: 1; margin-left: -6px; }
+
+.av-lobby-map-caption {
+  position: absolute; left: 10px; bottom: 10px; z-index: 2;
+  font-size: 0.7rem; font-weight: 700; color: var(--av-ink);
+  background: rgba(6,11,28,.55); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 20px; padding: 3px 10px;
+}
+
+.av-lobby-chaptercard {
+  width: 100%; max-width: 420px; display: flex; align-items: center; gap: 8px;
+}
+.av-lobby-chaptercard-nav {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15);
+  color: var(--av-ink); font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .15s;
+}
+.av-lobby-chaptercard-nav:hover { background: rgba(233,184,92,.12); border-color: rgba(233,184,92,.4); }
+.av-lobby-chaptercard-body {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  background: rgba(16,28,60,.7); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px; padding: 8px 12px;
+}
+.av-lobby-chaptercard-thumb {
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px; font-size: 1.3rem;
+  border: 1px solid rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center;
+}
+.av-lobby-chaptercard-text { flex: 1; min-width: 0; }
+.av-lobby-chaptercard-label { font-size: 0.6rem; letter-spacing: 1px; color: var(--av-gold); }
+.av-lobby-chaptercard-name { font-family: var(--av-font-display); font-weight: 700; font-size: 0.95rem; color: var(--av-ink); }
+.av-lobby-chaptercard-sub { font-size: 0.68rem; color: #8090a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.av-lobby-chapterdots { display: flex; justify-content: center; gap: 6px; }
+.av-lobby-chapterdot {
+  width: 6px; height: 6px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: rgba(255,255,255,.2); border: none; transition: all .15s;
+}
+.av-lobby-chapterdot.active { width: 16px; border-radius: 4px; background: var(--av-gold); }
+
+.av-lobby-stageinfo {
+  width: 100%; max-width: 420px; background: rgba(16,28,60,.55); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.av-lobby-stageinfo-nav { display: flex; justify-content: space-between; margin-bottom: 2px; }
+.av-lobby-stageinfo-nav button {
+  background: none; border: none; color: var(--av-gold); font-size: 0.72rem; font-weight: 700;
+  cursor: pointer; padding: 2px 4px;
+}
+.av-lobby-stageinfo-nav button:disabled { opacity: .3; cursor: not-allowed; }
+.av-lobby-stageinfo-nav button.active { background: rgba(233,184,92,.14); border-radius: 8px; }
+.av-lobby-stageinfo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 0.74rem; color: #cfe0f4; }
+.av-lobby-stageinfo-objective { display: inline-flex; align-items: center; gap: 4px; }
+.av-lobby-stageinfo-boss { display: inline-flex; align-items: center; gap: 3px; color: #ffb090; }
+.av-lobby-stageinfo-reward { color: #ffd98a; }
+.av-lobby-stageinfo-lock { color: #ff9040; }
+.av-lobby-stageinfo-lbbtn {
+  background: none; border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+  color: var(--av-ink); font-size: 0.72rem; padding: 4px 10px; cursor: pointer;
+}
+.av-lobby-stageinfo-lbbtn:hover { border-color: rgba(233,184,92,.4); color: var(--av-gold); }
+
+.av-lobby-cta-row { width: 100%; max-width: 420px; display: flex; gap: 8px; }
+.av-lobby-cta-row .ghost { flex: 0 0 auto; padding: 12px 16px; }
+.av-lobby-cta-row .av-cta-btn { flex: 1; }
+
+.av-lobby-tiles {
+  width: 100%; max-width: 420px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+.av-lobby-tile {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px; color: var(--av-ink); font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.av-lobby-tile:hover { background: rgba(233,184,92,.1); border-color: rgba(233,184,92,.35); }
+.av-lobby-tile.active { background: rgba(233,184,92,.14); border-color: rgba(233,184,92,.45); }
+.av-lobby-tile:disabled { opacity: .5; cursor: not-allowed; }
+.av-lobby-tile:disabled:hover { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.12); }
+.av-lobby-tile svg { color: var(--av-gold); flex-shrink: 0; }
+.av-lobby-tile-tag { margin-left: auto; font-size: 0.6rem; color: #8090a8; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 2px 6px; flex-shrink: 0; }
+
+/* ── v1/v2（已停用，見上方說明）── */
+.av-lobby-stagecard {
+  flex: 1; min-width: 0; background: rgba(16,28,60,.7); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; padding: 14px 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.av-lobby-stagecard-chapter { font-size: 0.68rem; color: #8090a8; }
+.av-lobby-stagecard-nav { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin-top: 2px; }
+.av-lobby-stagecard-navbtn {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15);
+  color: var(--av-ink); font-size: 0.9rem; cursor: pointer; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center; transition: all .15s;
+}
+.av-lobby-stagecard-navbtn:hover { background: rgba(233,184,92,.12); border-color: rgba(233,184,92,.4); }
+.av-lobby-stagecard-navbtn:disabled { opacity: .3; cursor: not-allowed; }
+.av-lobby-stagecard-num { font-size: 0.72rem; color: var(--av-gold); font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+.av-lobby-stagecard-boss { color: #ffb090; display: inline-flex; align-items: center; gap: 2px; }
+.av-lobby-stagecard-name { font-family: var(--av-font-display); font-weight: 700; font-size: 1.05rem; color: var(--av-ink); margin-top: 2px; }
+.av-lobby-stagecard-meta { display: flex; align-items: center; gap: 12px; font-size: 0.72rem; color: #90a8c4; margin-top: 4px; }
+.av-lobby-stagecard-objective { display: inline-flex; align-items: center; gap: 4px; }
+.av-lobby-stagecard-side { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 6px; }
+.av-lobby-stagecard-reward { font-size: 0.7rem; color: #b0c4de; }
+.av-lobby-stagecard-lock { margin-top: 6px; font-size: 0.72rem; color: #ff9040; }
+
+/* ── 出戰陣容 3-slot 隊伍列（2026-08，見 src/party.ts）：隊長格（＝上方
+   站台/switcher 選的出戰英雄）比支援格大，點格子開 PartySetupScreen。 ── */
+.av-party-rail { width: 100%; max-width: 420px; display: flex; align-items: flex-end; justify-content: center; gap: 14px; }
+.av-party-slot {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px; cursor: pointer; transition: all .15s; padding: 4px; overflow: hidden;
+}
+.av-party-slot .sprite-shell { flex-shrink: 0; }
+.av-party-slot:hover { background: rgba(233,184,92,.1); border-color: rgba(233,184,92,.35); }
+.av-party-slot-leader { width: 76px; height: 76px; }
+.av-party-slot-support { width: 58px; height: 58px; opacity: .92; }
+.av-party-slot-empty { border-style: dashed; }
+.av-party-slot-plus { font-size: 1.4rem; color: #7888a8; line-height: 1; }
+.av-party-slot-label { font-size: 0.6rem; color: #90a8c4; }
+
+/* ── 底部導覽 icon 換成 AsterVowIcon（2026-08，取代原本的 emoji <span>）── */
+.av-lobby-dock-btn svg { width: 18px; height: 18px; }
+.av-lobby-dock-btn.active svg { color: var(--av-gold); }
 
 /* ── 大廳玩家資訊列 + 底部導覽 + 右側抽屜（2026-08）：比照使用者提供的
    mockup 補上左上玩家資訊／右上工具列＋選單／底下固定導覽三塊。跟
@@ -3438,6 +3598,70 @@ h1, h2, h3, p { margin: 0; }
 .av-drawer-item-arrow { color: #6888a8; }
 .av-drawer-footer { margin-top: auto; }
 .av-drawer-footer button { width: 100%; }
+
+/* ── 出戰陣容全頁編成畫面（PartySetupScreen，2026-08）：獨立全頁，不是
+   Modal，比照 .eq-header 的 safe-area 寫法；名冊格重用既有 .ar-hero-btn／
+   .dhm-sprite／.dhm-hero-name（見 AdventureReadyScreen 地城分頁同款）。 ── */
+.pss-screen {
+  position: fixed; inset: 0; height: 100dvh; z-index: 50; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #0d1730, #070c1c); overflow: hidden;
+}
+.pss-header {
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+  border-bottom: 1px solid rgba(233,184,92,.15);
+}
+.pss-header-title { text-align: center; }
+.pss-header-title h1 { margin: 0; font-size: 1.05rem; color: var(--av-ink); font-family: var(--av-font-display); }
+.pss-header-slot { font-size: 0.7rem; color: var(--av-gold); margin-top: 2px; }
+
+.pss-preview {
+  flex-shrink: 0; margin: 12px 16px; padding: 14px; border-radius: 16px;
+  background: rgba(16,28,60,.7); border: 1px solid rgba(255,255,255,.12);
+  display: flex; gap: 12px; align-items: center; min-height: 96px;
+}
+.pss-preview-art { flex-shrink: 0; width: 76px; height: 76px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.2); }
+.pss-preview-art img { width: 100%; height: 100%; object-fit: cover; }
+.pss-preview-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pss-preview-role { align-self: flex-start; font-size: 0.65rem; padding: 1px 8px; border-radius: 8px; border: 1px solid; }
+.pss-preview-name { font-weight: 700; font-size: 1rem; color: var(--av-ink); }
+.pss-preview-stars { margin-left: 4px; color: var(--av-gold); font-size: 0.85em; }
+.pss-preview-title { font-size: 0.7rem; color: #8090a8; }
+.pss-preview-stats { display: flex; gap: 10px; font-size: 0.72rem; color: #b0c4de; margin-top: 2px; }
+.pss-preview-skill { font-size: 0.72rem; color: var(--av-gold); margin-top: 2px; }
+.pss-preview-desc { font-size: 0.68rem; color: #7888a8; margin: 2px 0 0; }
+.pss-preview-empty { flex: 1; text-align: center; color: #7888a8; font-size: 0.8rem; }
+.pss-preview-empty-hint { font-size: 0.68rem; margin-top: 4px; }
+
+.pss-slots { flex-shrink: 0; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0 16px 12px; }
+.pss-slot {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px; cursor: pointer; padding: 8px 10px; transition: all .15s;
+  width: 76px; height: 76px; overflow: hidden; flex-shrink: 0;
+}
+.pss-slot .sprite-shell { flex-shrink: 0; }
+.pss-slot:hover { background: rgba(233,184,92,.08); }
+.pss-slot.active { border-color: var(--av-gold); background: rgba(233,184,92,.14); box-shadow: 0 0 12px rgba(233,184,92,.3); }
+.pss-slot-empty { font-size: 1.3rem; color: #7888a8; line-height: 1; }
+.pss-slot-label { font-size: 0.62rem; color: #90a8c4; }
+.pss-slot-clear { flex-shrink: 0; font-size: 0.7rem; padding: 6px 10px; }
+
+.pss-roster {
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 4px 16px 16px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+}
+.pss-roster-slot-tag {
+  position: absolute; top: 4px; right: 4px; font-size: 0.55rem; padding: 1px 5px;
+  border-radius: 6px; background: rgba(233,184,92,.85); color: #241505; font-weight: 700;
+}
+
+.pss-footer {
+  flex-shrink: 0; display: flex; gap: 10px;
+  padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  border-top: 1px solid rgba(233,184,92,.15); background: rgba(6,11,28,.9);
+}
+.pss-footer button { flex: 1; }
 
 /* ── GM Mode ───────────────────────────────────────────────────────────────── */
 .gm-gate {

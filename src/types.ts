@@ -768,6 +768,11 @@ export type MetaState = {
    * 空物件，不需要 migration（本來就沒有舊資料可搬）。 */
   arenaInventory?: import('./arena/equipment').ArenaEquipment[]
   arenaLoadouts?: Record<string, import('./arena/equipment').ArenaLoadout>
+  /** 出戰陣容（2026-08，見 src/party.ts）：隊長（slot 0）＝目前實際出戰、
+   * 傳給 ArenaConfig 的英雄，跟大廳選英雄是同一件事；2 位支援只提供
+   * computePartyBonus() 算出的加成，不進入戰鬥。純新增選填欄位，舊存檔
+   * 沒有時由 sanitizeParty() 補預設值，不需要 migration。 */
+  party?: import('./party').PartyState
 }
 
 export type EnemyAffixId = 'thorns' | 'regen' | 'armor' | 'berserk' | 'poison_sting' | 'immune'
@@ -827,3 +832,6 @@ export type GamePhase =
   // （Roguelite）完全分開的「第三種模式」，不共用/不覆寫 campaign 欄位語意。
   | { type: 'campaign_map'; heroId: string }
   | { type: 'campaign_stage'; heroId: string; stageId: string }
+  // 出戰陣容設定（2026-08，見 src/party.ts）：大廳 3-slot 隊伍列點入的全頁
+  // 編成畫面，不是 modal。editingSlot 記住從哪個格子點進來，離開時導回大廳。
+  | { type: 'party_setup'; editingSlot: 0 | 1 | 2 }

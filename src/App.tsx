@@ -72,6 +72,8 @@ import { ARENA_RELICS } from './arena/relics'
 import CampaignMapScreen from './screens/CampaignMapScreen'
 import { getCampaignStage } from './campaign/campaignStages'
 import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
+import PartySetupScreen from './screens/PartySetupScreen'
+import { sanitizeParty, computePartyBonus } from './party'
 
 const APP_VERSION = __APP_BUILD__
 
@@ -1367,13 +1369,17 @@ export default function App() {
     // meta.arenaInventory/arenaLoadouts，數值本來就是照 Arena 量級設計的，
     // 不需要額外係數。
     const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
+    // 出戰陣容支援加成（2026-08，見 src/party.ts）：隊長＝目前出戰英雄（合一），
+    // 支援只提供設定化的 HP%/傷害% 加成，疊在既有天賦/裝備加成之外，不動
+    // ArenaGame.ts 內部。
+    const partyBonus = computePartyBonus(sanitizeParty(meta.party, HEROES.map(h => h.id), hero.id))
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus,
-          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
+          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus + Math.round(hero.hp * partyBonus.hpBonusPct),
+          atkDamage: Math.round((Math.round(hero.atk * 0.6) + talentBonus.flatDamage) * (1 + partyBonus.dmgBonusPct)),
           atkCooldown: 0.80 * talentBonus.atkCooldownMult,
           moveSpeed: 180 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
@@ -1422,13 +1428,15 @@ export default function App() {
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
     const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
     const stageId = phase.stageId
+    // 出戰陣容支援加成（2026-08，見 src/party.ts），同 arena_run 分支邏輯。
+    const partyBonus = computePartyBonus(sanitizeParty(meta.party, HEROES.map(h => h.id), hero.id))
     return (
       <ArenaScreen
         config={{
           heroId: hero.id,
           heroName: hero.name,
-          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus,
-          atkDamage: Math.round(hero.atk * 0.6) + talentBonus.flatDamage,
+          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus + Math.round(hero.hp * partyBonus.hpBonusPct),
+          atkDamage: Math.round((Math.round(hero.atk * 0.6) + talentBonus.flatDamage) * (1 + partyBonus.dmgBonusPct)),
           atkCooldown: 0.80 * talentBonus.atkCooldownMult,
           moveSpeed: 180 * talentBonus.moveSpeedMult,
           pickupRangeMult: talentBonus.pickupRangeMult,
@@ -1472,7 +1480,20 @@ export default function App() {
 
   if (phase.type === 'equipment_manage') {
     const silentCloudSave = () => { if (userRef.current) cloudSave(userRef.current.uid).catch(() => {}) }
-    return <EquipmentScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'main_menu' })} onSilentCloudSave={silentCloudSave} />
+    return <EquipmentScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'adventure_ready' })} onSilentCloudSave={silentCloudSave} />
+  }
+
+  // 出戰陣容設定（2026-08，見 src/party.ts）：大廳 3-slot 隊伍列點入的全頁
+  // 編成畫面，不是 modal，離開時導回大廳。
+  if (phase.type === 'party_setup') {
+    return (
+      <PartySetupScreen
+        meta={meta}
+        editingSlot={phase.editingSlot}
+        onMetaUpdate={updateMeta}
+        onBack={() => setPhase({ type: 'adventure_ready' })}
+      />
+    )
   }
 
 
@@ -1488,6 +1509,7 @@ export default function App() {
           onLeaderboard={() => setPhase({ type: 'leaderboard' })}
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_map', heroId })}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
+          onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}
           user={user}
           cloudMsg={cloudMsg}
           onSignIn={handleSignIn}

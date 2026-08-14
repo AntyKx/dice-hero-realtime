@@ -24,7 +24,8 @@ const OBJECTIVE_ICON: Record<StageObjectiveType, string> = {
   destroy: '💥', collection: '✨', escape: '🚪', boss: '👑',
 }
 
-function StarRow({ stars }: { stars: number }) {
+/** 大廳關卡預覽卡（2026-08）共用這個星數列，見 AdventureReadyScreen.tsx。 */
+export function StarRow({ stars }: { stars: number }) {
   return (
     <span className="cms-stars">
       {[0, 1, 2].map(i => (
