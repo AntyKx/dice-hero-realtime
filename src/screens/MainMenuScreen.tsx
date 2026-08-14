@@ -12,48 +12,32 @@ import { FEATURE_FLAGS } from '../featureFlags'
 
 const BUILD_VERSION = __APP_BUILD__
 
-/** 2026-08 首頁微動態：使用者要求尊重 prefers-reduced-motion，這裡用
- * JS 判斷（不只是 CSS 隱藏）直接不掛載 <video>，避免降級使用者仍下載/
- * 播放影片。 */
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = () => setReduced(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return reduced
+type NavigatorWithConnection = Navigator & {
+  connection?: { effectiveType?: string; saveData?: boolean }
 }
 
-/** 首頁背景影片只有 8 秒、~1.8MB，原本用 <source src="..."> 直接串流播放
- * 時，瀏覽器在迴圈接點常常要重新跟網路要資料，造成使用者反映的「循環時
- * 短暫延遲/卡頓」。改成先用 fetch 把整支影片抓成 Blob 存進記憶體，完全
- * 載入完才掛載 <video src={blobUrl}>——迴圈時是從本地記憶體重播，不會再
- * 卡在網路緩衝。載入完成前畫面維持顯示 poster 靜態圖（跟影片首幀同一張
- * 圖），不會有明顯切換閃爍。 */
-function useVideoBlobUrl(src: string, enabled: boolean) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+/** 2026-08 首頁微動態，同月改用「前進／倒放」16 秒 pingpong 版影片（取代
+ * 原本 8 秒版）——原本 8 秒版每次循環都要硬切回第一幀，即使已經用 Blob
+ * 預先載入避免了網路緩衝造成的頓感，硬切本身的視覺跳動還是在；pingpong
+ * 版播到底之後直接倒放回去，循環點完全無感。掛載條件跟隨美術方提供的
+ * 移植手冊：尊重 prefers-reduced-motion、避免在省流量模式／2G-slow-2g
+ * 網路下硬塞一支 ~3MB 的影片，延遲 900ms 才掛載避免搶首屏繪製資源。 */
+function shouldLoadHomeMotion() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const connection = (navigator as NavigatorWithConnection).connection
+  const constrainedNetwork = connection?.saveData === true || ['slow-2g', '2g'].includes(connection?.effectiveType ?? '')
+  return !prefersReducedMotion && !constrainedNetwork
+}
+
+function useHomeMotionEnabled() {
+  const [enabled, setEnabled] = useState(false)
   useEffect(() => {
-    if (!enabled) { setBlobUrl(null); return }
-    let cancelled = false
-    let objectUrl: string | null = null
-    fetch(src)
-      .then(res => res.blob())
-      .then(blob => {
-        if (cancelled) return
-        objectUrl = URL.createObjectURL(blob)
-        setBlobUrl(objectUrl)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [src, enabled])
-  return blobUrl
+    if (!shouldLoadHomeMotion()) return
+    const timer = window.setTimeout(() => setEnabled(true), 900)
+    return () => window.clearTimeout(timer)
+  }, [])
+  return enabled
 }
 
 interface Props {
@@ -98,8 +82,7 @@ export default function MainMenuScreen({
   user,
   onGmMode, onMetaUpdate,
 }: Props) {
-  const prefersReducedMotion               = usePrefersReducedMotion()
-  const homeMotionBlobUrl = useVideoBlobUrl('/assets/astervow-home-motion.mp4', !prefersReducedMotion)
+  const homeMotionEnabled                  = useHomeMotionEnabled()
   const [confirmNew, setConfirmNew]         = useState(false)
   const [showWorldCup, setShowWorldCup]     = useState(false)
   const [wcMatches, setWcMatches]           = useState<WcMatch[]>([])
@@ -145,26 +128,33 @@ export default function MainMenuScreen({
         </div>
       )}
 
-      {/* ASTERVOW 主視覺（2026-08 品牌重製）：圖片本身已經包含 logo/星環/
-          職業角色，用原生比例的 <img> 而不是 background-size:cover，確保
-          任何裝置寬高比都不會裁掉角色或 logo——寧可留白，不要裁切。
-          2026-08 微動態版：同一張構圖的 8 秒無聲循環影片（星塵漂移/星環
-          呼吸/角色髮絲披風微動）。整支影片先用 fetch 抓成 Blob 存進記憶體
-          （useVideoBlobUrl）才掛載 <video>，迴圈時從本地重播不會卡在網路
-          緩衝；載入完成前 / 載入失敗 / 瀏覽器不支援 / prefers-reduced-motion
-          時都維持顯示原本的靜態 <img>，兩者是同一張圖，切換不會閃爍。 */}
-      {!prefersReducedMotion && homeMotionBlobUrl ? (
+      {/* ASTERVOW 主視覺（2026-08 品牌重製，同月數次調整）：中間繞了一圈
+          「不裁切正片＋模糊底圖延伸」的做法（避免裁到 ASTERVOW 文字），
+          但使用者真機比對後明確選擇：滿版優先，文字被裁一點點可以接受，
+          改回 object-fit:cover 直接鋪滿整個 .main-menu.av-home（不再需要
+          .av-home-backdrop／.av-home-stage 這層疊加，直接單層滿版）。
+          object-position:top 讓裁切集中在圖片下緣（角色腳下的地面/倒影，
+          內容最不重要的區域），CTA 疊在清晰圖下緣的地面反光區，避免壓到
+          角色本體（.av-home-safe 的 bottom 用 max()，同時保留跟角色的
+          安全距離與 safe-area）。
+          2026-08 微動態版：同一張構圖的 16 秒無聲前進／倒放循環影片；
+          homeMotionEnabled 為 false 時（尊重 prefers-reduced-motion /
+          省流量模式 / 2G 網路，或還沒過 900ms 延遲）維持顯示原本的靜態
+          <img>，兩者是同一張圖，切換不會閃爍。 */}
+      {homeMotionEnabled ? (
         <video
           className="av-home-art"
           autoPlay
           loop
           muted
           playsInline
+          preload="metadata"
           poster="/assets/astervow-home-bg.png"
           aria-label="ASTERVOW"
           style={{ pointerEvents: 'none' }}
-          src={homeMotionBlobUrl}
-        />
+        >
+          <source src="/assets/astervow-home-motion-pingpong.mp4" type="video/mp4" />
+        </video>
       ) : (
         <img src="/assets/astervow-home-bg.png" alt="ASTERVOW" className="av-home-art" />
       )}
@@ -201,7 +191,6 @@ export default function MainMenuScreen({
             </button>
           </div>
         )}
-
       </div>
 
       {/* 確認覆蓋 */}

@@ -117,6 +117,16 @@ button { font: inherit; }
   overflow: hidden;
 }
 
+/* AdventureReadyScreen（.ar-screen）自己管理 height:100dvh 的整頁版面（含
+   底部固定導覽），跟上面戰鬥畫面同一個問題：.page 預設的
+   padding: 20px 20px 20px 會疊加在 .ar-screen 的 100dvh 之外，讓整個畫面
+   實際比視窗高 40px，表現出來是「進大廳畫面被往下拉、底部導覽被視窗邊緣
+   擋住」。清空 .page 的 padding，改由 .ar-screen 自己在 padding-top 補回
+   safe-area-inset-top（底部安全區則交給 .av-lobby-dock／.ar-footer 自己
+   的 padding-bottom 處理，見各自規則）。 */
+.page:has(.ar-screen) { padding: 0; }
+.ar-screen { padding-top: env(safe-area-inset-top, 0px); }
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -1143,41 +1153,61 @@ h1, h2, h3, p { margin: 0; }
 .ec-label { font-size:16px; font-weight:700; margin-bottom:4px; }
 .ec-desc { font-size:12px; color:#a8c4e4; }
 
-/* ── Main Menu（2026-08 ASTERVOW 品牌重製）──────────────────
-   舊版用 background-image: cover + 絕對定位百分比疊按鈕，是針對舊主視覺
-   （menu-bg.png）手動量出來的位置，換圖就會整組跑掉。新版改用原生比例
-   <img>（.av-home-art）＋一般文件流排版（.av-home-safe），不管圖片跟
-   螢幕寬高比怎麼配，logo/星環/角色一定完整可見、CTA 一定在角色下方，
-   換圖或換裝置都不用重新量位置，超出視窗高度時允許整頁捲動而不是裁切
-   內容。 */
-.main-menu {
+/* ── Main Menu（2026-08 ASTERVOW 品牌重製，同月數次調整）──────────────
+   中間繞了一圈「不裁切正片＋模糊底圖延伸」的做法（.av-home-backdrop +
+   .av-home-stage 雙層疊加，避免裁到 ASTERVOW 文字），真機比對後使用者
+   明確選擇：滿版優先，文字被裁一點點可以接受，改回單層 object-fit:cover
+   直接鋪滿整個 .main-menu.av-home，不再需要那兩層疊加。object-position:
+   top 讓裁切集中在圖片下緣（角色腳下的地面/倒影，內容最不重要的區域），
+   CTA 疊在下緣、用 bottom 百分比 + 安全距離跟角色本體保持間隔，同時把
+   按鈕本身縮小一點（.av-home-cta 的 width/padding），避免壓到腳。 */
+/* .main-menu 跟 .av-home 是同一個 <div> 上的兩個 class（JSX 寫
+   className="main-menu av-home"），height 只能設一次——寫成 height:100%
+   會被「後面那個規則贏」蓋掉 .main-menu 的 100dvh，且找不到有高度的父層
+   可以 100% 依附，整個畫面高度直接塌成 0（先前部署過一次，首頁全黑就是
+   這個原因），所以固定寫在同一條規則裡，不要拆兩個 class 各寫一次。 */
+.main-menu.av-home {
   position: relative;
-  min-height: 100lvh;
+  height: 100svh; /* svh 先當保底值（Safari 對 dvh 首次繪製時常有一拍的
+    延遲/不穩定，svh 是「網址列一定顯示」那個保守值，一定拿得到），下面
+    100dvh 支援的瀏覽器會覆寫成動態值；兩條都寫，缺一都可能在某些瀏覽器
+    第一次繪製時算出不穩定的高度。 */
+  height: 100dvh;
+  width: 100%; max-width: 520px; margin: 0 auto;
+  overflow: hidden;
   overscroll-behavior: none;
-  background: var(--av-midnight);
-}
-.av-home {
-  display: flex; flex-direction: column; align-items: center;
-  overflow-y: auto; overflow-x: hidden;
+  /* 圖片載入失敗時的保底底色，不是純一塊死黑，至少有個深空漸層。 */
+  background: radial-gradient(ellipse at 50% 30%, #14224a 0%, var(--av-midnight) 70%);
 }
 .av-home-art {
-  display: block; width: 100%; max-width: 520px; height: auto;
+  /* top/left/width/height 都寫明確值，不用 inset 負值＋width/height
+     calc() 混用（絕對定位的 <img>/<video> 是 replaced element，兩者
+     同時出現是 over-constrained，不同瀏覽器引擎解法不一致，曾經在這裡
+     踩過真機渲染失敗的坑，見 git 歷史）。 */
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  /* object-position X 從 50%（正中央）移到 44%，裁切稍微偏向保留左邊
+     （ASTERVOW 的「A」），代價是右邊裝飾花紋被多裁一點點——花紋比實際
+     字母不重要，這個取捨划算（使用者實機回報左下角 A 還是微卡到）。 */
+  object-fit: cover; object-position: 44% top;
 }
 .av-home-safe {
-  width: 100%; max-width: 460px;
+  position: absolute; left: 0; right: 0; z-index: 1;
+  bottom: max(3%, calc(env(safe-area-inset-bottom, 8px) + 10px));
+  width: 100%; max-width: 460px; margin: 0 auto;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
-  padding: 14px 20px calc(env(safe-area-inset-bottom, 12px) + 18px);
-  margin-top: -6px; /* 跟主視覺圖底部的暗色地面銜接，避免明顯分界線 */
+  padding: 22px 20px 10px;
+  background: radial-gradient(ellipse at bottom, rgba(8,15,36,.55) 0%, transparent 75%);
 }
 .av-home-continue {
   width: 100%; flex-direction: column; gap: 2px; padding: 10px 16px;
   font-size: .85rem; font-weight: 700;
 }
 .av-home-cta {
-  width: 236px;
+  width: 180px; padding: 7px 14px; /* 使用者要求再縮小、再往下一點 */
 }
 .av-home-cta-sub {
-  font-size: .6rem; font-weight: 500; letter-spacing: .12em;
+  font-size: .52rem; font-weight: 500; letter-spacing: .04em; white-space: nowrap;
   color: rgba(36,21,5,.65);
 }
 .av-home-warn { font-size: .74rem; color: #ffb090; margin-top: -4px; }
@@ -3013,7 +3043,21 @@ h1, h2, h3, p { margin: 0; }
 }
 
 /* ── Adventure Ready Screen ──────────────────────────────────────────────── */
-.ar-screen { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+/* height 用 100dvh 不是 100vh：Safari 的 100vh 是「網址列收起來」那個比較
+   高的數值，網址列還顯示著的時候畫面實際能看到的高度比 100vh 矮，這裡又
+   是 overflow:hidden 固定高度的 flex column，底部導覽（.av-lobby-dock）
+   剛好是最後一個 flex 子項，於是整個畫面會比實際可視範圍高一截，表現
+   出來就是「進大廳畫面被往下拉、底部導覽被擋住」——100dvh 會跟著網址列
+   顯示/收起動態調整，永遠等於當下實際看得到的高度。同一個問題先前在
+   首頁的 .main-menu.av-home 也修過一次，這裡是同一個成因。 */
+.ar-screen { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
+/* .topbar 本身沒有左右 padding，原本靠 .page 的 20px 兩側內距頂開螢幕
+   邊緣；上面把 .page 的 padding 清空後，.ar-screen 裡的 .topbar（地城
+   副本分頁用的品牌列+返回鍵）會整個貼到螢幕邊緣。用 .ar-screen > .topbar
+   選擇器只補回這個情境下的 20px，其他仍被 .page 正常 padding 包住、
+   用到 .topbar 的畫面（不在 .ar-screen 底下）選不到這條規則，不會變成
+   兩層 padding 疊加。 */
+.ar-screen > .topbar { padding: 0 20px; }
 
 .ar-mode-tabs {
   display: flex; gap: 0; border-bottom: 1px solid rgba(100,180,255,.18);
@@ -3194,7 +3238,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* Footer CTA */
 .ar-footer {
-  padding: 10px 14px; border-top: 1px solid rgba(100,180,255,.15);
+  padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px); border-top: 1px solid rgba(100,180,255,.15);
   background: rgba(10,14,30,.8); flex-shrink: 0;
 }
 .ar-start-btn { width: 100%; font-size: 1rem; padding: 13px; border-radius: 12px; }
@@ -3233,7 +3277,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ── Mobile: stack options above hero grid ── */
 @media (max-width: 760px) {
-  .ar-screen { height: auto; min-height: 100vh; overflow: visible; }
+  .ar-screen { height: auto; min-height: 100dvh; overflow: visible; }
   .ar-body { grid-template-columns: 1fr; overflow: visible; }
   .ar-options { border-right: none; border-bottom: 1px solid rgba(100,180,255,.12); max-height: none; }
   .ar-hero-panel { overflow: visible; }
@@ -3311,7 +3355,7 @@ h1, h2, h3, p { margin: 0; }
 /* ── 大廳玩家資訊列 + 底部導覽 + 右側抽屜（2026-08）：比照使用者提供的
    mockup 補上左上玩家資訊／右上工具列＋選單／底下固定導覽三塊。跟
    .ar-footer 一樣是 .ar-screen flex column 裡的一般 flex 子元素（不是
-   position:fixed），桌面版靠 .ar-screen 的 height:100vh 天然貼底，手機版
+   position:fixed），桌面版靠 .ar-screen 的 height:100dvh 天然貼底，手機版
    media query 讓 .ar-screen 變成 height:auto 後整頁自然捲動，跟既有
    .ar-footer 行為一致。 ── */
 .av-lobby-topbar {
