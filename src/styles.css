@@ -5724,13 +5724,17 @@ h1, h2, h3, p { margin: 0; }
 .astral-codex-hero-card:hover { transform: translateY(-2px); border-color: var(--entry-accent); }
 .astral-codex-hero-card:active { transform: scale(.98); }
 .astral-codex-hero-avatar {
-  position: relative; flex-shrink: 0; width: 58px; height: 58px; overflow: hidden;
+  position: relative; flex-shrink: 0; width: 58px; height: 58px;
   display: grid; place-items: center; color: var(--entry-accent);
+}
+.astral-codex-hero-avatar-clip {
+  width: 100%; height: 100%; overflow: hidden; display: grid; place-items: center;
   border: 1px solid color-mix(in srgb, var(--entry-accent) 55%, transparent); border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--entry-accent) 20%, transparent), rgba(6,15,38,.9));
 }
 .astral-codex-hero-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
 .astral-codex-hero-role-badge {
+  /* 特意不跟著父層 clip：角色小徽章要完整露出來，不能被圓形頭像的 overflow:hidden 切掉一半。 */
   position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; display: grid; place-items: center;
   color: var(--entry-accent); background: #0b1730; border: 1px solid var(--entry-accent); border-radius: 50%;
 }

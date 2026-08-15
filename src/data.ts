@@ -21,6 +21,9 @@ export type Hero = {
   sprite: SpriteMeta
   starSprites?: [SpriteMeta, SpriteMeta, SpriteMeta, SpriteMeta] // [0★, 1★, 2★, 3★]
   portrait?: string  // 高清立繪路徑，用於英雄詳情 modal
+  avatar?: string  // 星界圖鑑英雄名冊圓形頭像專用（2026-08），跟 portrait 分開——
+                    // portrait 是全身立繪裁切成圓形常常構圖很怪，avatar 是專門
+                    // 針對 58px 圓形頭像重新生成的正方形半身特寫
   story?: string  // 星界圖鑑英雄詳情頁的背景故事（2026-08），跟 desc（技能機制說明）分開
   // 星界圖鑑「英雄資訊」欄位（2026-08）：身高/年齡/體重/種族/屬性遊戲機制完全
   // 不使用，純粹是圖鑑檔案的世界觀設定文字，跟 story 一樣是新寫的角色設定。
@@ -70,7 +73,7 @@ const E = (id: string, frameWidth: number, frameHeight: number): SpriteMeta => (
 })
 
 export const HEROES: Hero[] = [
-  { id: 'knight', name: '聖騎士', title: '前排防禦', hp: 168, atk: 28, def: 14, role: 'slash', school: 'physical', skill: '聖盾破軍斬', desc: '三條以上時傷害提升，五條時獲得護盾並嘲諷降低敵人本回合傷害30%。', sprite: H('knight', 241, 184), portrait: '/assets/portraits/knight.png',
+  { id: 'knight', name: '聖騎士', title: '前排防禦', hp: 168, atk: 28, def: 14, role: 'slash', school: 'physical', skill: '聖盾破軍斬', desc: '三條以上時傷害提升，五條時獲得護盾並嘲諷降低敵人本回合傷害30%。', sprite: H('knight', 241, 184), portrait: '/assets/portraits/knight.png', avatar: '/assets/avatars/knight.jpg',
     story: '曾是邊境要塞的守衛隊長，一場異變讓城牆一夜崩毀，他卻憑血肉之軀擋住了缺口，被倖存者稱為「不會倒下的盾」。從此他不再只守一座城，而是把每一次交鋒的前排都當成那道缺口，寧可獨自扛下敵人的攻勢，也要讓身後的人多一秒喘息。',
     heightCm: 187, weightKg: 82, age: '29', race: '人類', element: '光',
     starSprites: [
@@ -80,7 +83,7 @@ export const HEROES: Hero[] = [
       H('knight_s3', 362, 276),
     ],
   },
-  { id: 'mage', name: '火焰法師', title: '爆發法術', hp: 102, atk: 39, def: 5, role: 'fire', school: 'magic', skill: '烈焰隕星', desc: '順子以上時追加爆發傷害並施加 2 層燃燒。', sprite: H('mage', 287, 184), portrait: '/assets/portraits/mage.png',
+  { id: 'mage', name: '火焰法師', title: '爆發法術', hp: 102, atk: 39, def: 5, role: 'fire', school: 'magic', skill: '烈焰隕星', desc: '順子以上時追加爆發傷害並施加 2 層燃燒。', sprite: H('mage', 287, 184), portrait: '/assets/portraits/mage.png', avatar: '/assets/avatars/mage.jpg',
     story: '出身於一座終年被積雪覆蓋的高塔學院，卻天生對火焰有著近乎偏執的親近感。她的隕星咒文曾在一次意外中燒穿了半座演武場，從此教官們只准她在城外施法。她並不在意，比起被讚美謹慎，她更享受看見敵陣在烈焰中化為灰燼的瞬間。',
     heightCm: 158, weightKg: 46, age: '20', race: '人類', element: '火',
     starSprites: [
@@ -90,7 +93,7 @@ export const HEROES: Hero[] = [
       H('mage_s3', 439, 281),
     ],
   },
-  { id: 'priest', name: '神官祭司', title: '治療輔助', hp: 122, atk: 18, def: 8, role: 'holy', school: 'magic', skill: '光輪祝禱', desc: '骰到 6 越多，回復量越高。', sprite: H('priest', 224, 184), portrait: '/assets/portraits/priest.png',
+  { id: 'priest', name: '神官祭司', title: '治療輔助', hp: 122, atk: 18, def: 8, role: 'holy', school: 'magic', skill: '光輪祝禱', desc: '骰到 6 越多，回復量越高。', sprite: H('priest', 224, 184), portrait: '/assets/portraits/priest.png', avatar: '/assets/avatars/priest.jpg',
     story: '年幼時因一場瘟疫失去了整個村莊，唯獨他在聖光下奇蹟生還，從此篤信自己活下來是為了替別人擋下死亡。他從不衝在最前面廝殺，卻總是隊伍裡最晚倒下的人——只要還有一口氣，他的祝禱就不會停。',
     heightCm: 175, weightKg: 64, age: '26', race: '人類', element: '光',
     starSprites: [
@@ -100,7 +103,7 @@ export const HEROES: Hero[] = [
       H('priest_s3', 349, 287),
     ],
   },
-  { id: 'rogue', name: '影刃刺客', title: '高速爆擊', hp: 108, atk: 31, def: 5, role: 'shadow', school: 'physical', skill: '暗影連襲', desc: '兩對以上觸發連擊加傷，有機率爆擊造成大量額外傷害。', sprite: H('rogue', 248, 184), portrait: '/assets/portraits/rogue.png',
+  { id: 'rogue', name: '影刃刺客', title: '高速爆擊', hp: 108, atk: 31, def: 5, role: 'shadow', school: 'physical', skill: '暗影連襲', desc: '兩對以上觸發連擊加傷，有機率爆擊造成大量額外傷害。', sprite: H('rogue', 248, 184), portrait: '/assets/portraits/rogue.png', avatar: '/assets/avatars/rogue.jpg',
     story: '沒有人知道她的真名，只知道她曾是暗殺公會裡最年輕的執行者，直到某次任務中她放過了本該殺死的目標，因而被逐出組織、遭昔日同伴追殺。如今她獨來獨往，出手比誰都快，只因她比誰都清楚——猶豫的代價是什麼。',
     heightCm: 165, weightKg: 50, age: '?', race: '人類', element: '暗',
     starSprites: [
@@ -110,7 +113,7 @@ export const HEROES: Hero[] = [
       H('rogue_s3', 409, 304),
     ],
   },
-  { id: 'princess', name: '皇家公主', title: '冰痕控制', hp: 118, atk: 24, def: 8, role: 'ice', school: 'magic', skill: '皇家冰晶陣', desc: '技能施加護盾；兩對以上疊冰痕；順子以上凍結；對凍結敵人追加冰晶傷害。冰痕每層 +4% 傷害，5 層觸發碎冰爆發。', sprite: H('princess', 248, 184), portrait: '/assets/portraits/princess.png',
+  { id: 'princess', name: '皇家公主', title: '冰痕控制', hp: 118, atk: 24, def: 8, role: 'ice', school: 'magic', skill: '皇家冰晶陣', desc: '技能施加護盾；兩對以上疊冰痕；順子以上凍結；對凍結敵人追加冰晶傷害。冰痕每層 +4% 傷害，5 層觸發碎冰爆發。', sprite: H('princess', 248, 184), portrait: '/assets/portraits/princess.png', avatar: '/assets/avatars/princess.jpg',
     story: '王室血脈自出生便帶有操控寒冰的天賦，只是這份力量向來被視為過於危險，被幽禁於宮中多年不得外出。直到王國邊境告急，她才第一次踏出冰晶宮牆——沒有人料到，那個總被關在深宮裡的公主，出手時比誰都更冷酷無情。',
     heightCm: 160, weightKg: 47, age: '19', race: '皇族', element: '冰',
     starSprites: [
@@ -120,7 +123,7 @@ export const HEROES: Hero[] = [
       H('princess_s3', 426, 316),
     ],
   },
-  { id: 'archer', name: '遊俠獵人', title: '遠程輸出', hp: 114, atk: 26, def: 7, role: 'arrow', school: 'physical', skill: '疾風箭雨', desc: '順子以上時追加箭雨傷害。', sprite: H('archer', 211, 184), portrait: '/assets/portraits/archer.png',
+  { id: 'archer', name: '遊俠獵人', title: '遠程輸出', hp: 114, atk: 26, def: 7, role: 'arrow', school: 'physical', skill: '疾風箭雨', desc: '順子以上時追加箭雨傷害。', sprite: H('archer', 211, 184), portrait: '/assets/portraits/archer.png', avatar: '/assets/avatars/archer.jpg',
     story: '在無邊森林裡長大，弓箭是他唯一信得過的語言。森林裡的老獵人都說，那孩子的箭袋裡裝的不是箭，是決斷——他總能在箭矢出弦前就已算準風向與獵物的下一步。如今他離開森林行走各地，只為尋找值得他認真瞄準的對手。',
     heightCm: 179, weightKg: 68, age: '24', race: '人類', element: '風',
     starSprites: [
@@ -130,26 +133,26 @@ export const HEROES: Hero[] = [
       H('archer_s3', 333, 291),
     ],
   },
-  { id: 'dwarf', name: '矮人戰士', title: '重擊破甲', hp: 148, atk: 27, def: 12, role: 'hammer', school: 'physical', skill: '震地戰錘', desc: '三條以上時破甲 -3，削減敵人防禦。', sprite: H('dwarf', 249, 184), portrait: '/assets/portraits/dwarf.png',
+  { id: 'dwarf', name: '矮人戰士', title: '重擊破甲', hp: 148, atk: 27, def: 12, role: 'hammer', school: 'physical', skill: '震地戰錘', desc: '三條以上時破甲 -3，削減敵人防禦。', sprite: H('dwarf', 249, 184), portrait: '/assets/portraits/dwarf.png', avatar: '/assets/avatars/dwarf.jpg',
     story: '礦脈世家出身，年輕時便以一己之力扛起崩塌的坑道橫樑，救出了整組同伴，從此在礦城裡有了「頂樑者」的稱號。他信奉的道理很簡單：再堅硬的鎧甲，也扛不住認真揮下的戰錘。如今他把那身蠻力帶到了戰場，逢敵便是一記記不留情面的重擊。',
     heightCm: 142, weightKg: 95, age: '156', race: '矮人', element: '土',
     starSprites: [H('dwarf_s0', 400, 296), H('dwarf_s1', 400, 296), H('dwarf_s2', 400, 296), H('dwarf_s3', 400, 296)] },
-  { id: 'bard', name: '吟遊詩人', title: '團隊增益', hp: 108, atk: 19, def: 6, role: 'song', school: 'physical', skill: '戰歌奏鳴', desc: '可在造成傷害同時小幅回血。', sprite: H('bard', 235, 184), portrait: '/assets/portraits/bard.png',
+  { id: 'bard', name: '吟遊詩人', title: '團隊增益', hp: 108, atk: 19, def: 6, role: 'song', school: 'physical', skill: '戰歌奏鳴', desc: '可在造成傷害同時小幅回血。', sprite: H('bard', 235, 184), portrait: '/assets/portraits/bard.png', avatar: '/assets/avatars/bard.jpg',
     story: '曾是宮廷樂師，卻在一場戰亂中親眼看著自己的曲子鼓舞不了潰散的軍隊，從此離開宮廷，走上戰場親自彈奏。他相信音樂真正的力量不在於好聽，而在於能不能讓瀕死的人再多撐一回合、再揮出一次劍——他的戰歌，就是為了這件事而存在。',
     heightCm: 170, weightKg: 58, age: '23', race: '人類', element: '風',
     starSprites: [H('bard_s0', 382, 299), H('bard_s1', 382, 299), H('bard_s2', 382, 299), H('bard_s3', 382, 299)] },
   // 死亡騎士（2026-08 取代訓獸師，見設計文件 Migration 方案）：真實素材已處理
   // （process-transparent-frames.mjs + compose-hero-spritesheet.mjs），尺寸來自
   // 實際輸出的 sprite sheet。
-  { id: 'death_knight', name: '死亡騎士', title: '嗜血搏命', hp: 145, atk: 27, def: 10, role: 'death', school: 'physical', skill: '噬魂斬', desc: '血量越低傷害越高，攻擊疊血印進入血腥狀態獲得吸血與增傷。', sprite: H('death_knight', 291, 184), portrait: '/assets/portraits/death_knight.png',
+  { id: 'death_knight', name: '死亡騎士', title: '嗜血搏命', hp: 145, atk: 27, def: 10, role: 'death', school: 'physical', skill: '噬魂斬', desc: '血量越低傷害越高，攻擊疊血印進入血腥狀態獲得吸血與增傷。', sprite: H('death_knight', 291, 184), portrait: '/assets/portraits/death_knight.png', avatar: '/assets/avatars/death_knight.jpg',
     story: '曾是某個王國最忠誠的騎士，直到那個王國在一夜之間被自己人出賣、屠盡。他在屍山中甦醒，帶著半死不活的身軀與再也止不住的憤怒，從此不再守護誰，只憑一口尚未熄滅的恨意向前廝殺——血流得越多，他反而站得越穩。',
     heightCm: 190, weightKg: 88, age: '?', race: '不死者', element: '暗',
     starSprites: [H('death_knight_s0', 291, 184), H('death_knight_s1', 291, 184), H('death_knight_s2', 291, 184), H('death_knight_s3', 291, 184)] },
-  { id: 'engineer', name: '機關技師', title: '機械火力', hp: 120, atk: 23, def: 8, role: 'gear', school: 'physical', skill: '蒸氣砲擊', desc: '兩對以上時機關炮追加固定傷害。', sprite: H('engineer', 175, 175), portrait: '/assets/portraits/engineer.png',
+  { id: 'engineer', name: '機關技師', title: '機械火力', hp: 120, atk: 23, def: 8, role: 'gear', school: 'physical', skill: '蒸氣砲擊', desc: '兩對以上時機關炮追加固定傷害。', sprite: H('engineer', 175, 175), portrait: '/assets/portraits/engineer.png', avatar: '/assets/avatars/engineer.jpg',
     story: '自幼在廢棄兵工廠裡長大，靠拆解與重組舊時代的兵器維生，久而久之，比起活人，她似乎更擅長和齒輪、蒸氣管線對話。她從不相信天賦這種東西，只相信只要拆得夠多、修得夠久，任何一台廢鐵都能重新開火——包括她自己。',
     heightCm: 156, weightKg: 45, age: '21', race: '人類', element: '機械',
     starSprites: [H('engineer_s0', 295, 320), H('engineer_s1', 313, 320), H('engineer_s2', 339, 320), H('engineer_s3', 324, 320)] },
-  { id: 'fighter', name: '武鬥家', title: '連招拳勢', hp: 125, atk: 28, def: 9, role: 'fighter', school: 'physical', skill: '真氣運轉', desc: '連續技觸發時獲得拳勢（最多5層）；每層傷害+3%受傷-2%；拳勢滿進入無雙架式2回合。技能效果依最近連段類型強化。', sprite: H('fighter', 329, 184), portrait: '/assets/portraits/fighter.png',
+  { id: 'fighter', name: '武鬥家', title: '連招拳勢', hp: 125, atk: 28, def: 9, role: 'fighter', school: 'physical', skill: '真氣運轉', desc: '連續技觸發時獲得拳勢（最多5層）；每層傷害+3%受傷-2%；拳勢滿進入無雙架式2回合。技能效果依最近連段類型強化。', sprite: H('fighter', 329, 184), portrait: '/assets/portraits/fighter.png', avatar: '/assets/avatars/fighter.jpg',
     story: '拜入山中道場多年，日日苦練只為打磨出真正屬於自己的拳路，直到某天悟出：招式的強弱從來不在拳頭，而在打出這拳之前，氣息有沒有連貫下去。如今他行走各地踢館比武，不是為了證明自己天下無敵，只是想確認——自己的拳，究竟能連到第幾招。',
     heightCm: 178, weightKg: 74, age: '27', race: '人類', element: '氣',
     starSprites: [H('fighter_s0', 358, 200), H('fighter_s1', 358, 200), H('fighter_s2', 358, 200), H('fighter_s3', 358, 200)] },

@@ -123,7 +123,7 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
     summary: hero.desc,
     icon: ROLE_ICON[hero.role] ?? 'nav-heroes',
     accent: roleColor(hero.role),
-    image: hero.portrait,
+    image: hero.avatar ?? hero.portrait,
     badges: [
       { label: roleName(hero.role), color: roleColor(hero.role) },
       { label: hero.school === 'magic' ? '星術學派' : '武技學派' },
@@ -302,7 +302,9 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
                   onClick={() => openHero(hero)}
                 >
                   <span className="astral-codex-hero-avatar">
-                    {entry.image ? <img src={entry.image} alt="" /> : <AsterVowIcon name={entry.icon} size={26} />}
+                    <span className="astral-codex-hero-avatar-clip">
+                      {entry.image ? <img src={entry.image} alt="" /> : <AsterVowIcon name={entry.icon} size={26} />}
+                    </span>
                     <span className="astral-codex-hero-role-badge"><AsterVowIcon name={entry.icon} size={13} /></span>
                   </span>
                   <span className="astral-codex-hero-name">{hero.name}</span>
