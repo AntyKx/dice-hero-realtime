@@ -992,7 +992,7 @@ h1, h2, h3, p { margin: 0; }
 }
 
 /* ── Talent View Modal ──────────────────────────────────── */
-.talent-view-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:3000; padding:16px; overflow:hidden; }
+.talent-view-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:3700; padding:16px; overflow:hidden; }
 .talent-view-modal { background:#0e1a36; border:1px solid rgba(110,144,255,.35); border-radius:16px; padding:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; gap:12px; }
 .tvm-header { display: flex; align-items: center; gap: 6px; font-size:1.1rem; font-weight:700; margin-bottom:4px; }
 
@@ -5612,4 +5612,212 @@ h1, h2, h3, p { margin: 0; }
 
 @media (max-width: 640px) {
   .aeq-loadout-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ASTERVOW 星界圖鑑：獨立命名空間，午夜藍航圖、古金刻線與寶石藍資訊層。 */
+.astral-codex-overlay { z-index:3600; padding:18px; background:rgba(2,6,20,.82); backdrop-filter:blur(12px); }
+.astral-codex { position:relative; width:min(1080px,100%); height:min(820px,calc(100dvh - 36px)); overflow:hidden; display:flex; flex-direction:column; color:#edf5ff; background:radial-gradient(circle at 88% 0%,rgba(58,154,236,.17),transparent 28%),radial-gradient(circle at 10% 100%,rgba(201,168,76,.11),transparent 30%),linear-gradient(145deg,rgba(8,20,50,.985),rgba(3,10,30,.99)); border:1px solid rgba(222,189,99,.52); border-radius:20px; box-shadow:0 25px 90px rgba(0,0,0,.62),inset 0 0 0 1px rgba(96,178,255,.08); }
+.astral-codex::before,.astral-codex::after { content:""; position:absolute; pointer-events:none; }
+.astral-codex::before { inset:10px; border:1px solid rgba(224,195,112,.16); border-radius:14px; }
+.astral-codex::after { width:420px; height:420px; top:-236px; right:-150px; border:1px solid rgba(104,190,255,.15); border-radius:50%; box-shadow:0 0 0 34px rgba(104,190,255,.025),0 0 0 68px rgba(104,190,255,.018); }
+.astral-codex-header { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; padding:25px 30px 16px; }
+.astral-codex-title { display:flex; align-items:center; gap:13px; }
+.astral-codex-title p { margin:0 0 3px; color:#89a7ce; font-size:.64rem; letter-spacing:.16em; }
+.astral-codex-title h2 { margin:0; color:#fff3cd; font-family:var(--av-font-display,serif); font-size:clamp(1.35rem,2vw,1.85rem); letter-spacing:.08em; }
+.astral-codex-seal,.astral-codex-card-icon,.astral-codex-detail-crest { display:inline-flex; align-items:center; justify-content:center; color:#ffe5a0; border:1px solid rgba(235,200,112,.5); background:linear-gradient(145deg,rgba(238,205,121,.2),rgba(23,65,117,.22)); box-shadow:inset 0 0 18px rgba(100,188,255,.1),0 0 14px rgba(225,188,88,.08); }
+.astral-codex-seal { width:46px; height:46px; clip-path:polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%); }
+.astral-codex-close,.astral-codex-detail-close { display:grid; place-items:center; border:1px solid rgba(154,197,242,.3); color:#cbe2ff; background:rgba(13,38,76,.72); cursor:pointer; transition:transform .16s ease-out,background .16s ease-out; }
+.astral-codex-close { width:34px; height:34px; border-radius:50%; }
+.astral-codex-close:hover,.astral-codex-detail-close:hover { transform:scale(1.06); background:rgba(62,120,177,.52); }
+.astral-codex-tabs { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 30px; }
+.astral-codex-tab { min-height:46px; display:inline-flex; justify-content:center; align-items:center; gap:8px; border:1px solid rgba(138,177,222,.2); background:rgba(9,27,62,.64); color:#95afd0; font-family:var(--av-font-display,serif); font-size:.79rem; letter-spacing:.04em; cursor:pointer; transition:border-color .18s ease-out,color .18s ease-out,transform .18s ease-out,background .18s ease-out; }
+.astral-codex-tab:first-child { border-radius:12px 4px 4px 12px; }
+.astral-codex-tab:last-child { border-radius:4px 12px 12px 4px; }
+.astral-codex-tab:hover { transform:translateY(-1px); border-color:rgba(222,190,103,.55); color:#ffedbc; }
+.astral-codex-tab.active { color:#fff1c8; border-color:rgba(231,197,107,.78); background:linear-gradient(110deg,rgba(200,157,61,.26),rgba(25,80,140,.28)); box-shadow:inset 0 -2px 0 #e2bd62; }
+.astral-codex-meta { position:relative; z-index:1; display:flex; gap:24px; align-items:end; justify-content:space-between; margin:16px 30px 10px; padding:14px 16px; border-block:1px solid rgba(124,173,226,.13); background:linear-gradient(90deg,rgba(13,39,80,.6),transparent); }
+.astral-codex-kicker { display:inline-flex; align-items:center; gap:6px; color:#f3d887; font-size:.73rem; letter-spacing:.11em; font-weight:700; }
+.astral-codex-meta p { margin:5px 0 0; color:#9cb6d8; font-size:.73rem; }
+.astral-codex-progress { width:min(260px,38%); }
+.astral-codex-progress-copy { display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#9bb5d7; font-size:.66rem; }
+.astral-codex-progress-copy b { color:#ffe4a2; font-weight:700; }
+.astral-codex-progress-track { height:5px; overflow:hidden; background:rgba(116,155,196,.2); }
+.astral-codex-progress-track i { display:block; height:100%; background:linear-gradient(90deg,#4ca8ed,#f2c866); box-shadow:0 0 9px rgba(95,189,247,.7); }
+.astral-codex-filter { position:relative; z-index:1; display:flex; gap:6px; overflow-x:auto; padding:0 30px 13px; scrollbar-width:thin; }
+.astral-codex-filter button { flex:0 0 auto; padding:6px 10px; border:1px solid rgba(126,169,218,.24); border-radius:999px; background:rgba(9,27,62,.54); color:#9db8dc; font-size:.68rem; cursor:pointer; transition:.16s ease-out; }
+.astral-codex-filter button:hover,.astral-codex-filter button.active { color:#fff0c5; border-color:rgba(232,198,111,.6); background:rgba(165,120,35,.22); }
+.astral-codex-grid { position:relative; z-index:1; flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); align-content:start; gap:12px; padding:2px 30px 30px; scrollbar-color:rgba(229,195,102,.5) transparent; }
+.astral-codex-card { position:relative; isolation:isolate; min-height:202px; overflow:hidden; display:flex; flex-direction:column; text-align:left; padding:13px; border:1px solid color-mix(in srgb,var(--entry-accent) 48%,transparent); border-radius:14px 5px 14px 5px; color:#f5f8ff; background:linear-gradient(145deg,rgba(25,55,103,.82),rgba(7,18,46,.94)); cursor:pointer; transition:transform .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out; }
+.astral-codex-card::before { content:""; position:absolute; inset:0; z-index:-1; opacity:.45; background:radial-gradient(circle at 100% 0,var(--entry-accent),transparent 42%); }
+.astral-codex-card:hover { transform:translateY(-3px); border-color:var(--entry-accent); box-shadow:0 12px 28px rgba(0,0,0,.32); }
+.astral-codex-card:active,.astral-codex-filter button:active,.astral-codex-tab:active { transform:scale(.97); }
+.astral-codex-card-orbit { position:absolute; width:84px; height:84px; top:-42px; right:-34px; border:1px solid color-mix(in srgb,var(--entry-accent) 34%,transparent); border-radius:50%; box-shadow:0 0 0 10px color-mix(in srgb,var(--entry-accent) 8%,transparent); }
+.astral-codex-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.astral-codex-card-icon { width:32px; height:32px; color:var(--entry-accent); border-color:color-mix(in srgb,var(--entry-accent) 55%,transparent); clip-path:polygon(24% 0,76% 0,100% 24%,100% 76%,76% 100%,24% 100%,0 76%,0 24%); }
+.astral-codex-card-mark { color:#abc1df; font-size:.58rem; letter-spacing:.08em; }
+.astral-codex-card-portrait { position:absolute; top:43px; right:-8px; width:92px; height:118px; object-fit:cover; object-position:top center; opacity:.68; mask-image:linear-gradient(180deg,#000 55%,transparent); }
+.astral-codex-card-content { position:relative; z-index:1; margin-top:auto; }
+.astral-codex-card-badges { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+.astral-codex-card-badges span { color:#c6d7ed; font-size:.58rem; letter-spacing:.04em; }
+.astral-codex-card strong { display:block; max-width:78%; color:#fff6dd; font-family:var(--av-font-display,serif); font-size:.9rem; line-height:1.25; }
+.astral-codex-card small { display:block; margin-top:3px; color:#9bb5d6; font-size:.65rem; }
+.astral-codex-card p { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; -webkit-line-clamp:2; min-height:34px; margin:8px 0 6px; color:#bfd1e8; font-size:.67rem; line-height:1.45; }
+.astral-codex-card-open { display:flex; justify-content:space-between; color:var(--entry-accent); font-size:.63rem; letter-spacing:.08em; }
+.astral-codex-card-open b { font-size:1rem; line-height:.55; }
+.astral-codex-detail-scrim { position:absolute; z-index:5; inset:0; display:flex; align-items:end; justify-content:center; padding:24px; background:rgba(2,7,20,.7); backdrop-filter:blur(7px); }
+.astral-codex-detail { position:relative; width:min(620px,100%); max-height:88%; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:26px; border:1px solid color-mix(in srgb,var(--entry-accent) 65%,#d7b75f); border-radius:20px 6px 20px 6px; color:#edf5ff; background:linear-gradient(145deg,rgba(18,54,105,.98),rgba(5,15,43,.995)); box-shadow:0 -15px 48px rgba(0,0,0,.5); animation:astral-codex-rise .23s ease-out; }
+.astral-codex-detail-glow { position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 12% 6%,color-mix(in srgb,var(--entry-accent) 26%,transparent),transparent 38%); }
+.astral-codex-detail-close { position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%; }
+.astral-codex-detail-crest { position:relative; width:52px; height:52px; color:var(--entry-accent); border-color:color-mix(in srgb,var(--entry-accent) 60%,transparent); clip-path:polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%); }
+.astral-codex-detail-heading { position:relative; margin-top:16px; }
+.astral-codex-detail-heading span { color:var(--entry-accent); font-size:.63rem; letter-spacing:.14em; }
+.astral-codex-detail-heading h3 { margin:7px 0 3px; color:#fff5d8; font-family:var(--av-font-display,serif); font-size:1.4rem; }
+.astral-codex-detail-heading p { margin:0; color:#a9c1df; font-size:.75rem; }
+.astral-codex-detail-summary { position:relative; margin:18px 0; padding:13px; border-left:2px solid var(--entry-accent); background:rgba(1,10,30,.36); color:#d2e0f1; font-size:.82rem; line-height:1.65; }
+.astral-codex-detail-data { position:relative; display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+.astral-codex-detail-data div { min-height:65px; padding:10px; border:1px solid rgba(137,176,222,.16); background:rgba(5,21,51,.5); }
+.astral-codex-detail-data span { display:block; margin-bottom:5px; color:#86a5cb; font-size:.62rem; letter-spacing:.06em; }
+.astral-codex-detail-data b { color:#ecf4ff; font-size:.72rem; line-height:1.5; font-weight:600; }
+.astral-codex-detail-return { position:relative; width:100%; margin-top:18px; padding:11px; border:1px solid rgba(235,199,105,.55); background:linear-gradient(90deg,rgba(177,124,37,.35),rgba(27,84,143,.35)); color:#fff0c5; font-family:var(--av-font-display,serif); cursor:pointer; }
+@keyframes astral-codex-rise { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media (max-width:620px) {
+  .astral-codex-overlay { padding:0; align-items:stretch; }
+  .astral-codex { width:100%; height:100dvh; border-radius:0; border-inline:0; }
+  .astral-codex::before { inset:7px; border-radius:0; }
+  .astral-codex-header { padding:max(18px,env(safe-area-inset-top)) 18px 13px; }
+  .astral-codex-title p { font-size:.54rem; }
+  .astral-codex-title h2 { font-size:1.32rem; }
+  .astral-codex-seal { width:39px; height:39px; }
+  .astral-codex-tabs { gap:4px; padding:0 14px; }
+  .astral-codex-tab { min-height:42px; gap:4px; font-size:.68rem; }
+  .astral-codex-tab svg { width:16px; height:16px; }
+  .astral-codex-meta { gap:10px; margin:13px 14px 9px; padding:10px 8px; }
+  .astral-codex-meta p { font-size:.65rem; }
+  .astral-codex-progress { width:42%; }
+  .astral-codex-filter { padding:0 14px 10px; }
+  .astral-codex-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:2px 14px calc(18px + env(safe-area-inset-bottom)); }
+  .astral-codex-card { min-height:190px; padding:10px; }
+  .astral-codex-card strong { max-width:84%; font-size:.78rem; }
+  .astral-codex-card p { font-size:.62rem; }
+  .astral-codex-card-portrait { width:74px; height:103px; right:-13px; }
+  .astral-codex-detail-scrim { padding:12px; }
+  .astral-codex-detail { max-height:min(81dvh,680px); padding:21px 17px calc(18px + env(safe-area-inset-bottom)); }
+  .astral-codex-detail-data { grid-template-columns:1fr; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .astral-codex-card,.astral-codex-tab,.astral-codex-filter button,.astral-codex-close,.astral-codex-detail-close { transition:none; }
+  .astral-codex-detail { animation:none; }
+}
+
+/* 星界圖鑑：英雄名冊縮圖列表＋大立繪詳情頁（2026-08）。 */
+.astral-codex-hero-grid {
+  position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); align-content: start;
+  gap: 10px; padding: 2px 30px 30px; scrollbar-color: rgba(229,195,102,.5) transparent;
+}
+.astral-codex-hero-card {
+  display: flex; align-items: center; gap: 12px; padding: 8px; text-align: left; cursor: pointer;
+  color: #f5f8ff; border: 1px solid color-mix(in srgb, var(--entry-accent) 40%, transparent);
+  border-radius: 12px; background: linear-gradient(145deg, rgba(25,55,103,.7), rgba(7,18,46,.88));
+  transition: transform .16s ease-out, border-color .16s ease-out;
+}
+.astral-codex-hero-card:hover { transform: translateY(-2px); border-color: var(--entry-accent); }
+.astral-codex-hero-card:active { transform: scale(.98); }
+.astral-codex-hero-avatar {
+  position: relative; flex-shrink: 0; width: 58px; height: 58px; overflow: hidden;
+  display: grid; place-items: center; color: var(--entry-accent);
+  border: 1px solid color-mix(in srgb, var(--entry-accent) 55%, transparent); border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--entry-accent) 20%, transparent), rgba(6,15,38,.9));
+}
+.astral-codex-hero-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.astral-codex-hero-role-badge {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; display: grid; place-items: center;
+  color: var(--entry-accent); background: #0b1730; border: 1px solid var(--entry-accent); border-radius: 50%;
+}
+.astral-codex-hero-name { flex: 1; min-width: 0; color: #fff6dd; font-family: var(--av-font-display,serif); font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.astral-codex-hero-stars { flex-shrink: 0; display: flex; gap: 2px; }
+
+.astral-codex-hero-detail-scrim {
+  position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(2,7,20,.78); backdrop-filter: blur(7px);
+}
+.astral-codex-hero-detail {
+  position: relative; width: min(760px, 100%); max-height: 100%; overflow: hidden; display: flex;
+  border: 1px solid color-mix(in srgb, var(--entry-accent) 55%, #d7b75f); border-radius: 18px;
+  background: linear-gradient(145deg, rgba(18,54,105,.98), rgba(5,15,43,.995));
+  box-shadow: 0 20px 60px rgba(0,0,0,.55); animation: astral-codex-rise .23s ease-out;
+}
+.astral-codex-hero-detail .astral-codex-detail-close { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; z-index: 2; }
+.astral-codex-hero-detail-back {
+  position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 2;
+  display: flex; align-items: center; gap: 4px; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid rgba(154,197,242,.3); color: #cbe2ff; background: rgba(13,38,76,.72);
+  font-size: .74rem; cursor: pointer; transition: transform .16s ease-out, background .16s ease-out;
+}
+.astral-codex-hero-detail-back:hover { transform: scale(1.05); background: rgba(62,120,177,.52); }
+.astral-codex-hero-detail-art { position: relative; flex: 0 0 42%; min-height: 360px; overflow: hidden; background: #060d20; }
+.astral-codex-hero-detail-art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.astral-codex-hero-detail-art-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(4,10,26,.94) 100%); }
+.astral-codex-hero-detail-art-caption { position: absolute; left: 16px; right: 16px; bottom: 16px; }
+.astral-codex-hero-detail-level { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.astral-codex-hero-detail-level-track { flex: 1; height: 4px; overflow: hidden; background: rgba(255,255,255,.15); border-radius: 2px; }
+.astral-codex-hero-detail-level-track i { display: block; height: 100%; background: linear-gradient(90deg,#4ca8ed,#f2c866); }
+.astral-codex-hero-detail-level span { color: #ffe4a2; font-size: .68rem; font-weight: 700; white-space: nowrap; }
+.astral-codex-hero-detail-art-caption p { margin: 0; color: var(--entry-accent); font-size: .68rem; letter-spacing: .08em; }
+.astral-codex-hero-detail-art-caption h3 { margin: 4px 0 2px; color: #fff5d8; font-family: var(--av-font-display,serif); font-size: 1.35rem; }
+.astral-codex-hero-detail-stars { color: #f2c56e; font-size: .82rem; letter-spacing: 2px; }
+.astral-codex-hero-detail-info { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.astral-codex-hero-detail-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.astral-codex-hero-detail-tabs button {
+  padding: 7px 14px; border: 1px solid rgba(138,177,222,.2); border-radius: 999px; background: rgba(9,27,62,.64);
+  color: #95afd0; font-size: .74rem; cursor: pointer; transition: .16s ease-out;
+}
+.astral-codex-hero-detail-tabs button:hover { color: #ffedbc; border-color: rgba(222,190,103,.55); }
+.astral-codex-hero-detail-tabs button.active { color: #fff1c8; border-color: rgba(231,197,107,.78); background: linear-gradient(110deg,rgba(200,157,61,.26),rgba(25,80,140,.28)); }
+.astral-codex-hero-detail-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.astral-codex-hero-detail-info .astral-codex-detail-summary { margin: 0; }
+.astral-codex-hero-info-title {
+  margin: 4px 0 -4px; color: #f3d887; font-family: var(--av-font-display,serif); font-size: .74rem; letter-spacing: .1em;
+}
+.astral-codex-hero-info-title:first-child { margin-top: 0; }
+.astral-codex-hero-evo-row { display: flex; gap: 8px; }
+.astral-codex-hero-evo-figure {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px 8px;
+  color: rgba(200,215,237,.35); border: 1px solid rgba(137,176,222,.16); border-radius: 10px; background: rgba(5,21,51,.5);
+}
+.astral-codex-hero-evo-figure.unlocked { color: #c6d7ed; border-color: rgba(137,176,222,.32); }
+.astral-codex-hero-evo-figure.current { color: #ffe4a2; border-color: rgba(231,197,107,.7); background: rgba(165,120,35,.22); }
+.astral-codex-hero-evo-figure-sprite { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 56px; overflow: hidden; filter: grayscale(1) opacity(.55); }
+.astral-codex-hero-evo-figure.unlocked .astral-codex-hero-evo-figure-sprite { filter: none; }
+.astral-codex-hero-evo-figure span { font-size: .62rem; letter-spacing: .04em; }
+.astral-codex-hero-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.astral-codex-hero-info-grid div { padding: 8px 10px; border: 1px solid rgba(137,176,222,.16); background: rgba(5,21,51,.5); border-radius: 8px; }
+.astral-codex-hero-info-grid span { display: block; margin-bottom: 4px; color: #86a5cb; font-size: .62rem; letter-spacing: .06em; }
+.astral-codex-hero-info-grid b { display: flex; align-items: center; gap: 4px; color: #ecf4ff; font-size: .78rem; font-weight: 600; }
+.astral-codex-hero-story {
+  flex: 1; margin: 0; padding: 12px; border-left: 2px solid var(--entry-accent); background: rgba(1,10,30,.36);
+  color: #d2e0f1; font-size: .8rem; line-height: 1.65;
+}
+.astral-codex-hero-skill {
+  margin: 0; padding: 12px; border-left: 2px solid var(--entry-accent); background: rgba(1,10,30,.36);
+  color: #d2e0f1; font-size: .8rem; line-height: 1.6; display: flex; flex-direction: column; gap: 4px;
+}
+.astral-codex-hero-skill b { color: var(--entry-accent); font-size: .74rem; letter-spacing: .05em; }
+.astral-codex-hero-detail-links { display: flex; gap: 8px; margin-top: auto; }
+.astral-codex-hero-detail-links button {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px;
+  border: 1px solid rgba(235,199,105,.55); border-radius: 10px;
+  background: linear-gradient(90deg,rgba(177,124,37,.35),rgba(27,84,143,.35));
+  color: #fff0c5; font-family: var(--av-font-display,serif); font-size: .78rem; cursor: pointer;
+}
+.astral-codex-detail-data small { display: block; margin-top: 2px; color: rgba(215,226,247,.5); font-size: .58rem; font-weight: 500; }
+@media (max-width:620px) {
+  .astral-codex-hero-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 2px 14px calc(18px + env(safe-area-inset-bottom)); }
+  .astral-codex-hero-card { padding: 6px; gap: 8px; }
+  .astral-codex-hero-avatar { width: 46px; height: 46px; }
+  .astral-codex-hero-name { font-size: .74rem; }
+  .astral-codex-hero-detail-scrim { padding: 0; align-items: stretch; }
+  .astral-codex-hero-detail { width: 100%; height: 100dvh; max-height: none; flex-direction: column; border-radius: 0; border-inline: 0; }
+  .astral-codex-hero-detail-art { flex: 0 0 42%; min-height: 0; }
+  .astral-codex-hero-detail-info { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
 }

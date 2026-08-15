@@ -1,166 +1,110 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { HEROES, getHeroSprite, type Hero } from '../data'
 import { ALL_BUFF_CARDS } from '../buffCards'
 import { ALL_POTIONS } from '../potions'
-import { ENEMIES, HEROES } from '../data'
-import { getEnemyMechanic, MECHANIC_DESC } from '../bosses'
 import { ARENA_RELICS, ARENA_WEAPON_RELICS, type ArenaRelic } from '../arena/relics'
+import { getExpForLevel, getHeroStarTitle } from '../talents'
+import { computeArenaEquipBonus, getEquippedArenaItems } from '../arena/equipment'
+import { computeArenaTalentBonus } from '../arena/arenaTalents'
 import SpriteAnimator from '../components/SpriteAnimator'
-import AsterVowIcon from '../components/AsterVowIcon'
-import type { Role } from '../types'
+import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
+import type { MetaState } from '../types'
+
+/**
+ * 星界圖鑑（2026-08 重做）：英雄／道具／遺物三分類的航行檔案庫。
+ * 「遺物」分類接的是即時制遺物（arena/relics.ts，跨局永久持有、打 Arena
+ * Boss 真的會拿到的 17 個），不是回合制的 relics.ts——那套現在打不到
+ * （FEATURE_FLAGS.turnBasedMainline=false），列出來玩家永遠遇不到。
+ *
+ * 舊版另外有「主線怪物」「副本怪物」兩個分頁，這次重做時使用者確認一併
+ * 拿掉，不用保留怪物圖鑑。
+ */
+
+type CodexCategory = 'heroes' | 'items' | 'relics'
+type ItemKind = 'card' | 'potion'
+
+interface CodexBadge {
+  label: string
+  color?: string
+}
+
+interface CodexEntry {
+  id: string
+  category: CodexCategory
+  kind?: ItemKind
+  role?: string
+  heroId?: string
+  name: string
+  subtitle: string
+  summary: string
+  icon: AsterVowIconName
+  accent: string
+  image?: string
+  badges: CodexBadge[]
+  details: { label: string; value: string }[]
+}
 
 const ROLE_LABEL: Record<string, string> = {
-  slash: '聖騎士', fire: '火焰法師', holy: '神官祭司',
-  shadow: '影刃刺客', ice: '皇家公主', arrow: '遊俠獵人',
-  hammer: '矮人戰士', song: '吟遊詩人', beast: '獸語馴獸師', gear: '機關技師',
-  fighter: '武鬥家', death: '死靈騎士',
+  slash: '聖騎士', fire: '火焰法師', holy: '神官祭司', shadow: '影刃刺客',
+  ice: '皇家公主', arrow: '遊俠獵人', hammer: '矮人戰士', song: '吟遊詩人',
+  beast: '獸語馴獸師', gear: '機關技師', fighter: '武鬥家', death: '死靈騎士',
 }
 const ROLE_COLOR: Record<string, string> = {
-  slash: '#6090ff', fire: '#ff6030', holy: '#ffd36e', shadow: '#a060ff',
-  ice: '#60d0ff', arrow: '#80e060', hammer: '#c09050', song: '#ff90c0',
-  beast: '#a0703a', gear: '#80a0c0', fighter: '#e07830', death: '#9a78c8',
+  slash: '#78a7ff', fire: '#ff7a54', holy: '#ffe08a', shadow: '#c595ff',
+  ice: '#78d8ff', arrow: '#91e39a', hammer: '#d3a466', song: '#f1a3cb',
+  beast: '#c89562', gear: '#a1bed8', fighter: '#ef9b56', death: '#b596ff',
+}
+/** 英雄資訊「屬性」欄位的配色（跟 role 的職業配色分開，是另一組世界觀設定）。 */
+const ELEMENT_COLOR: Record<string, string> = {
+  火: '#ff5a44', 冰: '#6ad4ff', 暗: '#a060ff', 光: '#ffd36e',
+  風: '#7ee089', 土: '#c08040', 機械: '#8fa8c0', 氣: '#ff9a4a',
+}
+const ROLE_ICON: Record<string, AsterVowIconName> = {
+  slash: 'role-slash', fire: 'role-fire', holy: 'role-holy', shadow: 'role-shadow',
+  ice: 'role-ice', arrow: 'role-arrow', hammer: 'role-hammer', song: 'role-song',
+  beast: 'role-beast', gear: 'role-gear', fighter: 'role-fighter', death: 'role-death',
 }
 const RARITY_LABEL: Record<string, string> = { common: '普通', rare: '稀有', epic: '史詩' }
-const RARITY_COLOR: Record<string, string> = { common: '#8090a8', rare: '#6db8ff', epic: '#d080ff' }
-const CHAPTER_TAG: Record<number, { label: string; color: string }> = {
-  1: { label: '🌲 森林遺跡', color: '#80e090' },
-  2: { label: '❄️ 雪原地城', color: '#80c8ff' },
-  3: { label: '🔥 魔王城',   color: '#ff8060' },
+const RARITY_COLOR: Record<string, string> = { common: '#9aacc6', rare: '#7cbcff', epic: '#d29cff' }
+
+const CATEGORY_META: { id: CodexCategory; title: string; note: string; icon: AsterVowIconName }[] = [
+  { id: 'heroes', title: '英雄名冊', note: '現行可編成英雄與核心技藝記錄', icon: 'nav-heroes' },
+  { id: 'items', title: '道具收藏', note: '增益卡與遠征補給檔案', icon: 'shop-scroll' },
+  { id: 'relics', title: '星界遺物', note: 'Arena 即時制戰利品與武器共鳴記錄', icon: 'equip-set' },
+]
+
+function roleName(role?: string) {
+  return role ? (ROLE_LABEL[role] ?? role) : '通用'
 }
-
-// ── 副本怪物定義 ──────────────────────────────────────────────────────────
-const STAR_ECLIPSE_ENEMY_IDS = new Set([
-  'rift_imp', 'star_sand_golem', 'mirror_thief',
-  'eclipse_nun', 'rift_guardian', 'star_reaper', 'eclipse_bishop',
-])
-const BURNING_THRONE_ENEMY_IDS = new Set([
-  'flame_imp', 'molten_guard', 'ash_mage', 'inferno_hound',
-  'black_flame_knight', 'fallen_fire_priest', 'throne_demon_king',
-])
-const BLACK_TIDE_ENEMY_IDS = new Set([
-  'tidal_shell_guard', 'azure_jellyfish_envoy', 'drowned_court_soldier',
-  'coral_guard_captain', 'deep_pressure_eel', 'sunken_crown_witch', 'tide_king_ausrein',
-])
-const ASH_COVENANT_ENEMY_IDS = new Set([
-  'covenant_ember', 'royal_blood_disciple', 'ash_judge',
-  'mass_resentment', 'covenant_guard', 'crown_priest_seron', 'ash_fallen_king_aldrek',
-])
-const DUNGEON_ENEMY_IDS = new Set([...STAR_ECLIPSE_ENEMY_IDS, ...BURNING_THRONE_ENEMY_IDS, ...BLACK_TIDE_ENEMY_IDS, ...ASH_COVENANT_ENEMY_IDS])
-
-type DungeonEnemyInfo = { label: string; color: string; area: string; dungeon: 'star_eclipse' | 'burning_throne' | 'black_tide' | 'ash_covenant' }
-const DUNGEON_ENEMY_TYPE: Record<string, DungeonEnemyInfo> = {
-  rift_imp:           { label: '普通',   color: '#8090a8', area: '裂隙入口', dungeon: 'star_eclipse' },
-  star_sand_golem:    { label: '普通',   color: '#8090a8', area: '裂隙入口', dungeon: 'star_eclipse' },
-  mirror_thief:       { label: '普通',   color: '#8090a8', area: '星蝕迴廊', dungeon: 'star_eclipse' },
-  eclipse_nun:        { label: '區首領', color: '#c070ff', area: '裂隙入口', dungeon: 'star_eclipse' },
-  rift_guardian:      { label: '精英',   color: '#6db8ff', area: '星蝕迴廊', dungeon: 'star_eclipse' },
-  star_reaper:        { label: '精英',   color: '#6db8ff', area: '星蝕迴廊', dungeon: 'star_eclipse' },
-  eclipse_bishop:     { label: 'BOSS',   color: '#ffd36e', area: '主教寢宮', dungeon: 'star_eclipse' },
-  flame_imp:          { label: '普通',   color: '#8090a8', area: '焰獄前廳', dungeon: 'burning_throne' },
-  molten_guard:       { label: '普通',   color: '#8090a8', area: '焰獄前廳', dungeon: 'burning_throne' },
-  ash_mage:           { label: '普通',   color: '#8090a8', area: '熔岩走廊', dungeon: 'burning_throne' },
-  inferno_hound:      { label: '普通',   color: '#8090a8', area: '熔岩走廊', dungeon: 'burning_throne' },
-  black_flame_knight: { label: '精英',   color: '#6db8ff', area: '熔岩走廊', dungeon: 'burning_throne' },
-  fallen_fire_priest: { label: '精英',   color: '#6db8ff', area: '王座廳',   dungeon: 'burning_throne' },
-  throne_demon_king:  { label: 'BOSS',   color: '#ffd36e', area: '王座廳',   dungeon: 'burning_throne' },
-  tidal_shell_guard:    { label: '普通',   color: '#8090a8', area: '潮汐前廳', dungeon: 'black_tide' },
-  azure_jellyfish_envoy:{ label: '普通',   color: '#8090a8', area: '潮汐前廳', dungeon: 'black_tide' },
-  drowned_court_soldier:{ label: '普通',   color: '#8090a8', area: '深壓廊道', dungeon: 'black_tide' },
-  coral_guard_captain:  { label: '精英',   color: '#6db8ff', area: '深壓廊道', dungeon: 'black_tide' },
-  deep_pressure_eel:    { label: '精英',   color: '#6db8ff', area: '深壓廊道', dungeon: 'black_tide' },
-  sunken_crown_witch:   { label: '小頭目', color: '#c070ff', area: '深壓廊道', dungeon: 'black_tide' },
-  tide_king_ausrein:    { label: 'BOSS',   color: '#ffd36e', area: '沉海王座', dungeon: 'black_tide' },
-  covenant_ember:          { label: '普通',   color: '#8090a8', area: '聖約前廳', dungeon: 'ash_covenant' },
-  royal_blood_disciple:    { label: '普通',   color: '#8090a8', area: '聖約前廳', dungeon: 'ash_covenant' },
-  ash_judge:               { label: '精英',   color: '#6db8ff', area: '灰燼迴廊', dungeon: 'ash_covenant' },
-  mass_resentment:         { label: '普通',   color: '#8090a8', area: '灰燼迴廊', dungeon: 'ash_covenant' },
-  covenant_guard:          { label: '精英',   color: '#6db8ff', area: '灰燼迴廊', dungeon: 'ash_covenant' },
-  crown_priest_seron:      { label: '小頭目', color: '#c070ff', area: '祭火聖堂', dungeon: 'ash_covenant' },
-  ash_fallen_king_aldrek:  { label: 'BOSS',   color: '#ffd36e', area: '王座廢墟', dungeon: 'ash_covenant' },
+function roleColor(role?: string) {
+  return role ? (ROLE_COLOR[role] ?? '#9aacc6') : '#9aacc6'
 }
-
-const STAR_ECLIPSE_AREA_ORDER   = ['裂隙入口', '星蝕迴廊', '主教寢宮']
-const BURNING_THRONE_AREA_ORDER = ['焰獄前廳', '熔岩走廊', '王座廳']
-const BLACK_TIDE_AREA_ORDER     = ['潮汐前廳', '深壓廊道', '沉海王座']
-const ASH_COVENANT_AREA_ORDER   = ['聖約前廳', '灰燼迴廊', '祭火聖堂', '王座廢墟']
-
-type MainTab = 'relics' | 'cards' | 'potions' | 'monsters' | 'dungeon_monsters'
-
-const ALL_ROLES = Object.keys(ROLE_LABEL) as Role[]
-
-const ENEMY_CHAPTER: Record<string, number> = {
-  goblin: 1, skeleton: 1, orc: 1, mimic: 1, golem: 1,
-  ice_wolf: 2, slimeking: 2, lightning_lancer: 2, yeti: 2, ice_witch: 2,
-  fire_hound: 3, bat_dragon: 3, dark_sorceress: 3, dark_knight: 3, dragon: 3,
-}
-
-// 裂隙前兆篇出現區域
-const RIFT_ENEMY_CHAPTER: Record<string, number> = {
-  sand_rat: 1, rift_goblin: 1, star_slime: 1, rift_scout: 1, sand_beast: 1,
-  moon_rogue: 2, ruin_guard: 2, moon_mage: 2, mirror_assassin: 2, moon_executor: 2,
-  dark_devotee: 3, rift_praying: 3, black_judge: 3, dark_shaman: 3, bishop_vanguard: 3,
-}
-const RIFT_CHAPTER_TAG: Record<number, { label: string; color: string }> = {
-  1: { label: '🏜️ 星砂邊境', color: '#c8a060' },
-  2: { label: '🌙 月影廢都', color: '#9080cc' },
-  3: { label: '⛪ 暗月聖堂', color: '#6070cc' },
-}
-
-// 深海遺城篇
-const DEEP_SEA_ENEMY_IDS = new Set([
-  'coral_crab', 'blue_jellyfish', 'tide_piranha', 'coral_colossus', 'abyss_anglerfish',
-  'drowned_guard', 'deep_lancer', 'heavy_drowned', 'sea_priestess', 'sea_emperor_guard',
-  'abyss_siren', 'ancient_shell_knight', 'leviathan_pup', 'sea_queen', 'sleeping_emperor',
-])
-const DEEP_SEA_ENEMY_CHAPTER: Record<string, number> = {
-  coral_crab: 1, blue_jellyfish: 1, tide_piranha: 1, coral_colossus: 1, abyss_anglerfish: 1,
-  drowned_guard: 2, deep_lancer: 2, heavy_drowned: 2, sea_priestess: 2, sea_emperor_guard: 2,
-  abyss_siren: 3, ancient_shell_knight: 3, leviathan_pup: 3, sea_queen: 3, sleeping_emperor: 3,
-}
-const DEEP_SEA_CHAPTER_TAG: Record<number, { label: string; color: string }> = {
-  1: { label: '🪸 珊瑚淺灘', color: '#60d0c0' },
-  2: { label: '🏚️ 沉沒王城', color: '#6090c0' },
-  3: { label: '🌀 海皇深淵', color: '#8060e0' },
-}
-
-// 灰燼王國篇
-const ASH_KINGDOM_ENEMY_CHAPTER: Record<string, number> = {
-  ash_soldier: 1, charred_archer: 1, molten_shieldman: 1, ember_commander: 1, levok: 1,
-  castle_remnant: 2, ash_guard: 2, broken_knight: 2, lost_court_mage: 2, laon: 2,
-  tomb_keeper: 3, soul_knight: 3, royal_soul: 3, forbidden_priest: 3, elysia: 3,
-}
-const ASH_KINGDOM_CHAPTER_TAG: Record<number, { label: string; color: string }> = {
-  1: { label: '🏚️ 王城餘燼', color: '#d07830' },
-  2: { label: '👑 亡國迴廊', color: '#b06020' },
-  3: { label: '💀 灰燼王陵', color: '#9a8070' },
-}
-
-const MAIN_ENEMIES = ENEMIES.filter(e => !DUNGEON_ENEMY_IDS.has(e.id))
-const STAR_ECLIPSE_ENEMIES = ENEMIES.filter(e => STAR_ECLIPSE_ENEMY_IDS.has(e.id))
-  .sort((a, b) => STAR_ECLIPSE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[a.id]?.area ?? '') - STAR_ECLIPSE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[b.id]?.area ?? ''))
-const BURNING_THRONE_ENEMIES = ENEMIES.filter(e => BURNING_THRONE_ENEMY_IDS.has(e.id))
-  .sort((a, b) => BURNING_THRONE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[a.id]?.area ?? '') - BURNING_THRONE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[b.id]?.area ?? ''))
-const BLACK_TIDE_ENEMIES = ENEMIES.filter(e => BLACK_TIDE_ENEMY_IDS.has(e.id))
-  .sort((a, b) => BLACK_TIDE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[a.id]?.area ?? '') - BLACK_TIDE_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[b.id]?.area ?? ''))
-const ASH_COVENANT_ENEMIES = ENEMIES.filter(e => ASH_COVENANT_ENEMY_IDS.has(e.id))
-  .sort((a, b) => ASH_COVENANT_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[a.id]?.area ?? '') - ASH_COVENANT_AREA_ORDER.indexOf(DUNGEON_ENEMY_TYPE[b.id]?.area ?? ''))
-const DUNGEON_ENEMIES = [...STAR_ECLIPSE_ENEMIES, ...BURNING_THRONE_ENEMIES, ...BLACK_TIDE_ENEMIES, ...ASH_COVENANT_ENEMIES]
-
-const MONSTER_SPRITE_TARGET_H        = 88
-const DUNGEON_SPRITE_TARGET_H        = 110
-const THRONE_SPRITE_TARGET_H         = 140
-const BLACK_TIDE_SPRITE_TARGET_H     = 130
-const ASH_COVENANT_SPRITE_TARGET_H   = 140
-
-/** 即時制武器專屬遺物的 weaponTag 是 `{heroId}_weapon`，反推回 heroId 用來顯示英雄名稱/篩選。 */
-function heroIdFromWeaponTag(tag?: string): string | undefined {
+function heroIdFromWeaponTag(tag?: string) {
   return tag?.replace(/_weapon$/, '')
 }
 
-export default function CompendiumScreen({ onClose }: { onClose: () => void }) {
-  const [tab, setTab]                = useState<MainTab>('relics')
-  const [relicHeroFilter, setRelicHeroFilter] = useState<'all' | 'universal' | string>('all')
-  const [rarityFilter, setRarityFilter] = useState<'all' | 'common' | 'rare' | 'epic'>('all')
-  const [cardRoleFilter, setCardRoleFilter] = useState<'all' | 'universal' | Role>('all')
+const ARENA_ARCHIVE_RELICS: (ArenaRelic & { heroId?: string })[] = [
+  ...ARENA_RELICS,
+  ...ARENA_WEAPON_RELICS.map(relic => ({ ...relic, heroId: heroIdFromWeaponTag(relic.weaponTag) })),
+]
+
+interface Props {
+  meta: MetaState
+  onClose: () => void
+  /** 查看天賦／查看裝備：交給外層（AdventureReadyScreen）決定要開哪個既有畫面，
+   *  圖鑑本身不重造那兩套 UI。沒傳（功能旗標關閉時）就不顯示對應按鈕。 */
+  onViewTalent?: (hero: Hero) => void
+  onViewEquip?: (hero: Hero) => void
+}
+
+export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEquip }: Props) {
+  const [category, setCategory] = useState<CodexCategory>('heroes')
+  const [heroRole, setHeroRole] = useState('all')
+  const [itemKind, setItemKind] = useState<'all' | ItemKind>('all')
+  const [relicRole, setRelicRole] = useState('all')
+  const [activeEntry, setActiveEntry] = useState<CodexEntry | null>(null)
+  const [activeHero, setActiveHero] = useState<Hero | null>(null)
+  const [heroDetailTab, setHeroDetailTab] = useState<'story' | 'abilities'>('story')
 
   // 鎖住背景頁面捲動：手機上拖到列表底/頂端時，觸控滑動會「穿透」到背景頁面造成卡頓感
   useEffect(() => {
@@ -169,260 +113,374 @@ export default function CompendiumScreen({ onClose }: { onClose: () => void }) {
     return () => { document.body.style.overflow = prevOverflow }
   }, [])
 
-  // 遺物圖鑑改接即時制遺物（arena/relics.ts，2026-08）：回合制 relics.ts 那套
-  // 現在打不到（FEATURE_FLAGS.turnBasedMainline=false），圖鑑列出的東西玩家
-  // 永遠不會真的拿到，改成列出打 Arena Boss 真的會掉的 17 個（6 通用 + 11
-  // 英雄武器專屬）。
-  const allArenaRelics: (ArenaRelic & { heroId?: string })[] = [
-    ...ARENA_RELICS,
-    ...ARENA_WEAPON_RELICS.map(r => ({ ...r, heroId: heroIdFromWeaponTag(r.weaponTag) })),
-  ]
-  const filteredRelics = allArenaRelics.filter(r => {
-    if (relicHeroFilter === 'all') return true
-    if (relicHeroFilter === 'universal') return !r.weaponTag
-    return r.heroId === relicHeroFilter
-  })
-  const filteredCards = ALL_BUFF_CARDS.filter(c => {
-    const rarityOK = rarityFilter === 'all' || c.rarity === rarityFilter
-    const roleOK = cardRoleFilter === 'all' || (cardRoleFilter === 'universal' ? !c.role : c.role === cardRoleFilter)
-    return rarityOK && roleOK
-  })
+  const heroEntries = useMemo<CodexEntry[]>(() => HEROES.map(hero => ({
+    id: `hero-${hero.id}`,
+    category: 'heroes',
+    role: hero.role,
+    heroId: hero.id,
+    name: hero.name,
+    subtitle: `${roleName(hero.role)} · ${hero.title}`,
+    summary: hero.desc,
+    icon: ROLE_ICON[hero.role] ?? 'nav-heroes',
+    accent: roleColor(hero.role),
+    image: hero.portrait,
+    badges: [
+      { label: roleName(hero.role), color: roleColor(hero.role) },
+      { label: hero.school === 'magic' ? '星術學派' : '武技學派' },
+    ],
+    details: [
+      { label: '核心技藝', value: hero.skill },
+      { label: '基礎數值', value: `生命 ${hero.hp} · 攻擊 ${hero.atk} · 防禦 ${hero.def}` },
+      { label: '戰鬥定位', value: hero.title },
+      { label: '學派', value: hero.school === 'magic' ? '星術學派' : '武技學派' },
+    ],
+  })), [])
+
+  const itemEntries = useMemo<CodexEntry[]>(() => [
+    ...ALL_BUFF_CARDS.map(card => ({
+      id: `card-${card.id}`,
+      category: 'items' as const,
+      kind: 'card' as const,
+      role: card.role,
+      name: card.name,
+      subtitle: '遠征增益卡',
+      summary: card.desc,
+      icon: 'shop-scroll' as AsterVowIconName,
+      accent: RARITY_COLOR[card.rarity] ?? '#9aacc6',
+      badges: [
+        { label: RARITY_LABEL[card.rarity] ?? card.rarity, color: RARITY_COLOR[card.rarity] },
+        { label: roleName(card.role), color: roleColor(card.role) },
+      ],
+      details: [
+        { label: '檔案類型', value: '遠征增益卡' },
+        { label: '適用職業', value: roleName(card.role) },
+        { label: '稀有度', value: RARITY_LABEL[card.rarity] ?? card.rarity },
+        { label: '可強化上限', value: `Lv.${card.maxLevel ?? 1}` },
+      ],
+    })),
+    ...ALL_POTIONS.map(potion => ({
+      id: `potion-${potion.id}`,
+      category: 'items' as const,
+      kind: 'potion' as const,
+      name: potion.name,
+      subtitle: '遠征補給',
+      summary: potion.desc,
+      icon: 'shop-gift' as AsterVowIconName,
+      accent: '#76d6ff',
+      badges: [{ label: '補給道具', color: '#76d6ff' }],
+      details: [
+        { label: '檔案類型', value: '遠征補給' },
+        { label: '使用時機', value: '遠征途中' },
+        { label: '效果記錄', value: potion.desc },
+        { label: '資料狀態', value: '現行遊戲資料可查閱' },
+      ],
+    })),
+  ], [])
+
+  const relicEntries = useMemo<CodexEntry[]>(() => ARENA_ARCHIVE_RELICS.map(relic => {
+    const hero = relic.heroId ? HEROES.find(h => h.id === relic.heroId) : undefined
+    return {
+      id: `relic-${relic.id}`,
+      category: 'relics',
+      role: hero?.role ?? 'universal',
+      name: relic.name,
+      subtitle: hero ? `${hero.name}武器共鳴` : '通用戰利品',
+      summary: relic.desc,
+      icon: 'equip-set' as AsterVowIconName,
+      accent: hero ? roleColor(hero.role) : '#f0c96d',
+      badges: [
+        { label: hero ? `${hero.name}專屬` : '通用', color: hero ? roleColor(hero.role) : '#f0c96d' },
+        { label: 'Arena 即時制', color: '#76d6ff' },
+      ],
+      details: [
+        { label: '遺物類型', value: hero ? '武器共鳴遺物' : '通用戰利品' },
+        { label: '共鳴職業', value: hero ? roleName(hero.role) : '全職業通用' },
+        { label: '適用模式', value: 'Arena 即時制' },
+        { label: '資料狀態', value: '現行戰利品資料可查閱' },
+      ],
+    }
+  }), [])
+
+  const visibleEntries = useMemo(() => {
+    if (category === 'heroes') return heroEntries.filter(entry => heroRole === 'all' || entry.role === heroRole)
+    if (category === 'items') return itemEntries.filter(entry => itemKind === 'all' || entry.kind === itemKind)
+    return relicEntries.filter(entry => relicRole === 'all' || entry.role === relicRole)
+  }, [category, heroEntries, heroRole, itemEntries, itemKind, relicEntries, relicRole])
+
+  const currentMeta = CATEGORY_META.find(item => item.id === category) ?? CATEGORY_META[0]
+  const totalEntries = category === 'heroes' ? heroEntries.length : category === 'items' ? itemEntries.length : relicEntries.length
+  const roleOptions = HEROES.map(hero => hero.role).filter((role, index, roles) => roles.indexOf(role) === index)
+
+  const switchCategory = (next: CodexCategory) => {
+    setCategory(next)
+    setActiveEntry(null)
+    setActiveHero(null)
+  }
+
+  const openHero = (hero: Hero) => {
+    setActiveHero(hero)
+    setHeroDetailTab('story')
+  }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="compendium-box" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay astral-codex-overlay" onClick={onClose}>
+      <section className="astral-codex" role="dialog" aria-modal="true" aria-label="星界圖鑑" onClick={e => e.stopPropagation()}>
+        <header className="astral-codex-header">
+          <div className="astral-codex-title">
+            <span className="astral-codex-seal"><AsterVowIcon name="nav-compendium" size={24} /></span>
+            <div>
+              <p>ASTRAL ARCHIVE · ARENA INDEX</p>
+              <h2>星界圖鑑</h2>
+            </div>
+          </div>
+          <button className="astral-codex-close" onClick={onClose} aria-label="返回星界大廳">✕</button>
+        </header>
 
-        <div className="compendium-header">
-          <h2>📖 圖鑑</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="astral-codex-tabs" role="tablist" aria-label="圖鑑分類">
+          {CATEGORY_META.map(item => (
+            <button
+              key={item.id}
+              className={`astral-codex-tab${category === item.id ? ' active' : ''}`}
+              role="tab" aria-selected={category === item.id}
+              onClick={() => switchCategory(item.id)}
+            >
+              <AsterVowIcon name={item.icon} size={19} />
+              <span>{item.title}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="modal-tabs compendium-tabs">
-          <button className={`modal-tab ${tab === 'relics'  ? 'active' : ''}`} onClick={() => setTab('relics')}>💎 遺物</button>
-          <button className={`modal-tab ${tab === 'cards'   ? 'active' : ''}`} onClick={() => setTab('cards')}>🃏 增益卡</button>
-          <button className={`modal-tab ${tab === 'potions' ? 'active' : ''}`} onClick={() => setTab('potions')}>🧪 藥水</button>
-          <button className={`modal-tab ${tab === 'monsters' ? 'active' : ''}`} onClick={() => setTab('monsters')}>👹 主線怪物</button>
-          <button className={`modal-tab ${tab === 'dungeon_monsters' ? 'active' : ''}`} onClick={() => setTab('dungeon_monsters')}>🏰 副本怪物</button>
+        <div className="astral-codex-meta">
+          <div>
+            <span className="astral-codex-kicker"><AsterVowIcon name={currentMeta.icon} size={15} /> {currentMeta.title}</span>
+            <p>{currentMeta.note}</p>
+          </div>
+          <div className="astral-codex-progress" aria-label={`${currentMeta.title}可查閱條目 ${totalEntries}`}>
+            <div className="astral-codex-progress-copy"><span>可查閱條目</span><b>{totalEntries} / {totalEntries}</b></div>
+            <div className="astral-codex-progress-track"><i style={{ width: '100%' }} /></div>
+          </div>
         </div>
 
-        {/* Relics（即時制 arena/relics.ts，2026-08 改接） */}
-        {tab === 'relics' && (
-          <>
-            <div className="compendium-filters">
-              <button className={`cf-btn ${relicHeroFilter === 'all' ? 'active' : ''}`}       onClick={() => setRelicHeroFilter('all')}>全部</button>
-              <button className={`cf-btn ${relicHeroFilter === 'universal' ? 'active' : ''}`} onClick={() => setRelicHeroFilter('universal')}>通用</button>
-              {HEROES.map(hero => (
-                <button key={hero.id} className={`cf-btn ${relicHeroFilter === hero.id ? 'active' : ''}`}
-                  style={relicHeroFilter === hero.id ? { borderColor: ROLE_COLOR[hero.role], color: ROLE_COLOR[hero.role] } : {}}
-                  onClick={() => setRelicHeroFilter(hero.id)}>{hero.name}</button>
+        <div className="astral-codex-filter" aria-label="圖鑑篩選">
+          {category === 'heroes' && (
+            <>
+              <button className={heroRole === 'all' ? 'active' : ''} onClick={() => setHeroRole('all')}>全名冊</button>
+              {roleOptions.map(role => (
+                <button key={role} className={heroRole === role ? 'active' : ''} onClick={() => setHeroRole(role)}>{roleName(role)}</button>
               ))}
-            </div>
-            <div className="compendium-grid">
-              {filteredRelics.map(relic => {
-                const hero = relic.heroId ? HEROES.find(h => h.id === relic.heroId) : undefined
-                const badgeColor = hero ? ROLE_COLOR[hero.role] : '#8090a8'
-                return (
-                  <div key={relic.id} className="compendium-card">
-                    <div className="cc-top-row">
-                      <span className="cc-tier-badge" style={{ color: badgeColor, borderColor: badgeColor + '60' }}>
-                        {hero ? `${hero.name}專屬` : '通用'}
-                      </span>
-                    </div>
-                    <div className="cc-name"><AsterVowIcon name="equip-set" size={14} /> {relic.name}</div>
-                    <div className="cc-desc">{relic.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </>
-        )}
+            </>
+          )}
+          {category === 'items' && (
+            <>
+              <button className={itemKind === 'all' ? 'active' : ''} onClick={() => setItemKind('all')}>全部檔案</button>
+              <button className={itemKind === 'card' ? 'active' : ''} onClick={() => setItemKind('card')}>增益卡</button>
+              <button className={itemKind === 'potion' ? 'active' : ''} onClick={() => setItemKind('potion')}>遠征補給</button>
+            </>
+          )}
+          {category === 'relics' && (
+            <>
+              <button className={relicRole === 'all' ? 'active' : ''} onClick={() => setRelicRole('all')}>全部遺物</button>
+              <button className={relicRole === 'universal' ? 'active' : ''} onClick={() => setRelicRole('universal')}>通用</button>
+              {roleOptions.map(role => (
+                <button key={role} className={relicRole === role ? 'active' : ''} onClick={() => setRelicRole(role)}>{roleName(role)}</button>
+              ))}
+            </>
+          )}
+        </div>
 
-        {/* Cards */}
-        {tab === 'cards' && (
-          <>
-            <div className="compendium-filters">
-              {(['all', 'common', 'rare', 'epic'] as const).map(r => (
-                <button key={r} className={`cf-btn ${rarityFilter === r ? 'active' : ''}`}
-                  style={r !== 'all' && rarityFilter === r ? { borderColor: RARITY_COLOR[r], color: RARITY_COLOR[r] } : {}}
-                  onClick={() => setRarityFilter(r)}>{r === 'all' ? '全部' : RARITY_LABEL[r]}</button>
-              ))}
-            </div>
-            <div className="compendium-filters" style={{ marginTop: 4 }}>
-              <button className={`cf-btn ${cardRoleFilter === 'all' ? 'active' : ''}`}       onClick={() => setCardRoleFilter('all')}>全職業</button>
-              <button className={`cf-btn ${cardRoleFilter === 'universal' ? 'active' : ''}`} onClick={() => setCardRoleFilter('universal')}>通用</button>
-              {ALL_ROLES.map(r => (
-                <button key={r} className={`cf-btn ${cardRoleFilter === r ? 'active' : ''}`}
-                  style={cardRoleFilter === r ? { borderColor: ROLE_COLOR[r], color: ROLE_COLOR[r] } : {}}
-                  onClick={() => setCardRoleFilter(r)}>{ROLE_LABEL[r]}</button>
-              ))}
-            </div>
-            <div className="compendium-grid">
-              {filteredCards.map(card => (
-                <div key={card.id} className="compendium-card">
-                  <div className="cc-top-row">
-                    <span className="cc-tier-badge" style={{ color: RARITY_COLOR[card.rarity], borderColor: RARITY_COLOR[card.rarity] + '60' }}>{RARITY_LABEL[card.rarity]}</span>
-                    {card.role && (
-                      <span className="cc-tier-badge" style={{ color: ROLE_COLOR[card.role], borderColor: ROLE_COLOR[card.role] + '60' }}>{ROLE_LABEL[card.role]}</span>
-                    )}
-                  </div>
-                  <div className="cc-name">🃏 {card.name}</div>
-                  <div className="cc-desc">{card.desc}</div>
+        {category === 'heroes' ? (
+          <div className="astral-codex-hero-grid">
+            {visibleEntries.map(entry => {
+              const hero = HEROES.find(h => h.id === entry.heroId)
+              if (!hero) return null
+              const stars = meta.heroProgress[hero.id]?.stars ?? 0
+              return (
+                <button
+                  key={entry.id}
+                  className="astral-codex-hero-card"
+                  style={{ '--entry-accent': entry.accent } as CSSProperties}
+                  onClick={() => openHero(hero)}
+                >
+                  <span className="astral-codex-hero-avatar">
+                    {entry.image ? <img src={entry.image} alt="" /> : <AsterVowIcon name={entry.icon} size={26} />}
+                    <span className="astral-codex-hero-role-badge"><AsterVowIcon name={entry.icon} size={13} /></span>
+                  </span>
+                  <span className="astral-codex-hero-name">{hero.name}</span>
+                  <span className="astral-codex-hero-stars" aria-label={`${stars} 星`}>
+                    {[0, 1, 2].map(i => (
+                      <AsterVowIcon key={i} name="system-stardust" size={11} color={i < stars ? '#f2c56e' : 'rgba(255,255,255,.18)'} />
+                    ))}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="astral-codex-grid">
+            {visibleEntries.map(entry => (
+              <button
+                key={entry.id}
+                className="astral-codex-card"
+                style={{ '--entry-accent': entry.accent } as CSSProperties}
+                onClick={() => setActiveEntry(entry)}
+              >
+                <span className="astral-codex-card-orbit" />
+                <div className="astral-codex-card-top">
+                  <span className="astral-codex-card-icon"><AsterVowIcon name={entry.icon} size={20} /></span>
+                  <span className="astral-codex-card-mark">公開檔案</span>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Potions */}
-        {tab === 'potions' && (
-          <div className="compendium-grid">
-            {ALL_POTIONS.map(p => (
-              <div key={p.id} className="compendium-card">
-                <div className="cc-name">{p.icon} {p.name}</div>
-                <div className="cc-desc">{p.desc}</div>
-              </div>
+                {entry.image && <img className="astral-codex-card-portrait" src={entry.image} alt="" />}
+                <div className="astral-codex-card-content">
+                  <div className="astral-codex-card-badges">
+                    {entry.badges.slice(0, 2).map(badge => (
+                      <span key={badge.label} style={badge.color ? { color: badge.color } : undefined}>{badge.label}</span>
+                    ))}
+                  </div>
+                  <strong>{entry.name}</strong>
+                  <small>{entry.subtitle}</small>
+                  <p>{entry.summary}</p>
+                </div>
+                <span className="astral-codex-card-open">檢閱檔案 <b>›</b></span>
+              </button>
             ))}
           </div>
         )}
 
-        {/* Main-game Monsters */}
-        {tab === 'monsters' && (
-          <div className="compendium-grid monster-grid">
-            {[...MAIN_ENEMIES].sort((a, b) => {
-              const key = (e: typeof a) =>
-                ENEMY_CHAPTER[e.id]            != null ? ENEMY_CHAPTER[e.id]
-                : RIFT_ENEMY_CHAPTER[e.id]     != null ? 10 + RIFT_ENEMY_CHAPTER[e.id]
-                : DEEP_SEA_ENEMY_CHAPTER[e.id] != null ? 20 + DEEP_SEA_ENEMY_CHAPTER[e.id]
-                : ASH_KINGDOM_ENEMY_CHAPTER[e.id] != null ? 30 + ASH_KINGDOM_ENEMY_CHAPTER[e.id]
-                : 99
-              return key(a) - key(b)
-            }).map(enemy => {
-              const riftCh    = RIFT_ENEMY_CHAPTER[enemy.id]
-              const deepSeaCh = DEEP_SEA_ENEMY_CHAPTER[enemy.id]
-              const ashCh     = ASH_KINGDOM_ENEMY_CHAPTER[enemy.id]
-              const tag = ashCh     ? ASH_KINGDOM_CHAPTER_TAG[ashCh]
-                        : deepSeaCh ? DEEP_SEA_CHAPTER_TAG[deepSeaCh]
-                        : riftCh    ? RIFT_CHAPTER_TAG[riftCh]
-                        : (CHAPTER_TAG[ENEMY_CHAPTER[enemy.id] ?? 1])
-              const mech = getEnemyMechanic(enemy.id)
-              const spriteScale = MONSTER_SPRITE_TARGET_H / enemy.sprite.frameHeight
-              return (
-                <div key={enemy.id} className="compendium-card monster-card">
-                  <div className="cc-top-row">
-                    <span className="cc-tier-badge" style={{ color: tag.color, borderColor: tag.color + '60' }}>{tag.label}</span>
+        {activeEntry && (
+          <div className="astral-codex-detail-scrim" onClick={() => setActiveEntry(null)}>
+            <article
+              className="astral-codex-detail"
+              onClick={e => e.stopPropagation()}
+              style={{ '--entry-accent': activeEntry.accent } as CSSProperties}
+            >
+              <div className="astral-codex-detail-glow" />
+              <button className="astral-codex-detail-close" onClick={() => setActiveEntry(null)} aria-label="關閉檔案">✕</button>
+              <div className="astral-codex-detail-crest"><AsterVowIcon name={activeEntry.icon} size={29} /></div>
+              <div className="astral-codex-detail-heading">
+                <span>ASTRAL RECORD · 星界檔案</span>
+                <h3>{activeEntry.name}</h3>
+                <p>{activeEntry.subtitle}</p>
+              </div>
+              <p className="astral-codex-detail-summary">{activeEntry.summary}</p>
+              <div className="astral-codex-detail-data">
+                {activeEntry.details.map(detail => (
+                  <div key={detail.label}><span>{detail.label}</span><b>{detail.value}</b></div>
+                ))}
+              </div>
+              <button className="astral-codex-detail-return" onClick={() => setActiveEntry(null)}>返回圖鑑</button>
+            </article>
+          </div>
+        )}
+
+        {activeHero && (() => {
+          const prog = meta.heroProgress[activeHero.id]
+          const stars = prog?.stars ?? 0
+          const level = prog?.level ?? 1
+          const expNeeded = getExpForLevel(level)
+          const levelPct = Math.min(100, Math.round(((prog?.exp ?? 0) / expNeeded) * 100))
+          const starTitle = stars > 0 ? getHeroStarTitle(activeHero.id, stars) : null
+          const displayName = starTitle ?? activeHero.name
+
+          // 「目前為止的能力值」：基礎值疊加真實的裝備/天賦加成（跟英雄立繪 Modal
+          // 同一套算法），不是只顯示 Hero 表裡的靜態基礎數字。
+          const equipItems = getEquippedArenaItems(meta.arenaInventory ?? [], meta.arenaLoadouts?.[activeHero.id])
+          const equipBonus = computeArenaEquipBonus(equipItems)
+          const talentBonus = computeArenaTalentBonus(activeHero.id, prog?.allocatedTalentIds ?? [])
+          const totalHp = activeHero.hp + equipBonus.hpBonus + talentBonus.hpBonus
+          const totalDef = activeHero.def + equipBonus.defBonus
+          const totalAtk = activeHero.atk + talentBonus.flatDamage
+
+          return (
+            <div className="astral-codex-hero-detail-scrim" onClick={() => setActiveHero(null)}>
+              <article className="astral-codex-hero-detail" onClick={e => e.stopPropagation()} style={{ '--entry-accent': roleColor(activeHero.role) } as CSSProperties}>
+                <button className="astral-codex-hero-detail-back" onClick={() => setActiveHero(null)} aria-label="返回圖鑑列表">
+                  ‹ 返回
+                </button>
+                <button className="astral-codex-detail-close" onClick={() => setActiveHero(null)} aria-label="關閉檔案">✕</button>
+                <div className="astral-codex-hero-detail-art">
+                  {activeHero.portrait && <img src={activeHero.portrait} alt="" />}
+                  <div className="astral-codex-hero-detail-art-scrim" />
+                  <div className="astral-codex-hero-detail-art-caption">
+                    <div className="astral-codex-hero-detail-level">
+                      <div className="astral-codex-hero-detail-level-track"><i style={{ width: `${levelPct}%` }} /></div>
+                      <span>Lv.{level}</span>
+                    </div>
+                    <p>{roleName(activeHero.role)} · {activeHero.title}</p>
+                    <h3>{displayName}</h3>
+                    {stars > 0 && <span className="astral-codex-hero-detail-stars">{'✦'.repeat(stars)}</span>}
                   </div>
-                  <div className="monster-sprite">
-                    <SpriteAnimator sprite={enemy.sprite} state="idle" scale={spriteScale} />
-                  </div>
-                  <div className="cc-name">{enemy.name}</div>
-                  <div className="monster-stats">❤️ {enemy.hp} · ⚔️ {enemy.atk} · 🛡️ {enemy.def}</div>
-                  <div className="cc-desc"><b>{enemy.skill}</b></div>
-                  {mech && <div className="cc-desc monster-mech">⚙️ {MECHANIC_DESC[mech.special]}</div>}
                 </div>
-              )
-            })}
-          </div>
-        )}
+                <div className="astral-codex-hero-detail-info">
+                  <div className="astral-codex-hero-detail-tabs" role="tablist" aria-label="英雄檔案分類">
+                    {([['story', '檔案'], ['abilities', '能力']] as const).map(([id, label]) => (
+                      <button key={id} className={heroDetailTab === id ? 'active' : ''} role="tab" aria-selected={heroDetailTab === id} onClick={() => setHeroDetailTab(id)}>{label}</button>
+                    ))}
+                  </div>
 
-        {/* Dungeon Monsters */}
-        {tab === 'dungeon_monsters' && (
-          <div className="dungeon-monsters-wrapper">
-            <div className="dungeon-section-header dungeon-eclipse">🌙 星蝕裂隙</div>
-            <div className="compendium-grid monster-grid">
-              {STAR_ECLIPSE_ENEMIES.map(enemy => {
-                const info = DUNGEON_ENEMY_TYPE[enemy.id]
-                const mech = getEnemyMechanic(enemy.id)
-                const spriteScale = DUNGEON_SPRITE_TARGET_H / enemy.sprite.frameHeight
-                return (
-                  <div key={enemy.id} className="compendium-card monster-card dungeon-monster-card">
-                    <div className="cc-top-row">
-                      <span className="cc-tier-badge" style={{ color: info.color, borderColor: info.color + '60' }}>{info.label}</span>
-                      <span className="cc-tier-badge" style={{ color: '#9080c0', borderColor: '#9080c060', fontSize: 10 }}>🌙 {info.area}</span>
-                    </div>
-                    <div className="monster-sprite dungeon-monster-sprite">
-                      <SpriteAnimator sprite={enemy.sprite} state="idle" scale={spriteScale} />
-                    </div>
-                    <div className="cc-name">{enemy.name}</div>
-                    <div className="monster-stats">❤️ {enemy.hp} · ⚔️ {enemy.atk} · 🛡️ {enemy.def}</div>
-                    <div className="cc-desc"><b>{enemy.skill}</b></div>
-                    {mech && <div className="cc-desc monster-mech">⚙️ {MECHANIC_DESC[mech.special]}</div>}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="dungeon-section-header dungeon-throne">🔥 燃燒王座</div>
-            <div className="compendium-grid monster-grid">
-              {BURNING_THRONE_ENEMIES.map(enemy => {
-                const info = DUNGEON_ENEMY_TYPE[enemy.id]
-                const mech = getEnemyMechanic(enemy.id)
-                const spriteScale = THRONE_SPRITE_TARGET_H / enemy.sprite.frameHeight
-                return (
-                  <div key={enemy.id} className="compendium-card monster-card dungeon-monster-card">
-                    <div className="cc-top-row">
-                      <span className="cc-tier-badge" style={{ color: info.color, borderColor: info.color + '60' }}>{info.label}</span>
-                      <span className="cc-tier-badge" style={{ color: '#ff8040', borderColor: '#ff804060', fontSize: 10 }}>🔥 {info.area}</span>
-                    </div>
-                    <div className="monster-sprite throne-monster-sprite">
-                      <SpriteAnimator sprite={enemy.sprite} state="idle" scale={spriteScale} />
-                    </div>
-                    <div className="cc-name">{enemy.name}</div>
-                    <div className="monster-stats">❤️ {enemy.hp} · ⚔️ {enemy.atk} · 🛡️ {enemy.def}</div>
-                    <div className="cc-desc"><b>{enemy.skill}</b></div>
-                    {mech && <div className="cc-desc monster-mech">⚙️ {MECHANIC_DESC[mech.special]}</div>}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="dungeon-section-header" style={{ background: 'linear-gradient(90deg, #0a1a40, #1060c0)', borderColor: '#2080e0' }}>🌊 黑潮深淵</div>
-            <div className="compendium-grid monster-grid">
-              {BLACK_TIDE_ENEMIES.map(enemy => {
-                const info = DUNGEON_ENEMY_TYPE[enemy.id]
-                const mech = getEnemyMechanic(enemy.id)
-                const spriteScale = BLACK_TIDE_SPRITE_TARGET_H / enemy.sprite.frameHeight
-                return (
-                  <div key={enemy.id} className="compendium-card monster-card dungeon-monster-card">
-                    <div className="cc-top-row">
-                      <span className="cc-tier-badge" style={{ color: info.color, borderColor: info.color + '60' }}>{info.label}</span>
-                      <span className="cc-tier-badge" style={{ color: '#40a0e0', borderColor: '#40a0e060', fontSize: 10 }}>🌊 {info.area}</span>
-                    </div>
-                    <div className="monster-sprite" style={{ minHeight: BLACK_TIDE_SPRITE_TARGET_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <SpriteAnimator sprite={enemy.sprite} state="idle" scale={spriteScale} />
-                    </div>
-                    <div className="cc-name">{enemy.name}</div>
-                    <div className="monster-stats">❤️ {enemy.hp} · ⚔️ {enemy.atk} · 🛡️ {enemy.def}</div>
-                    <div className="cc-desc"><b>{enemy.skill}</b></div>
-                    {mech && <div className="cc-desc monster-mech">⚙️ {MECHANIC_DESC[mech.special]}</div>}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="dungeon-section-header" style={{ background: 'linear-gradient(90deg, #2a0a00, #8a3010)', borderColor: '#c06020' }}>🔥 灰燼聖約</div>
-            <div className="compendium-grid monster-grid">
-              {ASH_COVENANT_ENEMIES.map(enemy => {
-                const info = DUNGEON_ENEMY_TYPE[enemy.id]
-                const mech = getEnemyMechanic(enemy.id)
-                const spriteScale = ASH_COVENANT_SPRITE_TARGET_H / enemy.sprite.frameHeight
-                return (
-                  <div key={enemy.id} className="compendium-card monster-card dungeon-monster-card">
-                    <div className="cc-top-row">
-                      <span className="cc-tier-badge" style={{ color: info.color, borderColor: info.color + '60' }}>{info.label}</span>
-                      <span className="cc-tier-badge" style={{ color: '#c07030', borderColor: '#c0703060', fontSize: 10 }}>🔥 {info.area}</span>
-                    </div>
-                    <div className="monster-sprite" style={{ minHeight: ASH_COVENANT_SPRITE_TARGET_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <SpriteAnimator sprite={enemy.sprite} state="idle" scale={spriteScale} />
-                    </div>
-                    <div className="cc-name">{enemy.name}</div>
-                    <div className="monster-stats">❤️ {enemy.hp} · ⚔️ {enemy.atk} · 🛡️ {enemy.def}</div>
-                    <div className="cc-desc"><b>{enemy.skill}</b></div>
-                    {mech && <div className="cc-desc monster-mech">⚙️ {MECHANIC_DESC[mech.special]}</div>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+                  {heroDetailTab === 'story' && (
+                    <div className="astral-codex-hero-detail-body">
+                      <div className="astral-codex-hero-info-title">進化階段</div>
+                      <div className="astral-codex-hero-evo-row">
+                        {[0, 1, 2, 3].map(tier => {
+                          const tierSprite = getHeroSprite(activeHero, tier)
+                          const tierScale = 56 / tierSprite.frameHeight
+                          return (
+                            <div key={tier} className={`astral-codex-hero-evo-figure${tier <= stars ? ' unlocked' : ''}${tier === stars ? ' current' : ''}`}>
+                              <div className="astral-codex-hero-evo-figure-sprite">
+                                <SpriteAnimator sprite={tierSprite} state="idle" scale={tierScale} idleFrame={0} />
+                              </div>
+                              <span>{tier === 0 ? '0★' : '★'.repeat(tier)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
 
-      </div>
+                      <div className="astral-codex-hero-info-title">英雄資訊</div>
+                      <div className="astral-codex-hero-info-grid">
+                        <div><span>身高</span><b>{activeHero.heightCm ? `${activeHero.heightCm} 公分` : '?'}</b></div>
+                        <div><span>年齡</span><b>{activeHero.age ?? '?'}</b></div>
+                        <div><span>體重</span><b>{activeHero.weightKg ? `${activeHero.weightKg} 公斤` : '?'}</b></div>
+                        <div><span>種族</span><b>{activeHero.race ?? '?'}</b></div>
+                        <div><span>角色</span><b><AsterVowIcon name={ROLE_ICON[activeHero.role] ?? 'nav-heroes'} size={13} /> {roleName(activeHero.role)}</b></div>
+                        <div><span>屬性</span><b style={activeHero.element ? { color: ELEMENT_COLOR[activeHero.element] ?? undefined } : undefined}>{activeHero.element ?? '?'}</b></div>
+                      </div>
+
+                      <div className="astral-codex-hero-info-title">故事</div>
+                      <p className="astral-codex-hero-story">{activeHero.story ?? '這位英雄的檔案仍在整理中。'}</p>
+                    </div>
+                  )}
+                  {heroDetailTab === 'abilities' && (
+                    <div className="astral-codex-hero-detail-body">
+                      <div className="astral-codex-detail-data">
+                        <div><span>生命</span><b>{totalHp}{totalHp !== activeHero.hp && <small> (基礎 {activeHero.hp})</small>}</b></div>
+                        <div><span>攻擊</span><b>{totalAtk}{totalAtk !== activeHero.atk && <small> (基礎 {activeHero.atk})</small>}</b></div>
+                        <div><span>防禦</span><b>{totalDef}{totalDef !== activeHero.def && <small> (基礎 {activeHero.def})</small>}</b></div>
+                        <div><span>目前等級</span><b>Lv.{level}</b></div>
+                      </div>
+                      <p className="astral-codex-hero-skill">
+                        <b>{activeHero.skill}</b>
+                        <span>{activeHero.desc}</span>
+                      </p>
+                      <div className="astral-codex-hero-detail-links">
+                        {onViewTalent && (
+                          <button onClick={() => onViewTalent(activeHero)}>
+                            <AsterVowIcon name="system-talent" size={15} /> 查看天賦
+                          </button>
+                        )}
+                        {onViewEquip && (
+                          <button onClick={() => onViewEquip(activeHero)}>
+                            <AsterVowIcon name="nav-equipment" size={15} /> 查看裝備
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+            </div>
+          )
+        })()}
+      </section>
     </div>
   )
 }

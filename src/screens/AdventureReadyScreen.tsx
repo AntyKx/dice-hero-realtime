@@ -629,7 +629,17 @@ export default function AdventureReadyScreen({
         </div>
       )}
 
-      {showCompendium && <CompendiumScreen onClose={() => setShowCompendium(false)} />}
+      {showCompendium && (
+        <CompendiumScreen
+          meta={meta}
+          onClose={() => setShowCompendium(false)}
+          // 故意不關閉圖鑑（不 setShowCompendium(false)）：天賦/裝備 Modal 疊在
+          // 圖鑑上面顯示（z-index 比圖鑑高），關掉天賦/裝備後圖鑑本來就還在
+          // 底下，會自然「回到圖鑑」而不是掉回大廳。
+          onViewTalent={FEATURE_FLAGS.talents ? hero => { setTalentViewHero(hero); setTalentPendingNode(null) } : undefined}
+          onViewEquip={FEATURE_FLAGS.equipment ? hero => { setEquipViewHero(hero) } : undefined}
+        />
+      )}
 
       {/* ── 立繪 Modal ── */}
       {portraitHero && (
