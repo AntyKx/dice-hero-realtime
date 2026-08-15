@@ -36,3 +36,34 @@ export function getEquipmentSlotIcon(slot: string): AsterVowIconName {
   if (slot === 'ring1' || slot === 'ring2') return 'equip-ring'
   return EQUIPMENT_SLOT_ICON[slot as EquipmentSlot] ?? 'nav-equipment'
 }
+
+/** 部位圖示配色，取自第二批裝備 ICON 匯入包的官方預覽圖（04_預覽/ASTERVOW_裝備圖示預覽.png）。 */
+export const EQUIPMENT_SLOT_ICON_COLOR: Record<EquipmentSlot, string> = {
+  weapon: '#e9b85c',
+  head: '#8db7ff',
+  body: '#8db7ff',
+  hands: '#db8cff',
+  boots: '#69c9aa',
+  ring: '#ffd36e',
+  accessory: '#c394ff',
+  armor: '#8db7ff',
+}
+
+export const LOADOUT_SLOT_ICON_COLOR: Record<LoadoutSlot, string> = {
+  weapon: '#e9b85c',
+  head: '#8db7ff',
+  body: '#8db7ff',
+  hands: '#db8cff',
+  boots: '#69c9aa',
+  ring1: '#ffd36e',
+  ring2: '#ffd36e',
+  accessory: '#c394ff',
+}
+
+/** equip-set（套裝/傳說寶箱）沿用武器/戒指同一組金色。 */
+export const EQUIP_SET_ICON_COLOR = '#e9b85c'
+
+export function getEquipmentSlotIconColor(slot: string): string {
+  if (slot === 'ring1' || slot === 'ring2') return '#ffd36e'
+  return EQUIPMENT_SLOT_ICON_COLOR[slot as EquipmentSlot] ?? '#8fb8e8'
+}

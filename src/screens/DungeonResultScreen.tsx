@@ -2,7 +2,7 @@ import type { DungeonDef, DungeonDifficulty } from '../dungeon'
 import type { Equipment } from '../types'
 import { ROLE_LABEL } from '../equipment'
 import AsterVowIcon from '../components/AsterVowIcon'
-import { EQUIPMENT_SLOT_ICON, CHEST_ICON } from '../equipmentIconMeta'
+import { EQUIPMENT_SLOT_ICON, CHEST_ICON, EQUIPMENT_SLOT_ICON_COLOR } from '../equipmentIconMeta'
 import { getDungeonIcon } from '../iconMeta'
 
 const CHEST_INFO: Record<DungeonDifficulty, { name: string; type: 'chest_normal' | 'chest_hero' | 'chest_legendary' }> = {
@@ -51,7 +51,7 @@ export default function DungeonResultScreen({
             {droppedItem && (
               <div className={`dr-reward-equip rarity-${droppedItem.rarity}`}>
                 <div className="dr-equip-name">
-                  <AsterVowIcon name={EQUIPMENT_SLOT_ICON[droppedItem.slot]} size={17} /> {droppedItem.name}
+                  <AsterVowIcon name={EQUIPMENT_SLOT_ICON[droppedItem.slot]} size={17} color={EQUIPMENT_SLOT_ICON_COLOR[droppedItem.slot]} /> {droppedItem.name}
                   {droppedItem.requiredRole && (
                     <span className="eir-role" style={{ marginLeft: 6 }}>{ROLE_LABEL[droppedItem.requiredRole]}</span>
                   )}

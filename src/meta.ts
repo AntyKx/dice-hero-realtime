@@ -54,6 +54,7 @@ export function defaultMeta(): MetaState {
     talentTreeSchemaVersion: TALENT_TREE_SCHEMA_VERSION,
     arenaInventory: [],
     arenaLoadouts: defaultArenaLoadouts(),
+    arenaGachaPityCount: 0,
     party: { leaderId: HEROES[0].id, supportIds: [null, null] },
   }
 }

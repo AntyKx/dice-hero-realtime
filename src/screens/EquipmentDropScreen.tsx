@@ -3,7 +3,7 @@ import type { Equipment, MetaState } from '../types'
 import { RARITY_LABEL, SLOT_LABEL, SALVAGE_VALUE, ROLE_LABEL, SET_DEFS } from '../equipment'
 import { INVENTORY_MAX } from '../types'
 import AsterVowIcon from '../components/AsterVowIcon'
-import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
+import { EQUIPMENT_SLOT_ICON, EQUIPMENT_SLOT_ICON_COLOR, EQUIP_SET_ICON_COLOR } from '../equipmentIconMeta'
 
 interface Props {
   item: Equipment
@@ -21,14 +21,14 @@ function ItemCard({ eq, selected, onClick }: { eq: Equipment; selected: boolean;
       onClick={onClick}
     >
       <div className="dic-slot-row">
-        <span className="dic-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[eq.slot]} size={22} /></span>
+        <span className="dic-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[eq.slot]} size={22} color={EQUIPMENT_SLOT_ICON_COLOR[eq.slot]} /></span>
         <span className="dic-slot-label">{SLOT_LABEL[eq.slot as keyof typeof SLOT_LABEL]}</span>
         <span className="dic-rarity">{RARITY_LABEL[eq.rarity]}</span>
       </div>
       <div className="dic-name">{eq.name}</div>
       {eq.requiredRole && (
         <div className="dic-role">
-          <AsterVowIcon name={eq.setId ? 'equip-set' : 'equip-weapon'} size={15} />
+          <AsterVowIcon name={eq.setId ? 'equip-set' : 'equip-weapon'} size={15} color={eq.setId ? EQUIP_SET_ICON_COLOR : EQUIPMENT_SLOT_ICON_COLOR.weapon} />
           {' '}{ROLE_LABEL[eq.requiredRole]} {eq.setId ? `套裝（${setName}）` : '職業專屬'}
         </div>
       )}

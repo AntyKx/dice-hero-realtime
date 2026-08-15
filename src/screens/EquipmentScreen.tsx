@@ -21,7 +21,7 @@ import {
 import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
 import ArenaEquipmentScreen from './ArenaEquipmentScreen'
 import AsterVowIcon from '../components/AsterVowIcon'
-import { CHEST_ICON, EQUIPMENT_SLOT_ICON, LOADOUT_SLOT_ICON } from '../equipmentIconMeta'
+import { CHEST_ICON, EQUIPMENT_SLOT_ICON, LOADOUT_SLOT_ICON, EQUIPMENT_SLOT_ICON_COLOR, LOADOUT_SLOT_ICON_COLOR, EQUIP_SET_ICON_COLOR } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -64,7 +64,7 @@ const ItemCard = memo(function ItemCard({
       onClick={handleClick}
     >
       {selectMode && !locked && <span className="eir-check">{checked ? '☑' : '☐'}</span>}
-      <span className="eir-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={18} /></span>
+      <span className="eir-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={18} color={EQUIPMENT_SLOT_ICON_COLOR[item.slot]} /></span>
       <span className="eir-name">
         {item.name}
         {(item.enhanceLevel ?? 0) > 0 && <span className="eir-enhance">+{item.enhanceLevel}</span>}
@@ -139,7 +139,7 @@ function ItemDetail({
   return (
     <div className={`item-detail rarity-${item.rarity}`}>
       <div className="id-header">
-        <span className="id-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={26} /></span>
+        <span className="id-slot-icon"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={26} color={EQUIPMENT_SLOT_ICON_COLOR[item.slot]} /></span>
         <div style={{ flex: 1 }}>
           <div className="id-name">
             {item.name}
@@ -152,7 +152,7 @@ function ItemDetail({
           </div>
           <div className="id-meta">
             {SLOT_LABEL[item.slot]} · {RARITY_LABEL[item.rarity]}
-            {item.requiredRole && <>{' · '}<AsterVowIcon name={item.setId ? 'equip-set' : 'equip-weapon'} size={13} /> {ROLE_LABEL[item.requiredRole]}{item.setId ? '套裝' : '專屬武器'}</>}
+            {item.requiredRole && <>{' · '}<AsterVowIcon name={item.setId ? 'equip-set' : 'equip-weapon'} size={13} color={item.setId ? EQUIP_SET_ICON_COLOR : EQUIPMENT_SLOT_ICON_COLOR.weapon} /> {ROLE_LABEL[item.requiredRole]}{item.setId ? '套裝' : '專屬武器'}</>}
           </div>
         </div>
         <button className="id-close" onClick={onClose}>✕</button>
@@ -537,7 +537,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
   }, [])
   const [filterSlot, setFilterSlot] = useState<EquipmentSlot | 'all'>('all')
   const [filterRole, setFilterRole] = useState<Role | 'all'>('all')
-  const [activeTab, setActiveTab] = useState<'equip' | 'talent' | 'items' | 'arena'>('equip')
+  const [activeTab, setActiveTab] = useState<'equip' | 'talent' | 'items'>('equip')
   const [openingChest, setOpeningChest] = useState<ChestType | null>(null)
   const [chestModalResult, setChestModalResult] = useState<{ equipment: Equipment[]; stardust: number } | null>(null)
   const [chestModalType, setChestModalType] = useState<ChestType | null>(null)
@@ -858,7 +858,6 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
           <div className="eq-tabs">
             <button className={`eq-tab ${activeTab === 'equip' ? 'active' : ''}`} onClick={() => setActiveTab('equip')}>裝備</button>
             <button className={`eq-tab ${activeTab === 'talent' ? 'active' : ''}`} onClick={() => setActiveTab('talent')}>天賦 & 成長</button>
-            <button className={`eq-tab ${activeTab === 'arena' ? 'active' : ''}`} onClick={() => setActiveTab('arena')}><AsterVowIcon name="nav-equipment" size={15} /> 即時制裝備</button>
             <button className={`eq-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
               道具
               {(meta.items ?? []).reduce((n, s) => n + s.count, 0) > 0 && (
@@ -873,9 +872,6 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
             <div className="eq-talent-container">
               <TalentTab heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
             </div>
-          )}
-          {activeTab === 'arena' && (
-            <ArenaEquipmentScreen heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
           )}
           {activeTab === 'items' && (
             <div className="eq-items-panel">
@@ -961,197 +957,9 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
               )}
             </div>
           )}
-          {activeTab === 'equip' && <div style={{display:'contents'}}>
-          {/* Hero equipment slots */}
-          <div className="eq-slots-panel">
-            <div className="eq-slots-title-row">
-              <span className="eq-slots-title">{(() => { const s = meta.heroProgress[selectedHeroId]?.stars ?? 0; return s > 0 ? (getHeroStarTitle(hero.id, s) ?? hero.name) : hero.name })()}{' '}裝備配置</span>
-              <button className="eq-auto-btn" onClick={autoEquipAll} title="自動穿上每個部位最強的裝備；若湊套裝（2件/4件）總體更強，會優先湊套裝">
-                <AsterVowIcon name="action-equip" size={16} /> 一鍵裝備
-              </button>
-            </div>
-            {(eqBonus.hpBonus > 0 || eqBonus.flatDamage > 0 || eqBonus.defBonus > 0 || setStatus.some(s => s.active2)) && (
-              <div className="eq-bonus-preview">
-                {(eqBonus.hpBonus > 0 || eqBonus.flatDamage > 0 || eqBonus.defBonus > 0) && (
-                  <span>
-                    裝備加成：
-                    {eqBonus.hpBonus > 0 ? ` HP +${eqBonus.hpBonus}` : ''}
-                    {eqBonus.flatDamage > 0 ? `  傷害 +${eqBonus.flatDamage}` : ''}
-                    {eqBonus.defBonus > 0 ? `  防禦 +${eqBonus.defBonus}` : ''}
-                  </span>
-                )}
-                {setStatus.filter(s => s.active2 || s.active4).map(s => (
-                  <span key={s.name} className="eq-bonus-set-tag">
-                    <AsterVowIcon name="equip-set" size={14} /> {s.name} {s.active4 ? '4件套' : '2件套'}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="eq-slots-row">
-              {LOADOUT_SLOTS.map(slot => {
-                const meta2 = LOADOUT_SLOT_META[slot]
-                const uid = loadout[slot]
-                const item = uid ? meta.inventory.find(e => e.uid === uid) : null
-                return (
-                  <div
-                    key={slot}
-                    className={`eq-slot rarity-${item?.rarity ?? 'empty'} ${selectedItem?.uid && selectedItem.uid === uid ? 'active-slot' : ''}`}
-                    onClick={() => { if (item) setSelectedItemUid(item.uid) }}
-                  >
-                    <div className="es-icon"><AsterVowIcon name={LOADOUT_SLOT_ICON[slot]} size={22} /></div>
-                    {item ? (
-                      <>
-                        <div className="es-name">
-                          {item.name}
-                          {(item.enhanceLevel ?? 0) > 0 && <span className="eir-enhance">+{item.enhanceLevel}</span>}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="es-empty">{meta2.label}</div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Set bonuses */}
-            {setStatus.length > 0 && (
-              <div className="eq-set-panel">
-                {setStatus.map(s => (
-                  <div key={s.id} className="eq-set-row">
-                    <div className="eq-set-head">
-                      <span className="eq-set-name">{s.name}</span>
-                      <span className="eq-set-count">{s.count}/4</span>
-                    </div>
-                    <div className={`eq-set-bonus ${s.active2 ? 'on' : ''}`}>(2) {s.desc2}</div>
-                    <div className={`eq-set-bonus ${s.active4 ? 'on' : ''}`}>(4) {s.desc4}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Inventory */}
-          <div className="eq-inventory">
-            <div className="eq-inv-header">
-              <div className="eq-inv-title-row">
-                <span className="eq-inv-title">背包</span>
-                <span className="eq-inv-count">{filteredInventory.length} / {INVENTORY_MAX}</span>
-                <div className="eq-sort-row">
-                  {(['rarity', 'slot', 'name'] as SortBy[]).map(s => (
-                    <button key={s} className={`eq-sort-btn ${sortBy === s ? 'active' : ''}`} onClick={() => setSortBy(s)}>
-                      {s === 'rarity' ? '品質' : s === 'slot' ? '部位' : '名稱'}
-                    </button>
-                  ))}
-                  <span className="eq-sort-stardust"><AsterVowIcon name="system-stardust" size={14} /> {meta.stardust}</span>
-                </div>
-              </div>
-              <div className="eq-filter-section">
-                <div className="eq-filter-row">
-                  <button
-                    className={`eq-filter-tab ${filterSlot === 'all' ? 'active' : ''}`}
-                    onClick={() => setFilterSlot('all')}
-                    title="全部部位"
-                  >全</button>
-                  {(['weapon', 'head', 'body', 'hands', 'boots', 'ring', 'accessory'] as EquipmentSlot[]).map(f => (
-                    <button
-                      key={f}
-                      className={`eq-filter-tab ${filterSlot === f ? 'active' : ''}`}
-                      onClick={() => setFilterSlot(prev => prev === f ? 'all' : f)}
-                      title={SLOT_LABEL[f]}
-                    >
-                      <AsterVowIcon name={EQUIPMENT_SLOT_ICON[f]} size={16} />
-                    </button>
-                  ))}
-                </div>
-                <div className="eq-filter-row">
-                  <button
-                    className={`eq-filter-tab ${filterRole === 'all' ? 'active' : ''}`}
-                    onClick={() => setFilterRole('all')}
-                    title="全職業"
-                  >職</button>
-                  {HEROES.map(h => (
-                    <button
-                      key={h.role}
-                      className={`eq-filter-tab role-tab ${filterRole === h.role ? 'active' : ''}`}
-                      onClick={() => setFilterRole(prev => prev === h.role ? 'all' : h.role)}
-                      title={h.name}
-                    >
-                      {h.name.slice(0, 2)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button
-                className={`eq-batch-btn ${selectMode ? 'active' : ''}`}
-                onClick={toggleSelectMode}
-              >
-                {selectMode ? '✕ 取消' : <><AsterVowIcon name="action-salvage" size={15} /> 批次分解</>}
-              </button>
-            </div>
-
-            {/* 批次分解工具列 */}
-            {selectMode && (
-              <div className="eq-batch-bar">
-                <span className="eq-batch-info">已選 {selectedUids.size} 件 · +{selectedSalvageValueMemo} <AsterVowIcon name="system-stardust" size={14} /></span>
-                <div className="eq-batch-actions">
-                  <button className="ghost" onClick={selectAllSalvageable}>全選(可分解)</button>
-                  <button className="ghost" onClick={() => setSelectedUids(new Set())}>清除</button>
-                  <button className="secondary" disabled={selectedUids.size === 0} onClick={batchSalvage}>
-                    分解 {selectedUids.size} 件
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {filteredInventory.length === 0 && (
-              <div className="eq-inv-empty">
-                {meta.inventory.length === 0 ? '背包空空如也，去冒險吧！' : '此類型沒有裝備'}
-              </div>
-            )}
-
-            <div className="eq-inv-list">
-              {sortedInventory.map(item => (
-                <ItemCard
-                  key={item.uid}
-                  item={item}
-                  selected={selectedItemUid === item.uid}
-                  equipped={isItemEquipped(item) || allEquippedUids.has(item.uid)}
-                  locked={isItemLocked(item)}
-                  selectMode={selectMode}
-                  checked={selectedUids.has(item.uid)}
-                  onSelect={handleSelectItem}
-                  onToggle={toggleSelectUid}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Item detail panel (bottom sheet on mobile) */}
-          {!selectMode && selectedItem && (
-            <>
-              <div className="eq-detail-backdrop" onClick={() => setSelectedItemUid(null)} />
-              <ItemDetail
-                item={selectedItem}
-                compareItem={compareItem}
-                heroRole={hero.role}
-                isEquipped={isItemEquipped(selectedItem)}
-                isLocked={isItemLocked(selectedItem)}
-                stardust={meta.stardust}
-                forgeDiscount={eqBonus.forgeDiscount}
-                onEquip={() => equipItem(selectedItem)}
-                onUnequip={() => unequipItem(selectedItem)}
-                onSalvage={() => salvageItem(selectedItem)}
-                onToggleLock={() => toggleLock(selectedItem.uid)}
-                onForgeReroll={(locked) => handleForgeReroll(selectedItem, locked)}
-                onForgeUpgrade={() => handleForgeUpgrade(selectedItem)}
-                onForgeEnhance={() => handleForgeEnhance(selectedItem)}
-                duplicateCount={getEnhanceDuplicates(selectedItem, meta.inventory).length}
-                onClose={() => setSelectedItemUid(null)}
-              />
-            </>
+          {activeTab === 'equip' && (
+            <ArenaEquipmentScreen heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
           )}
-          </div>}  {/* end equip tab */}
         </div>
       </div>
     </div>

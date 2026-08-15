@@ -198,14 +198,19 @@ function weightedPick<T>(weights: [T, number][]): T {
 // 關卡掉落固定 normal，特殊裝備（magic/rare/legendary）幾乎都要靠抽獎。
 // 武器欄位不限定目前選的英雄——11 個英雄的武器都可能抽到，是刻意的：
 // 玩家會切換英雄遊玩，抽獎理當幫全部英雄湊裝備，不是只服務當下這一個。
-export const GACHA_SINGLE_COST = 100
-export const GACHA_TEN_COST = 900 // 比單抽 ×10 便宜 10%
+// 原本這裡有一組金幣計價的抽獎（單抽100/十連900），2026-08 改成星界商城的
+// 星塵召喚（見下面 summonSingle/summonTen）後移除，避免同一個系統兩種入口
+// 兩種計價互相打架。
 const GACHA_RARITY_WEIGHTS: [ArenaEquipRarity, number][] = [
   ['normal', 50], ['magic', 32], ['rare', 14], ['legendary', 4],
 ]
 
-export function gachaPull(): ArenaEquipment {
-  const rarity = weightedPick(GACHA_RARITY_WEIGHTS)
+/** forceMinRarity 給值時，若隨機結果比它低就直接改用該檔位（只會往上墊，不會往下蓋）。 */
+export function gachaPull(forceMinRarity?: ArenaEquipRarity): ArenaEquipment {
+  let rarity = weightedPick(GACHA_RARITY_WEIGHTS)
+  if (forceMinRarity && RARITY_ORDER.indexOf(rarity) < RARITY_ORDER.indexOf(forceMinRarity)) {
+    rarity = forceMinRarity
+  }
   const slot = ARENA_EQUIP_SLOTS[Math.floor(Math.random() * ARENA_EQUIP_SLOTS.length)]
   if (slot === 'weapon') {
     const randomHeroId = WEAPON_DEFS[Math.floor(Math.random() * WEAPON_DEFS.length)].heroId
@@ -214,8 +219,43 @@ export function gachaPull(): ArenaEquipment {
   return generateUniversalItem(slot, rarity)
 }
 
-export function gachaPullTen(): ArenaEquipment[] {
-  return Array.from({ length: 10 }, () => gachaPull())
+// ── 星界商城「裝備召喚」（2026-08）：跟上面的金幣抽獎共用 gachaPull()，
+// 星塵計價，額外疊加兩層保底——累積抽數保底（40 抽必出橙裝，橫跨單抽/十連
+// 累計）跟十連保底（每次十連保證至少一件紫裝以上，不夠格時直接把第十抽墊
+// 到保底門檻，不額外多開第十一件）。pity 計數存在 MetaState.arenaGachaPityCount。
+export const SUMMON_SINGLE_COST_STARDUST = 200
+export const SUMMON_TEN_COST_STARDUST = 1800 // 比單抽 ×10 便宜 10%
+export const SUMMON_TEN_GUARANTEE_RARITY: ArenaEquipRarity = 'rare'
+export const SUMMON_PITY_THRESHOLD = 40
+export const SUMMON_PITY_RARITY: ArenaEquipRarity = 'legendary'
+
+function meetsRarityFloor(rarity: ArenaEquipRarity, floor: ArenaEquipRarity): boolean {
+  return RARITY_ORDER.indexOf(rarity) >= RARITY_ORDER.indexOf(floor)
+}
+
+/** 單抽版本：pityCountBefore 是抽這次之前的累積抽數。 */
+export function summonSingle(pityCountBefore: number): { item: ArenaEquipment; pityCountAfter: number } {
+  const reachedPity = pityCountBefore + 1 >= SUMMON_PITY_THRESHOLD
+  const item = gachaPull(reachedPity ? SUMMON_PITY_RARITY : undefined)
+  const pityCountAfter = meetsRarityFloor(item.rarity, SUMMON_PITY_RARITY) ? 0 : pityCountBefore + 1
+  return { item, pityCountAfter }
+}
+
+/** 十連版本：逐抽模擬（不是十抽完再統一判斷），保底結果直接墊在第十抽。 */
+export function summonTen(pityCountBefore: number): { items: ArenaEquipment[]; pityCountAfter: number } {
+  const items: ArenaEquipment[] = []
+  let pity = pityCountBefore
+  for (let i = 0; i < 10; i++) {
+    const reachedPity = pity + 1 >= SUMMON_PITY_THRESHOLD
+    let forceMin: ArenaEquipRarity | undefined = reachedPity ? SUMMON_PITY_RARITY : undefined
+    const isLastPull = i === 9
+    const alreadyHasGuarantee = items.some(it => meetsRarityFloor(it.rarity, SUMMON_TEN_GUARANTEE_RARITY))
+    if (isLastPull && !alreadyHasGuarantee && !forceMin) forceMin = SUMMON_TEN_GUARANTEE_RARITY
+    const item = gachaPull(forceMin)
+    pity = meetsRarityFloor(item.rarity, SUMMON_PITY_RARITY) ? 0 : pity + 1
+    items.push(item)
+  }
+  return { items, pityCountAfter: pity }
 }
 
 // ── 加成加總 + 套用進 ArenaConfig ────────────────────────────────────────

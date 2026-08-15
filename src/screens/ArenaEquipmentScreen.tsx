@@ -5,10 +5,9 @@ import {
   type ArenaEquipment, type ArenaLoadoutSlot,
   ARENA_LOADOUT_SLOTS, ARENA_RARITY_COLOR,
   getEquippedArenaItems,
-  gachaPull, gachaPullTen, GACHA_SINGLE_COST, GACHA_TEN_COST,
 } from '../arena/equipment'
 import AsterVowIcon from '../components/AsterVowIcon'
-import { getEquipmentSlotIcon } from '../equipmentIconMeta'
+import { getEquipmentSlotIcon, getEquipmentSlotIconColor } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -45,12 +44,12 @@ function ItemRow({ item, onClick, tag }: { item: ArenaEquipment; onClick?: () =>
   )
 }
 
-/** 即時制裝備（2026-08 裝備系統重整）：內嵌在既有「英雄 & 裝備」畫面
+/** 裝備（2026-08 裝備系統重整）：內嵌在既有「英雄 & 裝備」畫面
  *  （EquipmentScreen.tsx）的一個分頁，不再是獨立頁面——英雄選擇沿用外層
- *  畫面左側的英雄清單，這裡只負責裝備欄位/倉庫/抽獎本身。 */
+ *  畫面左側的英雄清單，這裡只負責裝備欄位/倉庫本身；金幣抽獎（2026-08）
+ *  已移除，改成星界商城的「命運者遺贈」星塵召喚，見 AstralShopScreen.tsx。 */
 export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Props) {
   const [pickingSlot, setPickingSlot] = useState<ArenaLoadoutSlot | null>(null)
-  const [gachaResult, setGachaResult] = useState<ArenaEquipment[] | null>(null)
 
   const hero = HEROES.find(h => h.id === heroId) ?? HEROES[0]
   const inventory = meta.arenaInventory ?? []
@@ -84,32 +83,8 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
     return inventory.filter(i => i.slot === itemSlot && (i.slot !== 'weapon' || i.heroRole === hero.role))
   }
 
-  function doGacha(count: 1 | 10) {
-    const cost = count === 1 ? GACHA_SINGLE_COST : GACHA_TEN_COST
-    if (meta.gold < cost) return
-    const pulled = count === 1 ? [gachaPull()] : gachaPullTen()
-    onMetaUpdate(m => ({
-      ...m,
-      gold: m.gold - cost,
-      arenaInventory: [...(m.arenaInventory ?? []), ...pulled],
-    }))
-    setGachaResult(pulled)
-  }
-
   return (
     <div className="aeq-panel">
-      <div className="aeq-gacha-panel">
-        <div className="aeq-gacha-title"><AsterVowIcon name="system-gift" size={18} /> 裝備抽獎 <span className="aeq-gacha-hint">特殊裝備（魔法／稀有／傳說）幾乎都要靠抽獎，關卡掉落只會是普通品質；抽獎不限職業，11 位英雄的武器都可能抽到</span></div>
-        <div className="aeq-gacha-btns">
-          <button className="ghost" onClick={() => doGacha(1)} disabled={meta.gold < GACHA_SINGLE_COST}>
-            單抽 <AsterVowIcon name="system-gold" size={14} />{GACHA_SINGLE_COST}
-          </button>
-          <button className="ghost" onClick={() => doGacha(10)} disabled={meta.gold < GACHA_TEN_COST}>
-            十連抽 <AsterVowIcon name="system-gold" size={14} />{GACHA_TEN_COST}
-          </button>
-        </div>
-      </div>
-
       <div className="aeq-loadout-grid">
         {ARENA_LOADOUT_SLOTS.map(slot => {
           const itemId = loadout[slot]
@@ -121,7 +96,7 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
               style={item ? { borderColor: `${ARENA_RARITY_COLOR[item.rarity]}88` } : undefined}
               onClick={() => item ? unequip(slot) : setPickingSlot(slot)}
             >
-              <span className="aeq-slot-icon"><AsterVowIcon name={getEquipmentSlotIcon(slot)} size={21} /></span>
+              <span className="aeq-slot-icon"><AsterVowIcon name={getEquipmentSlotIcon(slot)} size={21} color={getEquipmentSlotIconColor(slot)} /></span>
               <span className="aeq-slot-label">{SLOT_LABEL[slot]}</span>
               {item ? (
                 <>
@@ -140,7 +115,7 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
       <div className="aeq-inventory">
         <div className="aeq-inventory-title">倉庫（{inventory.length}）</div>
         <div className="aeq-inventory-list">
-          {inventory.length === 0 && <p className="aeq-empty-hint">還沒有任何即時制裝備——通關森林遺跡關卡或使用上方抽獎取得。</p>}
+          {inventory.length === 0 && <p className="aeq-empty-hint">還沒有任何裝備——通關森林遺跡關卡，或到星界商城的「命運者遺贈」召喚取得。</p>}
           {inventory.map(item => (
             <ItemRow key={item.id} item={item} tag={equippedIds.has(item.id) ? '（裝備中）' : undefined} />
           ))}
@@ -162,17 +137,6 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
         </div>
       )}
 
-      {gachaResult && (
-        <div className="aeq-picker-overlay" onClick={() => setGachaResult(null)}>
-          <div className="aeq-picker-modal" onClick={e => e.stopPropagation()}>
-            <div className="aeq-picker-title">抽獎結果</div>
-            <div className="aeq-picker-list">
-              {gachaResult.map((item, i) => <ItemRow key={item.id + i} item={item} />)}
-            </div>
-            <button className="ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setGachaResult(null)}>關閉</button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1502,7 +1502,7 @@ export default function App() {
   // 取名 astral_shop 避免撞名）：大廳「商店」磚/抽屜入口的全頁畫面，UI
   // 原型，目前沒有真實商城後端，離開時導回大廳。
   if (phase.type === 'astral_shop') {
-    return <AstralShopScreen meta={meta} onBack={() => setPhase({ type: 'adventure_ready' })} />
+    return <AstralShopScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'adventure_ready' })} />
   }
 
 

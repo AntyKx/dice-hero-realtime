@@ -1,25 +1,24 @@
 import { useEffect, useState } from 'react'
-import { ALL_RELICS } from '../relics'
 import { ALL_BUFF_CARDS } from '../buffCards'
 import { ALL_POTIONS } from '../potions'
-import { ENEMIES } from '../data'
+import { ENEMIES, HEROES } from '../data'
 import { getEnemyMechanic, MECHANIC_DESC } from '../bosses'
+import { ARENA_RELICS, ARENA_WEAPON_RELICS, type ArenaRelic } from '../arena/relics'
 import SpriteAnimator from '../components/SpriteAnimator'
+import AsterVowIcon from '../components/AsterVowIcon'
 import type { Role } from '../types'
 
 const ROLE_LABEL: Record<string, string> = {
   slash: '聖騎士', fire: '火焰法師', holy: '神官祭司',
   shadow: '影刃刺客', ice: '皇家公主', arrow: '遊俠獵人',
   hammer: '矮人戰士', song: '吟遊詩人', beast: '獸語馴獸師', gear: '機關技師',
-  fighter: '武鬥家',
+  fighter: '武鬥家', death: '死靈騎士',
 }
 const ROLE_COLOR: Record<string, string> = {
   slash: '#6090ff', fire: '#ff6030', holy: '#ffd36e', shadow: '#a060ff',
   ice: '#60d0ff', arrow: '#80e060', hammer: '#c09050', song: '#ff90c0',
-  beast: '#a0703a', gear: '#80a0c0', fighter: '#e07830',
+  beast: '#a0703a', gear: '#80a0c0', fighter: '#e07830', death: '#9a78c8',
 }
-const TIER_LABEL: Record<string, string> = { common: '普通', rare: '稀有', boss: 'BOSS' }
-const TIER_COLOR: Record<string, string> = { common: '#8090a8', rare: '#6db8ff', boss: '#ffd36e' }
 const RARITY_LABEL: Record<string, string> = { common: '普通', rare: '稀有', epic: '史詩' }
 const RARITY_COLOR: Record<string, string> = { common: '#8090a8', rare: '#6db8ff', epic: '#d080ff' }
 const CHAPTER_TAG: Record<number, { label: string; color: string }> = {
@@ -152,9 +151,14 @@ const THRONE_SPRITE_TARGET_H         = 140
 const BLACK_TIDE_SPRITE_TARGET_H     = 130
 const ASH_COVENANT_SPRITE_TARGET_H   = 140
 
+/** 即時制武器專屬遺物的 weaponTag 是 `{heroId}_weapon`，反推回 heroId 用來顯示英雄名稱/篩選。 */
+function heroIdFromWeaponTag(tag?: string): string | undefined {
+  return tag?.replace(/_weapon$/, '')
+}
+
 export default function CompendiumScreen({ onClose }: { onClose: () => void }) {
   const [tab, setTab]                = useState<MainTab>('relics')
-  const [roleFilter, setRoleFilter]  = useState<'all' | 'universal' | Role>('all')
+  const [relicHeroFilter, setRelicHeroFilter] = useState<'all' | 'universal' | string>('all')
   const [rarityFilter, setRarityFilter] = useState<'all' | 'common' | 'rare' | 'epic'>('all')
   const [cardRoleFilter, setCardRoleFilter] = useState<'all' | 'universal' | Role>('all')
 
@@ -165,10 +169,18 @@ export default function CompendiumScreen({ onClose }: { onClose: () => void }) {
     return () => { document.body.style.overflow = prevOverflow }
   }, [])
 
-  const filteredRelics = ALL_RELICS.filter(r => {
-    if (roleFilter === 'all') return true
-    if (roleFilter === 'universal') return !r.requiredRole
-    return r.requiredRole === roleFilter
+  // 遺物圖鑑改接即時制遺物（arena/relics.ts，2026-08）：回合制 relics.ts 那套
+  // 現在打不到（FEATURE_FLAGS.turnBasedMainline=false），圖鑑列出的東西玩家
+  // 永遠不會真的拿到，改成列出打 Arena Boss 真的會掉的 17 個（6 通用 + 11
+  // 英雄武器專屬）。
+  const allArenaRelics: (ArenaRelic & { heroId?: string })[] = [
+    ...ARENA_RELICS,
+    ...ARENA_WEAPON_RELICS.map(r => ({ ...r, heroId: heroIdFromWeaponTag(r.weaponTag) })),
+  ]
+  const filteredRelics = allArenaRelics.filter(r => {
+    if (relicHeroFilter === 'all') return true
+    if (relicHeroFilter === 'universal') return !r.weaponTag
+    return r.heroId === relicHeroFilter
   })
   const filteredCards = ALL_BUFF_CARDS.filter(c => {
     const rarityOK = rarityFilter === 'all' || c.rarity === rarityFilter
@@ -193,40 +205,34 @@ export default function CompendiumScreen({ onClose }: { onClose: () => void }) {
           <button className={`modal-tab ${tab === 'dungeon_monsters' ? 'active' : ''}`} onClick={() => setTab('dungeon_monsters')}>🏰 副本怪物</button>
         </div>
 
-        {/* Relics */}
+        {/* Relics（即時制 arena/relics.ts，2026-08 改接） */}
         {tab === 'relics' && (
           <>
             <div className="compendium-filters">
-              <button className={`cf-btn ${roleFilter === 'all' ? 'active' : ''}`}       onClick={() => setRoleFilter('all')}>全部</button>
-              <button className={`cf-btn ${roleFilter === 'universal' ? 'active' : ''}`} onClick={() => setRoleFilter('universal')}>通用</button>
-              {ALL_ROLES.map(r => (
-                <button key={r} className={`cf-btn ${roleFilter === r ? 'active' : ''}`}
-                  style={roleFilter === r ? { borderColor: ROLE_COLOR[r], color: ROLE_COLOR[r] } : {}}
-                  onClick={() => setRoleFilter(r)}>{ROLE_LABEL[r]}</button>
+              <button className={`cf-btn ${relicHeroFilter === 'all' ? 'active' : ''}`}       onClick={() => setRelicHeroFilter('all')}>全部</button>
+              <button className={`cf-btn ${relicHeroFilter === 'universal' ? 'active' : ''}`} onClick={() => setRelicHeroFilter('universal')}>通用</button>
+              {HEROES.map(hero => (
+                <button key={hero.id} className={`cf-btn ${relicHeroFilter === hero.id ? 'active' : ''}`}
+                  style={relicHeroFilter === hero.id ? { borderColor: ROLE_COLOR[hero.role], color: ROLE_COLOR[hero.role] } : {}}
+                  onClick={() => setRelicHeroFilter(hero.id)}>{hero.name}</button>
               ))}
             </div>
             <div className="compendium-grid">
-              {filteredRelics.map(relic => (
-                <div key={relic.id} className="compendium-card">
-                  <div className="cc-top-row">
-                    <span className="cc-tier-badge" style={{ color: TIER_COLOR[relic.tier], borderColor: TIER_COLOR[relic.tier] + '60' }}>{TIER_LABEL[relic.tier]}</span>
-                    {relic.requiredRole && (
-                      <span className="cc-role-badge" style={{ color: ROLE_COLOR[relic.requiredRole], borderColor: ROLE_COLOR[relic.requiredRole] + '60' }}>{ROLE_LABEL[relic.requiredRole]}</span>
-                    )}
-                  </div>
-                  <div className="cc-name">💎 {relic.name}</div>
-                  {relic.levelData ? (
-                    <div className="cc-level-list">
-                      <div className="cc-level-row"><span className="cc-level-tag">Lv1</span>{relic.desc}</div>
-                      {relic.levelData.map((ld, i) => (
-                        <div key={i} className="cc-level-row"><span className="cc-level-tag">Lv{i + 2}</span>{ld.desc}</div>
-                      ))}
+              {filteredRelics.map(relic => {
+                const hero = relic.heroId ? HEROES.find(h => h.id === relic.heroId) : undefined
+                const badgeColor = hero ? ROLE_COLOR[hero.role] : '#8090a8'
+                return (
+                  <div key={relic.id} className="compendium-card">
+                    <div className="cc-top-row">
+                      <span className="cc-tier-badge" style={{ color: badgeColor, borderColor: badgeColor + '60' }}>
+                        {hero ? `${hero.name}專屬` : '通用'}
+                      </span>
                     </div>
-                  ) : (
+                    <div className="cc-name"><AsterVowIcon name="equip-set" size={14} /> {relic.name}</div>
                     <div className="cc-desc">{relic.desc}</div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           </>
         )}

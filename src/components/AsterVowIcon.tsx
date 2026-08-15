@@ -31,6 +31,8 @@ interface Props {
   name: AsterVowIconName
   size?: number
   className?: string
+  /** 覆蓋 currentColor，例如裝備部位圖示依部位上色（見 equipmentIconMeta.ts）。 */
+  color?: string
 }
 
 const STROKE_PROPS = {
@@ -45,6 +47,44 @@ const EMBLEM_NAMES = new Set<AsterVowIconName>([
   'chapter-forest', 'chapter-rift', 'chapter-deep-sea',
   'dungeon-burning-throne', 'dungeon-ash-covenant', 'dungeon-star-eclipse', 'dungeon-black-tide',
 ])
+
+/**
+ * 各圖示的預設配色，取自第一批圖示匯入包的官方預覽圖（ASTERVOW_圖示預覽.png，
+ * 2026-08）。呼叫端沒有另外傳 color 時套用這裡的值；有傳 color 就以呼叫端為準
+ * （例如裝備部位圖示走 equipmentIconMeta.ts 自己的配色表）。nav-*／role-* 不在
+ * 這裡設定：nav-* 目前靠 CSS class（active/inactive）決定顏色，硬套 inline
+ * style 會蓋掉那個狀態色；role-* 已經在 iconMeta.ts 的 ROLE_ICON_META 用相同
+ * 色碼由呼叫端包一層 currentColor 容器套用，不用重複設定；chapter-*／dungeon-*
+ * 也不在這裡設定——大廳章節卡/地城卡本來就各自有自己的主題色
+ * （LOBBY_CHAPTERS[].color／DUNGEON_DEFS[].color），靠外層 wrapper 的
+ * `color:` style 動態染色（同一個 icon name 依目前選中的章節/地城換色），
+ * 這裡若硬套固定色會蓋掉那個既有機制，讓圖示變成跟主題色不同步的死色。
+ *
+ * 同理排除 stage-boss／system-stardust／system-gift／system-cloud／
+ * system-settings：這幾個名字被多處既有 UI 重複借用，而且各自已經有
+ * 明確、彼此不一致的既定配色（例如 stage-boss 在 Arena 擊敗 Boss 橫幅
+ * 是亮金 #ffd94a、在關卡資訊列又是橙色 #ffb090；system-stardust 全遊戲
+ * 幾乎都跟金幣共用同一組金色文字；system-gift/cloud/settings 在抽屜選單
+ * 靠 `.av-drawer-item > svg { color: var(--av-gold) }` 統一套金色）。硬套
+ * 預覽圖給的單一顏色會蓋掉這些既有樣式，造成規模不小的視覺回歸，所以
+ * 這幾個先不給預設色，維持原本靠外層 context 決定顏色的行為。
+ */
+const ICON_DEFAULT_COLOR: Partial<Record<AsterVowIconName, string>> = {
+  'stage-elimination': '#f2c56e',
+  'stage-survival': '#8fd5ff',
+  'stage-defense': '#79b2ff',
+  'stage-hunt': '#77db9a',
+  'stage-destroy': '#ff8468',
+  'stage-collection': '#e4c3fe',
+  'stage-escape': '#73d7d0',
+  'system-player': '#b9cce8',
+  'system-gold': '#ffd36e',
+  'system-lock': '#ff9a68',
+  'system-leaderboard': '#f2c56e',
+  'system-warning': '#ff8b68',
+  'system-clock': '#80d1cf',
+  'system-talent': '#d3abff',
+}
 
 const ICON_PATHS: Record<AsterVowIconName, JSX.Element> = {
   'stage-elimination': <g {...STROKE_PROPS}><path d="M5 3l6.5 6.5M19 3l-6.5 6.5M9.5 11.5L4 17l3 3 5.5-5.5M14.5 11.5L20 17l-3 3-5.5-5.5"/><path d="M4 17l-1 3 3-1M20 17l1 3-3-1"/></g>,
@@ -131,14 +171,16 @@ const ICON_PATHS: Record<AsterVowIconName, JSX.Element> = {
   'shop-close': <g {...STROKE_PROPS}><path d="M5 5l14 14M19 5L5 19"/></g>,
 }
 
-export default function AsterVowIcon({ name, size = 20, className }: Props) {
+export default function AsterVowIcon({ name, size = 20, className, color }: Props) {
   const isEmblem = EMBLEM_NAMES.has(name)
+  const resolvedColor = color ?? ICON_DEFAULT_COLOR[name]
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
       className={className}
+      style={resolvedColor ? { color: resolvedColor } : undefined}
       aria-hidden="true"
       focusable="false"
     >

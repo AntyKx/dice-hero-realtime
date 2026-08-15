@@ -7,7 +7,7 @@ import {
   forgeReroll, forgeUpgrade,
 } from '../equipment'
 import AsterVowIcon from '../components/AsterVowIcon'
-import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
+import { EQUIPMENT_SLOT_ICON, EQUIPMENT_SLOT_ICON_COLOR } from '../equipmentIconMeta'
 
 interface Props {
   meta: MetaState
@@ -27,7 +27,7 @@ function ItemMini({ item, selected, onClick }: {
       className={`forge-item rarity-${item.rarity} ${selected ? 'selected' : ''}`}
       onClick={onClick}
     >
-      <span className="fi-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={19} /></span>
+      <span className="fi-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[item.slot]} size={19} color={EQUIPMENT_SLOT_ICON_COLOR[item.slot]} /></span>
       <div className="fi-info">
         <div className="fi-name">{item.name}</div>
         <div className="fi-rarity">{RARITY_LABEL[item.rarity]}</div>
@@ -95,7 +95,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
                 className={`eq-filter-tab ${filterSlot === f ? 'active' : ''}`}
                 onClick={() => setFilterSlot(f)}
               >
-                {f === 'all' ? '全部' : <AsterVowIcon name={EQUIPMENT_SLOT_ICON[f]} size={16} />}
+                {f === 'all' ? '全部' : <AsterVowIcon name={EQUIPMENT_SLOT_ICON[f]} size={16} color={EQUIPMENT_SLOT_ICON_COLOR[f]} />}
               </button>
             ))}
           </div>
@@ -130,7 +130,7 @@ export default function ForgeScreen({ meta, onMetaUpdate, onBack }: Props) {
               {/* Item detail */}
               <div className={`forge-detail rarity-${selected.rarity}`}>
                 <div className="fd-header">
-                  <span className="fd-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[selected.slot]} size={28} /></span>
+                  <span className="fd-slot"><AsterVowIcon name={EQUIPMENT_SLOT_ICON[selected.slot]} size={28} color={EQUIPMENT_SLOT_ICON_COLOR[selected.slot]} /></span>
                   <div>
                     <div className="fd-name">{selected.name}</div>
                     <div className="fd-meta">{RARITY_LABEL[selected.rarity]}{selected.requiredRole && <> · <AsterVowIcon name="equip-set" size={13} /> {ROLE_LABEL[selected.requiredRole]}套裝</>}</div>

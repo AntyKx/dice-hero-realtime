@@ -583,6 +583,12 @@ export type HeroProgress = {
   talentPoints: number        // 新天賦系統：可花費的點數，跟這個英雄自己綁定
   allocatedTalentIds: string[] // 新天賦系統：已點亮的節點 id（src/arena/arenaTalents.ts 的 ArenaTalentNode.id）
   ownedRelicIds: string[]     // Arena 遺物永久收藏（2026-08）：跨局持有，開局自動套用效果，見 src/arena/relics.ts
+  /** 星界商城「遺物召喚」保底計數（2026-08），分英雄記錄——跟 ownedRelicIds/
+   * 武器專屬遺物池都是分英雄的，保底邏輯自然也該跟著英雄走，不用全域計數。
+   * relicSummonPityCount：累積抽數，抽到未持有的新遺物就歸零。
+   * relicSummonDupStreak：連續抽到已持有的次數，抽到新的就歸零。 */
+  relicSummonPityCount?: number
+  relicSummonDupStreak?: number
 }
 
 export type TalentBonus = {
@@ -768,6 +774,11 @@ export type MetaState = {
    * 空物件，不需要 migration（本來就沒有舊資料可搬）。 */
   arenaInventory?: import('./arena/equipment').ArenaEquipment[]
   arenaLoadouts?: Record<string, import('./arena/equipment').ArenaLoadout>
+  /** 星界商城「裝備召喚」抽卡保底計數（2026-08）：即時制裝備不分英雄
+   * （全英雄共用倉庫），保底計數也全域一份即可。純新增選填欄位，舊存檔
+   * 沒有時視同 0，不需要 migration。抽中橙裝(legendary)後歸零。
+   * 「遺物召喚」的保底計數是分英雄的，見 HeroProgress.relicSummonPityCount。 */
+  arenaGachaPityCount?: number
   /** 出戰陣容（2026-08，見 src/party.ts）：隊長（slot 0）＝目前實際出戰、
    * 傳給 ArenaConfig 的英雄，跟大廳選英雄是同一件事；2 位支援只提供
    * computePartyBonus() 算出的加成，不進入戰鬥。純新增選填欄位，舊存檔

@@ -42,6 +42,7 @@ export function defaultHeroProgress(): HeroProgress {
   return {
     level: 1, exp: 0, stars: 0, runsCompleted: 0, runsWon: 0, selectedTalents: {},
     talentPoints: 0, allocatedTalentIds: [], ownedRelicIds: [],
+    relicSummonPityCount: 0, relicSummonDupStreak: 0,
   }
 }
 

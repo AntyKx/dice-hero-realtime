@@ -19,7 +19,7 @@ import { getStageProgress, isStageUnlocked } from '../campaign/campaignProgress'
 import { StarRow } from './CampaignMapScreen'
 import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
 import { CHAPTER_ICON, getDungeonIcon, ROLE_ICON_META } from '../iconMeta'
-import { EQUIPMENT_SLOT_ICON } from '../equipmentIconMeta'
+import { EQUIPMENT_SLOT_ICON, EQUIPMENT_SLOT_ICON_COLOR } from '../equipmentIconMeta'
 
 export type AdventureStartConfig =
   | { campaign: 'main';        heroId: string; routeType: RouteType }
@@ -690,7 +690,7 @@ export default function AdventureReadyScreen({
                         borderRadius: 10, padding: '10px 12px',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                          <span style={{ fontSize: '0.7rem', color: '#5070a0', display: 'inline-flex', alignItems: 'center', gap: 4 }}><AsterVowIcon name={EQUIPMENT_SLOT_ICON[slot]} size={14} /> {SLOT_LABEL[slot]}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#5070a0', display: 'inline-flex', alignItems: 'center', gap: 4 }}><AsterVowIcon name={EQUIPMENT_SLOT_ICON[slot]} size={14} color={EQUIPMENT_SLOT_ICON_COLOR[slot]} /> {SLOT_LABEL[slot]}</span>
                           <span style={{ fontSize: '0.68rem', color: RARITY_COLOR[item.rarity], fontWeight: 700 }}>
                             {RARITY_LABEL[item.rarity]}
                           </span>
