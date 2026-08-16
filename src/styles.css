@@ -5116,21 +5116,19 @@ h1, h2, h3, p { margin: 0; }
 }
 .cms-milestone-label { font-size: 0.68rem; color: #88a0c0; }
 
-/* 關卡地圖 2026-08 視覺重做：左右交錯往上爬的蜿蜒路徑，取代直式/雙欄清單 */
-.cms-map { position: relative; padding: 30px 16px 40px; }
-.cms-map-stage { position: relative; display: flex; align-items: center; margin-bottom: 22px; min-height: 64px; }
-/* 用 justify-content:flex-end/flex-start 把節點推到那一排的最右/最左（留一點
-   padding 當邊界），不是「往中間偏一點」——原本用 padding-left:44% 只比正中央
-   偏移了幾像素，跟 center 幾乎長得一樣，蛇形效果等於沒做出來。 */
-.cms-map-stage.right { justify-content: flex-end; padding-right: 6%; }
-.cms-map-stage.left { justify-content: flex-start; padding-left: 6%; }
-.cms-map-stage.center { justify-content: center; }
-.cms-map-connector { position: absolute; left: 0; right: 0; bottom: 100%; width: 100%; height: 22px; overflow: visible; }
-.cms-map-connector line { stroke: rgba(255,255,255,.2); stroke-width: 2; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
-.cms-map-connector.lit line { stroke: #ffd94a; }
+/* 關卡地圖 2026-08 節點對位重做：4 張手繪地圖（每張 5 關）直接當每段背景，
+   節點貼著圖上量好的空地座標用絕對定位疊上去，取代先前純 CSS 畫的蛇形路徑。
+   石板小徑是圖裡畫好的，不用再疊一層連接線。 */
+.cms-map { position: relative; display: flex; flex-direction: column; gap: 0; padding: 8px 0 24px; }
+.cms-map-segment {
+  position: relative; width: 100%; aspect-ratio: 1024 / 1536;
+  background-size: 100% 100%; background-repeat: no-repeat; background-position: center;
+  border-radius: 10px; overflow: hidden;
+}
 
 .cms-map-node {
-  position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: absolute; transform: translate(-50%, -50%); z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
   background: none; border: none; color: inherit; padding: 0; cursor: pointer;
 }
 .cms-map-badge {

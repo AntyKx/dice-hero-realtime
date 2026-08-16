@@ -35,7 +35,7 @@ const PORTRAIT_POSITION: Record<string, string> = {
   archer: '57% 15%',
   dwarf: '43% 22%',
   bard: '48% 15%',
-  death_knight: '50% 12%',
+  death_knight: '55% 18%',
   engineer: '42% 15%',
   fighter: '46% 15%',
 }

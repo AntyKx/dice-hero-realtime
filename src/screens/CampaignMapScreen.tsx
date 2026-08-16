@@ -20,11 +20,22 @@ const OBJECTIVE_ICON: Record<StageObjectiveType, AsterVowIconName> = {
   elimination: 'stage-elimination', survival: 'stage-survival', defense: 'stage-defense', hunt: 'stage-hunt',
   destroy: 'stage-destroy', collection: 'stage-collection', escape: 'stage-escape', boss: 'stage-boss',
 }
-// 蜿蜒路徑左右交錯的位置循環，跟星界圖鑑預覽用的排法一致
-const MAP_POSITIONS = ['center', 'right', 'left', 'right', 'left', 'center'] as const
-// 節點實際貼齊的橫向位置粗略換算成 0-100 座標，連接線斜著畫過去對到節點，
-// 不能寫死在正中央——上一版連線固定在 50%，節點改成貼邊之後線就對不上了。
-const MAP_POS_X: Record<(typeof MAP_POSITIONS)[number], number> = { left: 15, center: 50, right: 85 }
+// 森林遺跡節點對位地圖（2026-08）：4 張手繪地圖，每張對應 5 關，直接當
+// 背景鋪滿，節點座標是拿 10×15 網格逐張比對圖上空地中心讀出來的百分比，
+// 不是憑感覺排的——地圖本身的石板小徑已經把 20 個空地連成一條蜿蜒路徑，
+// 不需要再疊一層 CSS 畫的連接線。
+const MAP_SEGMENT_IMAGES = [
+  '/assets/campaign/forest_ruins_map_1.jpg',
+  '/assets/campaign/forest_ruins_map_2.jpg',
+  '/assets/campaign/forest_ruins_map_3.jpg',
+  '/assets/campaign/forest_ruins_map_4.jpg',
+]
+const STAGE_MAP_POS: Record<number, { x: number; y: number }> = {
+  1: { x: 43, y: 16 }, 2: { x: 70, y: 27 }, 3: { x: 27, y: 35 }, 4: { x: 72, y: 57 }, 5: { x: 28, y: 75 },
+  6: { x: 40, y: 9 }, 7: { x: 37, y: 30 }, 8: { x: 72, y: 45 }, 9: { x: 27, y: 58 }, 10: { x: 62, y: 83 },
+  11: { x: 32, y: 8 }, 12: { x: 57, y: 28 }, 13: { x: 38, y: 47 }, 14: { x: 68, y: 65 }, 15: { x: 30, y: 85 },
+  16: { x: 27, y: 20 }, 17: { x: 68, y: 16 }, 18: { x: 50, y: 43 }, 19: { x: 27, y: 65 }, 20: { x: 70, y: 83 },
+}
 
 /** 大廳關卡預覽卡（2026-08）共用這個星數列，見 AdventureReadyScreen.tsx。 */
 export function StarRow({ stars }: { stars: number }) {
@@ -77,39 +88,41 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
         </div>
       </div>
 
-      {/* 關卡地圖 2026-08 視覺重做：左右交錯往上爬的蜿蜒路徑（取代直式/
-          雙欄清單），最後一關（篇章最終王）額外套一層最大徽章樣式。解鎖／
-          三星進度資料完全沒動，只是排列方式改了。 */}
+      {/* 關卡地圖 2026-08 節點對位重做：4 張手繪地圖直接當每段背景，取代
+          先前純 CSS 畫的蜿蜒路徑。解鎖／三星進度資料完全沒動，只是節點改成
+          貼著地圖上量好的空地座標，路徑本身就是圖裡畫好的石板小徑。 */}
       <div className="cms-map">
-        {stages.map((stage, i) => {
-          const prog = getStageProgress(meta, stage.id)
-          const unlocked = isStageUnlocked(meta, stage.id)
-          const prevCleared = i === 0 || getStageProgress(meta, stages[i - 1].id).cleared
-          const isBoss = !!stage.boss
-          const isFinal = i === stages.length - 1
-          const pos = MAP_POSITIONS[i % MAP_POSITIONS.length]
-          const prevPos = i > 0 ? MAP_POSITIONS[(i - 1) % MAP_POSITIONS.length] : pos
+        {MAP_SEGMENT_IMAGES.map((imgSrc, seg) => {
+          const segStages = stages.slice(seg * 5, seg * 5 + 5)
+          if (segStages.length === 0) return null
           return (
-            <div key={stage.id} className={`cms-map-stage ${pos}`}>
-              {i > 0 && (
-                <svg className={`cms-map-connector${prevCleared ? ' lit' : ''}`} viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <line x1={MAP_POS_X[prevPos]} y1="0" x2={MAP_POS_X[pos]} y2="100" />
-                </svg>
-              )}
-              <button
-                className={`cms-map-node${isFinal ? ' final' : isBoss ? ' boss' : ''}${unlocked ? '' : ' locked'}${prog.cleared ? ' cleared' : ''}`}
-                disabled={!unlocked}
-                onClick={() => unlocked && handleSelectStage(stage.id)}
-              >
-                <span className="cms-map-badge">
-                  {unlocked
-                    ? <AsterVowIcon name={isBoss ? 'stage-boss' : OBJECTIVE_ICON[stage.objective.type]} size={isFinal ? 30 : isBoss ? 24 : 18} />
-                    : <AsterVowIcon name="system-lock" size={18} />}
-                  {!isFinal && <span className="cms-map-num">{stage.stageNumber}</span>}
-                </span>
-                <span className="cms-map-name">{stage.name}</span>
-                {unlocked && <StarRow stars={prog.stars} />}
-              </button>
+            <div key={seg} className="cms-map-segment" style={{ backgroundImage: `url(${imgSrc})` }}>
+              {segStages.map((stage, localI) => {
+                const i = seg * 5 + localI
+                const prog = getStageProgress(meta, stage.id)
+                const unlocked = isStageUnlocked(meta, stage.id)
+                const isBoss = !!stage.boss
+                const isFinal = i === stages.length - 1
+                const pos = STAGE_MAP_POS[stage.stageNumber] ?? { x: 50, y: 50 }
+                return (
+                  <button
+                    key={stage.id}
+                    className={`cms-map-node${isFinal ? ' final' : isBoss ? ' boss' : ''}${unlocked ? '' : ' locked'}${prog.cleared ? ' cleared' : ''}`}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                    disabled={!unlocked}
+                    onClick={() => unlocked && handleSelectStage(stage.id)}
+                  >
+                    <span className="cms-map-badge">
+                      {unlocked
+                        ? <AsterVowIcon name={isBoss ? 'stage-boss' : OBJECTIVE_ICON[stage.objective.type]} size={isFinal ? 30 : isBoss ? 24 : 18} />
+                        : <AsterVowIcon name="system-lock" size={18} />}
+                      {!isFinal && <span className="cms-map-num">{stage.stageNumber}</span>}
+                    </span>
+                    <span className="cms-map-name">{stage.name}</span>
+                    {unlocked && <StarRow stars={prog.stars} />}
+                  </button>
+                )
+              })}
             </div>
           )
         })}

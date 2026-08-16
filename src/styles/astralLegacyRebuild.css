@@ -401,8 +401,6 @@
 .cms-milestone-label { color: var(--av-muted); }
 
 .cms-map { max-width: 620px; margin: 0 auto; }
-.cms-map-connector line { stroke: rgba(149, 192, 255, .3); }
-.cms-map-connector.lit line { stroke: var(--av-gold) !important; }
 .cms-map-badge { border-color: rgba(133, 174, 237, .42) !important; background: linear-gradient(145deg, rgba(18, 43, 84, .85), rgba(7, 18, 43, .92)) !important; }
 .cms-map-num { background: var(--av-gold) !important; color: #241805 !important; }
 .cms-map-name { color: #eef5ff; }
