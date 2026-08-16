@@ -82,7 +82,6 @@ export default function HeroPortraitModal({ hero, roleMeta, prog, eqBonus, talBo
 
             <div className="portrait-skill-label">技能</div>
             <div className="portrait-skill-name">{hero.skill}</div>
-            <div className="portrait-skill-desc">{hero.desc}</div>
 
             {(onViewTalent || onViewEquip) && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

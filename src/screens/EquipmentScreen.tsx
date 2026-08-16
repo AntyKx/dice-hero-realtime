@@ -16,7 +16,7 @@ import {
 } from '../equipment'
 import {
   getExpForLevel,
-  defaultHeroProgress, STAR_CONDITIONS, getHeroStarTitle, HERO_STAR_PASSIVES,
+  defaultHeroProgress, getHeroStarTitle, HERO_STAR_PASSIVES,
 } from '../talents'
 import { generateHeroTalentTree, computeArenaTalentBonus, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
 import ArenaEquipmentScreen from './ArenaEquipmentScreen'
@@ -425,62 +425,81 @@ function TalentTab({ heroId, meta, onMetaUpdate }: { heroId: string; meta: MetaS
         </div>
       </div>
 
-      {/* Star conditions */}
-      <div className="talent-star-conditions">
-        <div className="tsc-item tsc-runs">
-          <AsterVowIcon name="system-leaderboard" size={15} /> 通關次數（主線＋副本）<strong>{progress.runsWon ?? 0}</strong> 次
-        </div>
-        {STAR_CONDITIONS.map(sc => (
-          <div key={sc.stars} className={`tsc-item ${progress.stars >= sc.stars ? 'done' : ''}`}>
-            {'★'.repeat(sc.stars)} {sc.desc}
-            {progress.stars >= sc.stars && <span className="tsc-check">✓</span>}
-          </div>
-        ))}
-      </div>
-
       {/* 天賦點數 */}
       <div className="tvm-points-badge">🔷 剩餘天賦點數：{progress.talentPoints}</div>
 
-      {/* 天賦節點（2026-08 重做：花點數點亮，沿路一個由等級控制的職業技能） */}
-      <div className="talent-nodes tvm-tree">
-        {tree.map((node, i) => {
-          const isAllocated = allocated.includes(node.id)
-          const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, progress.level)
-          const isMajor = node.kind === 'major' || node.kind === 'mastery'
-          const requiredLevel = requiredLevelForTier(node.tier)
+      {/* 天賦節點（2026-08 重做：花點數點亮，沿路一個由等級控制的職業技能）
+          2026-08 視覺重做：菱形蛇形鏈排列，每排 4 格（3 個小天賦 + 1 個職業
+          技能收尾）——正好對應現有 tier 結構（MAJOR_TIERS=[3,7,11,15]、
+          MASTERY_TIER=19，20 格 ÷ 4 剛好每排最後一格都是職業/終極技能），
+          解鎖規則完全沒變，只是排列方式從直式清單改成蛇形，不需要動任何
+          天賦資料或 isTalentNodeAvailable 的判斷邏輯。 */}
+      <div className="tv-tree">
+        {Array.from({ length: Math.ceil(tree.length / 4) }, (_, row) => {
+          const rowNodes = tree.slice(row * 4, row * 4 + 4)
+          const reverse = row % 2 === 1
+          const displayNodes = reverse ? [...rowNodes].reverse() : rowNodes
           return (
-            <div key={node.id} className="tvm-node-row">
-              {i > 0 && <div className={`tvm-node-connector${isAllocated ? ' lit' : ''}`} />}
-              <button
-                className={`tvm-node${isMajor ? ' tvm-node-keystone' : ''}${isAllocated ? ' allocated' : ''}${isAvailable ? ' available' : ' locked'}`}
-                onClick={() => (isAvailable ? setPendingNode(node) : undefined)}
-                disabled={!isAvailable}
-              >
-                <div className="tvm-node-name">
-                  {node.kind === 'mastery'
-                    ? <AsterVowIcon name="system-leaderboard" size={15} />
-                    : isMajor ? <AsterVowIcon name="system-talent" size={15} /> : null}
-                  {node.name}
-                </div>
-                <div className="tvm-node-desc">{node.desc}</div>
-                {progress.level < requiredLevel && (
-                  <div className="tvm-node-lockhint">需角色等級 {requiredLevel}</div>
-                )}
-              </button>
+            <div key={row} className={`tv-row${reverse ? ' reverse' : ''}`}>
+              <span className="tv-row-tier">{['I', 'II', 'III', 'IV', 'V'][row] ?? row + 1}</span>
+              {displayNodes.map((node, idx) => {
+                const isAllocated = allocated.includes(node.id)
+                const isAvailable = !isAllocated && isTalentNodeAvailable(tree, node, allocated, progress.level)
+                const isMajor = node.kind === 'major' || node.kind === 'mastery'
+                const cost = pointCostForKind(node.kind)
+                const frac = isAllocated ? `${cost}/${cost}` : `0/${cost}`
+                return (
+                  <div key={node.id} className="tv-node-wrap">
+                    {idx > 0 && <div className={`tv-connector${isAllocated ? ' lit' : ''}`} />}
+                    <button
+                      className={`tv-diamond ${node.kind}${isAllocated ? ' allocated' : isAvailable ? ' available' : ' locked'}`}
+                      onClick={() => setPendingNode(node)}
+                    >
+                      <span className="tv-diamond-inner">
+                        <span className="tv-diamond-icon">
+                          <AsterVowIcon
+                            name={node.kind === 'mastery' ? 'system-leaderboard' : isMajor ? 'system-talent' : 'action-upgrade'}
+                            size={isMajor ? 19 : 14}
+                          />
+                        </span>
+                        <span className="tv-diamond-frac">{frac}</span>
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )
         })}
       </div>
 
-      {pendingNode && (
-        <div className="tvm-confirm">
-          <div className="tvm-confirm-text">花費 {pointCostForKind(pendingNode.kind)} 點天賦點數點亮「{pendingNode.name}」？</div>
-          <div className="tvm-confirm-btns">
-            <button className="ghost" onClick={() => setPendingNode(null)}>取消</button>
-            <button className="primary" onClick={() => confirmAllocate(pendingNode)}>確認</button>
+      {pendingNode && (() => {
+        const isAllocated = allocated.includes(pendingNode.id)
+        const isAvailable = !isAllocated && isTalentNodeAvailable(tree, pendingNode, allocated, progress.level)
+        const requiredLevel = requiredLevelForTier(pendingNode.tier)
+        const cost = pointCostForKind(pendingNode.kind)
+        return (
+          <div className="tv-node-detail-overlay" onClick={() => setPendingNode(null)}>
+            <div className="tv-node-detail" onClick={e => e.stopPropagation()}>
+              <div className="tv-node-detail-name">{pendingNode.name}</div>
+              <div className="tv-node-detail-desc">{pendingNode.desc}</div>
+              {isAllocated && <div className="tv-node-detail-status done">✓ 已點亮</div>}
+              {!isAllocated && progress.level < requiredLevel && (
+                <div className="tv-node-detail-status locked">需角色等級 {requiredLevel}</div>
+              )}
+              {!isAllocated && progress.level >= requiredLevel && !isAvailable && (
+                <div className="tv-node-detail-status locked">需先點亮前一格天賦</div>
+              )}
+              <div className="tv-node-detail-btns">
+                <button className="ghost" onClick={() => setPendingNode(null)}>關閉</button>
+                {isAvailable && (
+                  <button className="primary" onClick={() => confirmAllocate(pendingNode)}>花費 {cost} 點點亮</button>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Active abilities summary */}
       <div className="talent-summary">
@@ -537,7 +556,7 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
   }, [])
   const [filterSlot, setFilterSlot] = useState<EquipmentSlot | 'all'>('all')
   const [filterRole, setFilterRole] = useState<Role | 'all'>('all')
-  const [activeTab, setActiveTab] = useState<'equip' | 'talent' | 'items'>('equip')
+  const [activeTab, setActiveTab] = useState<'equip' | 'talent'>('equip')
   const [openingChest, setOpeningChest] = useState<ChestType | null>(null)
   const [chestModalResult, setChestModalResult] = useState<{ equipment: Equipment[]; stardust: number } | null>(null)
   const [chestModalType, setChestModalType] = useState<ChestType | null>(null)
@@ -808,7 +827,8 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
       )}
       {/* Header */}
       <div className="eq-header">
-        <h2>英雄 &amp; 裝備</h2>
+        <button className="eq-header-back" onClick={onBack}>←</button>
+        <h2>星界檔案 &amp; 裝配</h2>
       </div>
 
       <div className="eq-body">
@@ -854,112 +874,25 @@ export default function EquipmentScreen({ meta, onMetaUpdate, onBack, onSilentCl
         </div>
 
         {/* Right panel */}
-        <div className="eq-right">
-          <div className="eq-tabs">
-            <button className={`eq-tab ${activeTab === 'equip' ? 'active' : ''}`} onClick={() => setActiveTab('equip')}>裝備</button>
-            <button className={`eq-tab ${activeTab === 'talent' ? 'active' : ''}`} onClick={() => setActiveTab('talent')}>天賦 & 成長</button>
-            <button className={`eq-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
-              道具
-              {(meta.items ?? []).reduce((n, s) => n + s.count, 0) > 0 && (
-                <span style={{ marginLeft: 4, background: '#e07030', borderRadius: 8, padding: '1px 5px', fontSize: '0.7rem', color: '#fff' }}>
-                  {(meta.items ?? []).reduce((n, s) => n + s.count, 0)}
-                </span>
-              )}
-            </button>
-            <button className="eq-tab eq-tab-back" onClick={onBack}>← 返回</button>
-          </div>
+        <div className={`eq-right ${activeTab === 'equip' ? 'eq-right--flush' : ''}`}>
           {activeTab === 'talent' && (
             <div className="eq-talent-container">
               <TalentTab heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
             </div>
           )}
-          {activeTab === 'items' && (
-            <div className="eq-items-panel">
-              {(meta.items ?? []).length === 0 ? (
-                <div className="eq-items-empty">
-                  <div style={{ marginBottom: 8 }}><AsterVowIcon name="system-gift" size={32} /></div>
-                  <div>目前沒有道具</div>
-                  <div style={{ fontSize: '0.8rem', color: '#4a6080', marginTop: 6 }}>完成副本即可獲得寶箱！</div>
-                </div>
-              ) : (
-                <>
-                  <div className="chest-grid">
-                    {(meta.items ?? []).map(stack => {
-                      const def = CHEST_DEFS[stack.id as ChestType]
-                      if (!def) return null
-                      return (
-                        <button
-                          key={stack.id}
-                          className={`chest-stack-btn ${openingChest === stack.id ? 'active' : ''}`}
-                          onClick={() => setOpeningChest(openingChest === stack.id ? null : stack.id as ChestType)}
-                        >
-                          <span className="csb-icon" style={{ color: def.color }}><AsterVowIcon name={CHEST_ICON[def.id]} size={28} /></span>
-                          <span className="csb-name" style={{ color: def.color }}>{def.name}</span>
-                          <span className="csb-desc" style={{ fontSize: '0.7rem', color: '#5878a0' }}>{def.desc}</span>
-                          <span className="csb-count">×{stack.count}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {openingChest && (() => {
-                    const def = CHEST_DEFS[openingChest]
-                    if (openingChest === 'chest_role_legendary') {
-                      return (
-                        <div className="chest-open-panel">
-                          <div className="cop-title" style={{ color: def.color }}>
-                            <AsterVowIcon name={CHEST_ICON[def.id]} size={19} /> {def.name}
-                          </div>
-                          <div className="cop-desc">
-                            請先選擇 1 個職業，將獲得該職業套裝的 1 件傳奇裝備：
-                          </div>
-                          <div className="cop-role-grid">
-                            {(Object.keys(ROLE_LABEL) as Role[]).map(role => (
-                              <button
-                                key={role}
-                                className={`cop-role-btn ${roleChestPickRole === role ? 'active' : ''}`}
-                                onClick={() => setRoleChestPickRole(role)}
-                              >
-                                {ROLE_LABEL[role]}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="cop-actions">
-                            <button
-                              className="secondary"
-                              disabled={!roleChestPickRole}
-                              onClick={() => roleChestPickRole && handleOpenRoleChest(roleChestPickRole)}
-                            >
-                              開啟！
-                            </button>
-                            <button className="ghost" onClick={() => { setOpeningChest(null); setRoleChestPickRole(null) }}>取消</button>
-                          </div>
-                        </div>
-                      )
-                    }
-                    return (
-                      <div className="chest-open-panel">
-                        <div className="cop-title" style={{ color: def.color }}>
-                          <AsterVowIcon name={CHEST_ICON[def.id]} size={19} /> {def.name}
-                        </div>
-                        <div className="cop-desc">
-                          隨機職業套裝，任何英雄都可能出現！
-                        </div>
-                        <div className="cop-actions">
-                          <button className="secondary" onClick={() => handleOpenChest(openingChest)}>
-                            開啟！
-                          </button>
-                          <button className="ghost" onClick={() => setOpeningChest(null)}>取消</button>
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </>
-              )}
-            </div>
-          )}
           {activeTab === 'equip' && (
             <ArenaEquipmentScreen heroId={selectedHeroId} meta={meta} onMetaUpdate={onMetaUpdate} />
           )}
+          <div className="eq-action-row">
+            <button className={`eq-action-btn ${activeTab === 'equip' ? 'active' : ''}`} onClick={() => setActiveTab('equip')}>
+              <span className="eq-action-icon"><AsterVowIcon name="nav-equipment" size={20} /></span>
+              <span className="eq-action-label">裝備</span>
+            </button>
+            <button className={`eq-action-btn ${activeTab === 'talent' ? 'active' : ''}`} onClick={() => setActiveTab('talent')}>
+              <span className="eq-action-icon"><AsterVowIcon name="system-talent" size={20} /></span>
+              <span className="eq-action-label">星環天賦</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

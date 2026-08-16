@@ -89,7 +89,6 @@ export default function PartySetupScreen({ meta, editingSlot, onMetaUpdate, onBa
                 <span>DEF <strong>{activeHero.def + eqBonus.defBonus + talBonus.defBonus}</strong></span>
               </div>
               <div className="pss-preview-skill">{activeHero.skill}</div>
-              <p className="pss-preview-desc">{activeHero.desc}</p>
             </div>
           </>
         ) : (

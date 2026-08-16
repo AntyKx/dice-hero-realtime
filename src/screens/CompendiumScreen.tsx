@@ -461,7 +461,6 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
                       </div>
                       <p className="astral-codex-hero-skill">
                         <b>{activeHero.skill}</b>
-                        <span>{activeHero.desc}</span>
                       </p>
                       <div className="astral-codex-hero-detail-links">
                         {onViewTalent && (

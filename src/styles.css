@@ -624,7 +624,6 @@ h1, h2, h3, p { margin: 0; }
 .portrait-stats strong { color: #fff; }
 .portrait-skill-label { font-size: 11px; color: #607090; letter-spacing: .08em; text-transform: uppercase; margin-top: 6px; }
 .portrait-skill-name { font-size: 16px; font-weight: 700; color: #7ae0ff; }
-.portrait-skill-desc { font-size: 13px; color: #8aadcc; line-height: 1.55; flex: 1; }
 .portrait-equip-section { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; }
 .portrait-equip-row {
   display: flex; flex-direction: column; gap: 2px;
@@ -1004,38 +1003,64 @@ h1, h2, h3, p { margin: 0; }
   background:rgba(96,144,255,.14); border:1px solid rgba(96,144,255,.35);
   border-radius:20px; padding:4px 12px;
 }
-.tvm-tree { display:flex; flex-direction:column; align-items:stretch; }
-.tvm-node-row { display:flex; flex-direction:column; align-items:center; }
-.tvm-node-connector { width:2px; height:14px; background:rgba(255,255,255,.15); }
-.tvm-node-connector.lit { background:rgba(96,144,255,.7); }
-.tvm-node {
-  width:100%; text-align:left; background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:8px 12px;
-  display:flex; flex-direction:column; gap:2px; cursor:pointer; transition:background .15s, border-color .15s;
-}
-.tvm-node.available { border-color:rgba(96,144,255,.55); cursor:pointer; }
-.tvm-node.available:hover { background:rgba(96,144,255,.14); }
-.tvm-node.allocated { background:rgba(96,144,255,.2); border-color:rgba(96,144,255,.75); cursor:default; }
-.tvm-node.locked { opacity:0.4; cursor:not-allowed; }
-.tvm-node-keystone { border-color:rgba(255,211,110,.45); }
-.tvm-node-keystone.allocated { background:rgba(255,211,110,.2); border-color:rgba(255,211,110,.8); }
-.tvm-node-keystone.available { border-color:rgba(255,211,110,.7); }
-.tvm-node-name { display: flex; align-items: center; gap: 4px; font-size:0.82rem; font-weight:700; color:#e8f0ff; }
-.tvm-node-keystone .tvm-node-name { color:#ffd36e; }
-.tvm-node-desc { font-size:0.72rem; color:#99b4cc; line-height:1.35; }
-.tvm-node-lockhint { font-size:0.68rem; color:#ff8a3c; font-weight:600; }
+/* 天賦樹 2026-08 視覺重做：菱形節點蛇形鏈（取代直式清單），解鎖規則/資料
+   結構完全沒動，只是排列方式改成每排 4 格、方向交錯的蛇形。 */
+.tv-tree { position: relative; padding: 20px 6px 8px; }
+.tv-row { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.tv-row.reverse { flex-direction: row-reverse; }
+.tv-row-tier { position: absolute; top: -15px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #7ae0ff; }
+.tv-row:not(.reverse) .tv-row-tier { right: 4px; }
+.tv-row.reverse .tv-row-tier { left: 4px; }
 
-/* position:fixed，不跟著節點清單捲動——原本是排在清單最後面的一般排版
-   元素，點清單前段的節點時，這個確認框會落在畫面外要往下捲一大段才點得到 */
-.tvm-confirm {
-  position:fixed; left:50%; bottom:max(18px, env(safe-area-inset-bottom));
-  transform:translateX(-50%); width:min(92vw, 480px); z-index:3100;
-  background:#0e1a36; border:1px solid rgba(96,144,255,.5); border-radius:10px;
-  padding:10px 12px; display:flex; flex-direction:column; gap:8px;
-  box-shadow:0 4px 24px rgba(0,0,0,.5);
+.tv-node-wrap { position: relative; flex: 1; display: flex; justify-content: center; min-width: 0; }
+.tv-connector { position: absolute; top: 50%; height: 2px; width: 100%; left: -50%; background: rgba(255,255,255,.15); z-index: 0; }
+.tv-row.reverse .tv-connector { left: auto; right: -50%; }
+.tv-connector.lit { background: rgba(96,144,255,.7); }
+
+.tv-diamond {
+  position: relative; z-index: 1; flex-shrink: 0;
+  width: 52px; height: 52px; transform: rotate(45deg); border-radius: 9px;
+  border: 1.5px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
 }
-.tvm-confirm-text { font-size:0.8rem; color:#e8f0ff; }
-.tvm-confirm-btns { display:flex; gap:8px; justify-content:flex-end; }
+.tv-diamond:hover { transform: rotate(45deg) scale(1.05); }
+.tv-diamond-inner { transform: rotate(-45deg); display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.tv-diamond-icon { display: flex; }
+.tv-diamond-frac { font-size: 8.5px; font-weight: 700; color: #8095b0; }
+
+.tv-diamond.major { width: 62px; height: 62px; border-color: rgba(255,211,110,.45); }
+.tv-diamond.mastery { width: 68px; height: 68px; border-color: rgba(255,211,110,.7); box-shadow: 0 0 16px rgba(255,211,110,.25); }
+
+.tv-diamond.allocated { background: rgba(96,144,255,.2); border-color: rgba(96,144,255,.75); }
+.tv-diamond.allocated .tv-diamond-frac { color: #bcd4ff; }
+.tv-diamond.allocated.major, .tv-diamond.allocated.mastery { background: rgba(255,211,110,.2); border-color: rgba(255,211,110,.85); }
+.tv-diamond.allocated.major .tv-diamond-frac, .tv-diamond.allocated.mastery .tv-diamond-frac { color: #ffe7a4; }
+
+.tv-diamond.available { border-color: rgba(96,144,255,.55); }
+.tv-diamond.available:hover { background: rgba(96,144,255,.14); }
+.tv-diamond.available.major, .tv-diamond.available.mastery { border-color: rgba(255,211,110,.7); }
+
+.tv-diamond.locked { opacity: .4; cursor: not-allowed; }
+.tv-diamond.locked:hover { transform: rotate(45deg); }
+
+/* position:fixed，不跟著節點鏈捲動——原本是排在清單最後面的一般排版元素，
+   點前段的節點時，詳情框會落在畫面外要往下捲一大段才看得到 */
+.tv-node-detail-overlay {
+  position: fixed; inset: 0; z-index: 3100; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.tv-node-detail {
+  width: min(92vw, 420px); background: #0e1a36; border: 1px solid rgba(96,144,255,.5);
+  border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+}
+.tv-node-detail-name { font-size: 1rem; font-weight: 700; color: #ffd36e; }
+.tv-node-detail-desc { font-size: 0.82rem; color: #b8cce0; line-height: 1.5; }
+.tv-node-detail-status { font-size: 0.76rem; font-weight: 700; }
+.tv-node-detail-status.done { color: #6fe0a0; }
+.tv-node-detail-status.locked { color: #ff8a3c; }
+.tv-node-detail-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
 
 /* ── Reward Screen ──────────────────────────────────────── */
 .reward-screen { max-width:700px; margin:0 auto; text-align:center; }
@@ -2004,6 +2029,17 @@ h1, h2, h3, p { margin: 0; }
 .eq-tab.active { background:rgba(50,100,200,.4); color:#dde8ff; border-color:rgba(100,180,255,.5); }
 .eq-talent-container { flex:1; overflow-y:auto; padding:4px 2px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
 
+/* ── Equipment/Talent 底部圖示切換列（守望傳說式排版，2026-08 改版 v2） ── */
+.eq-action-row { display:flex; justify-content:center; gap:32px; flex-shrink:0; padding-top:10px; }
+.eq-action-btn { display:flex; flex-direction:column; align-items:center; gap:4px; background:transparent; border:none; cursor:pointer; color:#8393b0; padding:0; }
+.eq-action-icon {
+  width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14);
+}
+.eq-action-btn.active .eq-action-icon { background:rgba(233,184,92,.14); border-color:rgba(233,184,92,.6); box-shadow:0 0 14px rgba(233,184,92,.25); }
+.eq-action-label { font-size:11px; font-weight:600; }
+.eq-action-btn.active .eq-action-label { color:#ffe7a4; }
+
 /* ── Talent Tab ──────────────────────────────────────────── */
 .talent-tab { display:flex; flex-direction:column; gap:12px; }
 .talent-empty { color:#5070a0; text-align:center; padding:24px; }
@@ -2027,27 +2063,7 @@ h1, h2, h3, p { margin: 0; }
 .th-star { font-size:20px; color:#3a4a6a; transition:color .2s; }
 .th-star.filled { color:#ffd36e; text-shadow:0 0 8px rgba(255,200,50,.5); }
 
-.talent-star-conditions { display:flex; gap:6px; flex-wrap:wrap; }
-.tsc-item { font-size:12px; color:#5070a0; background:rgba(20,34,65,.6); border:1px solid rgba(80,120,200,.2); border-radius:8px; padding:4px 10px; }
-.tsc-item.done { color:#85f0c0; border-color:rgba(80,200,120,.3); }
-.tsc-item.tsc-runs { color:#c8a84e; border-color:rgba(200,168,78,.3); }
-.tsc-item.tsc-runs strong { color:#ffd36e; }
-.tsc-check { margin-left:4px; }
 
-.talent-nodes { display:flex; flex-direction:column; gap:8px; }
-.talent-node { border-radius:12px; border:1px solid rgba(100,180,255,.2); background:rgba(18,30,60,.7); padding:10px 12px; }
-.talent-node.locked { opacity:.5; }
-.tn-level-badge { font-size:11px; color:#7ae0ff; font-weight:700; letter-spacing:.08em; margin-bottom:8px; }
-/* v1.25.17：3 個天賦選項原本左右並排各分到 1/3 寬，敘述字數一長（例如影刃身法）
-   就會斷成 5-6 行很難看。改成直排、每個選項吃滿整列寬度，敘述才有空間正常斷行 */
-.tn-choices { display:flex; flex-direction:column; gap:6px; }
-.tn-choice { width:100%; padding:8px 10px; border-radius:10px; border:1px solid rgba(100,180,255,.2); background:rgba(20,34,65,.6); color:#dde8ff; cursor:pointer; text-align:left; transition:all .12s; }
-.tn-choice.selected { border-color:rgba(100,220,255,.6); background:rgba(30,60,120,.7); box-shadow:0 0 10px rgba(100,200,255,.15); }
-.tn-choice:hover:not(.selected) { border-color:rgba(100,180,255,.4); }
-.tnc-name { font-size:13px; font-weight:700; margin-bottom:2px; }
-.tnc-desc { font-size:11px; color:#8fb8e8; }
-.tnc-stars { font-size:10px; color:#ffd36e; margin-top:4px; }
-.tn-locked-msg { font-size:12px; color:#3a4a6a; padding:4px 0; }
 
 .talent-awakening { border-radius:12px; border:2px solid rgba(255,180,50,.3); background:rgba(40,25,5,.6); padding:12px 14px; }
 .talent-awakening.inactive { opacity:.45; border-color:rgba(100,100,100,.3); background:rgba(20,20,20,.4); }
@@ -3296,8 +3312,9 @@ h1, h2, h3, p { margin: 0; }
   .av-lobby-tile { padding: 10px 12px; font-size: 0.8rem; }
   .pss-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .pss-preview { flex-direction: column; text-align: center; }
-  .pss-preview-info { align-items: center; }
+  .pss-preview-info { align-items: center; text-align: center; }
   .pss-preview-role { align-self: center; }
+  .pss-preview-stats { justify-content: center; }
 }
 
 /* ── 大廳版面（主線冒險分頁，2026-08）：英雄站台＋章節輪播＋功能磚，
@@ -3819,16 +3836,15 @@ h1, h2, h3, p { margin: 0; }
   background: rgba(16,28,60,.7); border: 1px solid rgba(255,255,255,.12);
   display: flex; gap: 12px; align-items: center; min-height: 96px;
 }
-.pss-preview-art { flex-shrink: 0; width: 76px; height: 76px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.2); }
-.pss-preview-art img { width: 100%; height: 100%; object-fit: cover; }
-.pss-preview-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pss-preview-art { flex-shrink: 0; width: 100px; height: 100px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.2); }
+.pss-preview-art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.pss-preview-info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
 .pss-preview-role { align-self: flex-start; font-size: 0.65rem; padding: 1px 8px; border-radius: 8px; border: 1px solid; }
 .pss-preview-name { font-weight: 700; font-size: 1rem; color: var(--av-ink); }
 .pss-preview-stars { margin-left: 4px; color: var(--av-gold); font-size: 0.85em; }
 .pss-preview-title { font-size: 0.7rem; color: #8090a8; }
 .pss-preview-stats { display: flex; gap: 10px; font-size: 0.72rem; color: #b0c4de; margin-top: 2px; }
 .pss-preview-skill { font-size: 0.72rem; color: var(--av-gold); margin-top: 2px; }
-.pss-preview-desc { font-size: 0.68rem; color: #7888a8; margin: 2px 0 0; }
 .pss-preview-empty { flex: 1; text-align: center; color: #7888a8; font-size: 0.8rem; }
 .pss-preview-empty-hint { font-size: 0.68rem; margin-top: 4px; }
 
@@ -5100,45 +5116,48 @@ h1, h2, h3, p { margin: 0; }
 }
 .cms-milestone-label { font-size: 0.68rem; color: #88a0c0; }
 
-.cms-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px; }
-.cms-node {
-  display: flex; align-items: center; gap: 12px;
-  background: rgba(20,30,50,0.85);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  transition: transform 0.12s, box-shadow 0.12s;
+/* 關卡地圖 2026-08 視覺重做：左右交錯往上爬的蜿蜒路徑，取代直式/雙欄清單 */
+.cms-map { position: relative; padding: 30px 16px 40px; }
+.cms-map-stage { position: relative; display: flex; align-items: center; margin-bottom: 22px; min-height: 64px; }
+/* 用 justify-content:flex-end/flex-start 把節點推到那一排的最右/最左（留一點
+   padding 當邊界），不是「往中間偏一點」——原本用 padding-left:44% 只比正中央
+   偏移了幾像素，跟 center 幾乎長得一樣，蛇形效果等於沒做出來。 */
+.cms-map-stage.right { justify-content: flex-end; padding-right: 6%; }
+.cms-map-stage.left { justify-content: flex-start; padding-left: 6%; }
+.cms-map-stage.center { justify-content: center; }
+.cms-map-connector { position: absolute; left: 0; right: 0; bottom: 100%; width: 100%; height: 22px; overflow: visible; }
+.cms-map-connector line { stroke: rgba(255,255,255,.2); stroke-width: 2; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.cms-map-connector.lit line { stroke: #ffd94a; }
+
+.cms-map-node {
+  position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: none; color: inherit; padding: 0; cursor: pointer;
 }
-.cms-node:not(.locked):hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-.cms-node.locked { opacity: 0.45; cursor: not-allowed; }
-.cms-node.cleared { border-color: rgba(120,220,120,0.35); }
-.cms-node.boss {
-  border-color: rgba(255,120,80,0.5);
-  background: rgba(40,20,20,0.85);
-  padding: 14px;
-}
-.cms-node-num {
-  flex: 0 0 auto;
-  width: 34px; height: 34px; border-radius: 50%;
+.cms-map-badge {
+  position: relative; width: 52px; height: 52px; border-radius: 14px;
+  background: rgba(20,30,50,.9); border: 2px solid rgba(255,255,255,.14);
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 0.85rem;
-  background: rgba(255,255,255,0.08); color: #cfe0f4;
+  box-shadow: 0 6px 16px rgba(0,0,0,.35); transition: transform .12s;
 }
-.cms-node.boss .cms-node-num { width: 42px; height: 42px; background: rgba(255,120,80,0.2); color: #ffb090; font-size: 1rem; }
-.cms-node-body { flex: 1; min-width: 0; }
-.cms-node-name { font-weight: 700; font-size: 0.95rem; display:flex; align-items:center; gap:5px; }
-.cms-node.boss .cms-node-name { font-size: 1.05rem; color: #ffcdb0; }
-.cms-node-lock { color: #ff9040; }
-.cms-node-meta { display: flex; gap: 10px; font-size: 0.72rem; color: #90a8c4; margin-top: 3px; }
-.cms-node-objective, .cms-node-duration { display:inline-flex; align-items:center; gap:4px; }
-.cms-node-side { flex: 0 0 auto; }
-.cms-stars { font-size: 1rem; letter-spacing: 1px; }
-.cms-star { color: rgba(255,255,255,0.15); }
+.cms-map-node:not(.locked):hover .cms-map-badge { transform: translateY(-2px); }
+.cms-map-num {
+  position: absolute; top: -6px; left: -6px; width: 19px; height: 19px; border-radius: 50%;
+  background: #ffd94a; color: #241805; font-size: 10px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+.cms-map-name { font-size: 10.5px; font-weight: 700; text-align: center; max-width: 84px; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
+.cms-stars { font-size: 0.72rem; letter-spacing: 1px; }
+.cms-star { color: rgba(255,255,255,0.18); }
 .cms-star.filled { color: #ffd94a; }
-.cms-node-lock-icon { font-size: 1.1rem; opacity: 0.6; }
+.cms-map-node.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 14px rgba(255,217,74,.35), 0 6px 16px rgba(0,0,0,.35); }
+.cms-map-node.locked { opacity: .45; cursor: not-allowed; }
+.cms-map-node.locked .cms-map-badge { filter: saturate(.3); }
+.cms-map-node.boss .cms-map-badge { width: 64px; height: 64px; border-radius: 18px; border-color: rgba(255,120,80,.55); background: rgba(40,20,20,.9); }
+.cms-map-node.boss.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 18px rgba(255,217,74,.4); }
+.cms-map-node.boss .cms-map-name { font-size: 11.5px; color: #ffcdb0; }
+.cms-map-node.final .cms-map-badge { width: 84px; height: 84px; border-radius: 22px; border: 3px solid #ffd94a; background: linear-gradient(145deg, rgba(90,55,15,.9), rgba(25,15,5,.95)); box-shadow: 0 0 28px rgba(255,217,74,.45), 0 10px 22px rgba(0,0,0,.45); }
+.cms-map-node.final .cms-map-name { font-size: 13px; color: #ffe7a4; }
+
 .cms-hint { font-size: 0.78rem; color: #7890ac; text-align: center; margin-top: 4px; }
 
 /* ── 章節旅程節點預覽（CampaignTravelPreview，森林遺跡 1–20 關全篇章）──
@@ -5570,23 +5589,56 @@ h1, h2, h3, p { margin: 0; }
 .aeq-gacha-btns { display: flex; gap: 10px; margin-top: 8px; }
 .aeq-gacha-btns button { flex: 1; display:flex; align-items:center; justify-content:center; gap:3px; }
 
-.aeq-loadout-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;
+/* 立繪整張鋪滿當背景，裝備部位變成浮在場景上的玻璃感 HUD 圖示
+   （守望傳說式排版，2026-08 改版 v2：從「立繪塞進中間窄格」
+   改成「立繪當全景背景」，場景不再被裁掉大半）。 */
+.aeq-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.aeq-showcase {
+  position: relative; flex: 1; min-height: 280px;
+  overflow: hidden; background-color: #0a1424;
+  background-size: cover; background-position: center 20%;
+  /* 一定要是 column：裡面疊了兩排（上面 .aeq-status-row 資訊條、下面
+     .aeq-slots-row 裝備欄），沒加這行兩排會被 flex 預設的 row 方向並排，
+     資訊條的文字會把裝備欄擠成一條看不見的細縫。 */
+  display: flex; flex-direction: column; align-items: stretch;
 }
+.aeq-showcase-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(6,12,30,.4) 0%, transparent 22%, transparent 65%, rgba(4,9,24,.78) 100%),
+    linear-gradient(90deg, rgba(4,9,24,.55) 0%, transparent 24%, transparent 76%, rgba(4,9,24,.55) 100%);
+}
+.aeq-portrait-fallback {
+  position: relative; z-index: 1; margin: auto; font-weight: 700; color: #8fa5c8;
+}
+.aeq-status-row {
+  position: relative; z-index: 1; flex-shrink: 0;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 14px 4px;
+}
+.aeq-status-name { font-weight: 700; color: #fff; font-size: .95rem; }
+.aeq-status-stat { display: flex; align-items: center; gap: 4px; font-size: .8rem; color: #cfe0f5; }
+.aeq-status-stat b { font-weight: 600; font-size: .7rem; color: #8fa5c8; }
+.aeq-slots-row { position: relative; z-index: 1; flex: 1; display: flex; justify-content: space-between; padding: 14px 10px; min-width: 0; }
+/* 用百分比寬度（不是固定 px）夾住每欄，不管容器實際算出來多寬，兩欄永遠
+   加起來不會超過 aeq-slots-row 自己的寬度——固定 px 寬度在某些極窄容器下
+   量出來的寬度會比容器本身還寬，被 .aeq-showcase 的 overflow:hidden 整組
+   裁掉、完全看不到，改百分比後一定會跟著容器縮，不會再整組消失。 */
+.aeq-slots-col { display: flex; flex-direction: column; gap: 8px; flex: 0 1 44%; min-width: 0; max-width: 90px; }
+
 .aeq-slot {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
-  padding: 10px 6px; cursor: pointer; text-align: center; min-height: 84px; justify-content: center;
+  width: 100%; min-height: 62px; justify-content: center; text-align: center;
+  background: rgba(8,20,45,.45); border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
+  padding: 8px 4px; cursor: pointer;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
 }
-.aeq-slot-icon { font-size: 1.2rem; display:flex; align-items:center; }
-.aeq-slot-label { font-size: .68rem; color: #8393b0; }
-.aeq-slot-empty { font-size: .68rem; color: #5a6580; margin-top: 2px; }
-.aeq-slot-item-name { font-size: .74rem; font-weight: 700; line-height: 1.2; }
-.aeq-slot-item-bonus { font-size: .64rem; color: #8fa5c8; }
-.aeq-slot-unequip { font-size: .62rem; color: #ff8a80; margin-top: 2px; }
+.aeq-slot-icon { font-size: 1.1rem; display:flex; align-items:center; }
+.aeq-slot-label { font-size: .64rem; color: #b8c8e8; }
+.aeq-slot-empty { font-size: .62rem; color: #8fa0c0; margin-top: 1px; }
+.aeq-slot-item-name { font-size: .66rem; font-weight: 700; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
-.aeq-inventory-title { font-weight: 700; margin-bottom: 8px; color: #cfe0f5; }
-.aeq-inventory-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px; }
 .aeq-item {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
   background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
@@ -5611,7 +5663,9 @@ h1, h2, h3, p { margin: 0; }
 .aeq-picker-list { display: flex; flex-direction: column; gap: 6px; }
 
 @media (max-width: 640px) {
-  .aeq-loadout-grid { grid-template-columns: repeat(2, 1fr); }
+  .aeq-showcase { min-height: 220px; }
+  .aeq-slots-col { max-width: 72px; }
+  .aeq-slot { min-height: 52px; padding: 6px 3px; }
 }
 
 /* ASTERVOW 星界圖鑑：獨立命名空間，午夜藍航圖、古金刻線與寶石藍資訊層。 */

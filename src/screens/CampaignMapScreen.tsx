@@ -16,14 +16,15 @@ interface Props {
   onBack: () => void
 }
 
-const OBJECTIVE_LABEL: Record<StageObjectiveType, string> = {
-  elimination: '殲滅', survival: '生存', defense: '防守', hunt: '狩獵',
-  destroy: '破壞', collection: '收集', escape: '逃脫', boss: 'BOSS',
-}
 const OBJECTIVE_ICON: Record<StageObjectiveType, AsterVowIconName> = {
   elimination: 'stage-elimination', survival: 'stage-survival', defense: 'stage-defense', hunt: 'stage-hunt',
   destroy: 'stage-destroy', collection: 'stage-collection', escape: 'stage-escape', boss: 'stage-boss',
 }
+// 蜿蜒路徑左右交錯的位置循環，跟星界圖鑑預覽用的排法一致
+const MAP_POSITIONS = ['center', 'right', 'left', 'right', 'left', 'center'] as const
+// 節點實際貼齊的橫向位置粗略換算成 0-100 座標，連接線斜著畫過去對到節點，
+// 不能寫死在正中央——上一版連線固定在 50%，節點改成貼邊之後線就對不上了。
+const MAP_POS_X: Record<(typeof MAP_POSITIONS)[number], number> = { left: 15, center: 50, right: 85 }
 
 /** 大廳關卡預覽卡（2026-08）共用這個星數列，見 AdventureReadyScreen.tsx。 */
 export function StarRow({ stars }: { stars: number }) {
@@ -58,8 +59,8 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
     <div className="page cms-screen">
       <header className="topbar">
         <div>
-          <div className="eyebrow">DICE HERO RPG</div>
-          <h1>森林遺跡</h1>
+          <div className="eyebrow">ASTERVOW // ASTRAL NAVIGATION</div>
+          <h1>第一航道 · 森林遺跡</h1>
         </div>
         <button className="ghost" onClick={onBack}>← 返回</button>
       </header>
@@ -76,33 +77,40 @@ export default function CampaignMapScreen({ meta, heroId, onSelectStage, onBack 
         </div>
       </div>
 
-      <div className="cms-list">
-        {stages.map(stage => {
+      {/* 關卡地圖 2026-08 視覺重做：左右交錯往上爬的蜿蜒路徑（取代直式/
+          雙欄清單），最後一關（篇章最終王）額外套一層最大徽章樣式。解鎖／
+          三星進度資料完全沒動，只是排列方式改了。 */}
+      <div className="cms-map">
+        {stages.map((stage, i) => {
           const prog = getStageProgress(meta, stage.id)
           const unlocked = isStageUnlocked(meta, stage.id)
+          const prevCleared = i === 0 || getStageProgress(meta, stages[i - 1].id).cleared
           const isBoss = !!stage.boss
+          const isFinal = i === stages.length - 1
+          const pos = MAP_POSITIONS[i % MAP_POSITIONS.length]
+          const prevPos = i > 0 ? MAP_POSITIONS[(i - 1) % MAP_POSITIONS.length] : pos
           return (
-            <button
-              key={stage.id}
-              className={`cms-node${isBoss ? ' boss' : ''}${unlocked ? '' : ' locked'}${prog.cleared ? ' cleared' : ''}`}
-              disabled={!unlocked}
-              onClick={() => unlocked && handleSelectStage(stage.id)}
-            >
-              <div className="cms-node-num">{stage.stageNumber}</div>
-              <div className="cms-node-body">
-                <div className="cms-node-name">
-                  {isBoss && <AsterVowIcon name="stage-boss" size={16} />}{stage.name}
-                  {!unlocked && <span className="cms-node-lock"> <AsterVowIcon name="system-lock" size={14} /></span>}
-                </div>
-                <div className="cms-node-meta">
-                  <span className="cms-node-objective"><AsterVowIcon name={OBJECTIVE_ICON[stage.objective.type]} size={14} /> {OBJECTIVE_LABEL[stage.objective.type]}</span>
-                  <span className="cms-node-duration"><AsterVowIcon name="system-clock" size={14} /> {stage.estimatedDurationSec[0]}–{stage.estimatedDurationSec[1]}秒</span>
-                </div>
-              </div>
-              <div className="cms-node-side">
-                {unlocked ? <StarRow stars={prog.stars} /> : <span className="cms-node-lock-icon"><AsterVowIcon name="system-lock" size={19} /></span>}
-              </div>
-            </button>
+            <div key={stage.id} className={`cms-map-stage ${pos}`}>
+              {i > 0 && (
+                <svg className={`cms-map-connector${prevCleared ? ' lit' : ''}`} viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <line x1={MAP_POS_X[prevPos]} y1="0" x2={MAP_POS_X[pos]} y2="100" />
+                </svg>
+              )}
+              <button
+                className={`cms-map-node${isFinal ? ' final' : isBoss ? ' boss' : ''}${unlocked ? '' : ' locked'}${prog.cleared ? ' cleared' : ''}`}
+                disabled={!unlocked}
+                onClick={() => unlocked && handleSelectStage(stage.id)}
+              >
+                <span className="cms-map-badge">
+                  {unlocked
+                    ? <AsterVowIcon name={isBoss ? 'stage-boss' : OBJECTIVE_ICON[stage.objective.type]} size={isFinal ? 30 : isBoss ? 24 : 18} />
+                    : <AsterVowIcon name="system-lock" size={18} />}
+                  {!isFinal && <span className="cms-map-num">{stage.stageNumber}</span>}
+                </span>
+                <span className="cms-map-name">{stage.name}</span>
+                {unlocked && <StarRow stars={prog.stars} />}
+              </button>
+            </div>
           )
         })}
       </div>

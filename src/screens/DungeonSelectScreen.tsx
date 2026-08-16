@@ -7,7 +7,7 @@ import { getHeroStarTitle } from '../talents'
 
 // Group definition: id → dungeon IDs it contains
 const DUNGEON_GROUPS: { groupId: string; label: string; color: string; dungeonIds: string[] }[] = [
-  { groupId: 'ash_kingdom_group', label: '🔥 灰燼王國篇', color: '#c07030', dungeonIds: ['burning_throne', 'ash_covenant'] },
+  { groupId: 'ash_kingdom_group', label: '灰燼王國篇', color: '#c07030', dungeonIds: ['burning_throne', 'ash_covenant'] },
 ]
 const GROUPED_IDS = new Set(DUNGEON_GROUPS.flatMap(g => g.dungeonIds))
 
@@ -100,9 +100,9 @@ export default function DungeonSelectScreen({ meta, preSelectedId, onEnterDungeo
     <div className="dungeon-select-wrap">
       <header className="topbar">
         <div>
-          <div className="eyebrow">DICE HERO RPG</div>
-          <h1>地城副本</h1>
-          <p>挑戰固定地城，獲得專屬裝備獎勵。HP 在層與層之間保留，無卡牌與遺物加成。每場戰鬥將指定禁忌點數，踩中將引發副作用。</p>
+          <div className="eyebrow">ASTERVOW // EXPEDITION ARCHIVE</div>
+          <h1>星界遠征</h1>
+          <p>進入固定遠征航道以尋獲專屬裝備。生命值會跨越航段保留；本輪不攜帶牌組與遺物加成，並須避開每場戰鬥的禁忌航標。</p>
         </div>
         <button className="ghost" onClick={onBack}>← 返回</button>
       </header>

@@ -10,17 +10,17 @@ const DUNGEON_BGM: Record<string, string> = {
 }
 
 const DUNGEON_BOSS_ICONS: Record<string, string> = {
-  star_eclipse:   '🌑',
-  burning_throne: '🔥',
-  black_tide:     '🌊',
-  ash_covenant:   '🔱',
+  star_eclipse:   '✦',
+  burning_throne: '✹',
+  black_tide:     '◈',
+  ash_covenant:   '✧',
 }
 
 function getNodeIcons(dungeonId: string): Record<DungeonNodeType, string> {
   return {
-    battle: '⚔', elite: '💀', mini_boss: '👑', rest: '💤',
-    boss: DUNGEON_BOSS_ICONS[dungeonId] ?? '👑',
-    event: '📜', chest: '📦',
+    battle: '✦', elite: '◆', mini_boss: '✹', rest: '○',
+    boss: DUNGEON_BOSS_ICONS[dungeonId] ?? '✹',
+    event: '⌁', chest: '✧',
   }
 }
 const NODE_LABELS: Record<DungeonNodeType, string> = {
@@ -30,32 +30,32 @@ const NODE_LABELS: Record<DungeonNodeType, string> = {
 
 const ZONE_HEADERS: Record<string, Record<number, string>> = {
   star_eclipse: {
-    14: '✦ 第三區：主教寢宮',
-    9:  '☆ 第二區：星蝕迴廊',
-    4:  '☽ 第一區：裂隙入口',
+    14: '第三星域：主教寢宮',
+    9:  '第二星域：星蝕迴廊',
+    4:  '第一星域：裂隙入口',
   },
   burning_throne: {
-    14: '🔥 第三區：王座廳',
-    9:  '🔥 第二區：熔岩走廊',
-    4:  '🔥 第一區：焰獄前廳',
+    14: '第三星域：王座廳',
+    9:  '第二星域：熔岩走廊',
+    4:  '第一星域：焰獄前廳',
   },
   black_tide: {
-    14: '🌊 第三區：沉海王座',
-    9:  '🌊 第二區：深壓廊道',
-    4:  '🌊 第一區：潮汐前廳',
+    14: '第三星域：沉海王座',
+    9:  '第二星域：深壓廊道',
+    4:  '第一星域：潮汐前廳',
   },
   ash_covenant: {
-    14: '🔱 第三區：禁咒核心',
-    9:  '🔱 第二區：聖約廊道',
-    4:  '🔱 第一區：王陵前廳',
+    14: '第三星域：禁咒核心',
+    9:  '第二星域：聖約廊道',
+    4:  '第一星域：王陵前廳',
   },
 }
 
 const DUNGEON_TITLES: Record<string, string> = {
-  star_eclipse:   '🌑 星蝕裂隙',
-  burning_throne: '🔥 燃燒王座',
-  black_tide:     '🌊 黑潮深淵',
-  ash_covenant:   '🔱 灰燼聖約',
+  star_eclipse:   '星蝕裂隙',
+  burning_throne: '燃燒王座',
+  black_tide:     '黑潮深淵',
+  ash_covenant:   '灰燼聖約',
 }
 
 type Line = { x1: number; y1: number; x2: number; y2: number; cls: string }
@@ -155,13 +155,13 @@ export default function DungeonMapScreen({ nodes, heroHp, heroMaxHp, dungeonId, 
     <div className="dungeon-map-wrap">
       <header className="dmap-header">
         <div className="dmap-header-left">
-          <div className="dmap-title">{DUNGEON_TITLES[dungeonId] ?? '🌑 星蝕裂隙'}</div>
+          <div className="dmap-title">{DUNGEON_TITLES[dungeonId] ?? '星蝕裂隙'}</div>
           <div className="dmap-stats">
             <span className="dmap-hp-bar-wrap">
               <span className="dmap-hp-bar" style={{ width: `${hpPct * 100}%`, background: hpColor }} />
             </span>
-            <span className="dmap-hp-text" style={{ color: hpColor }}>❤️ {heroHp} / {heroMaxHp}</span>
-            <span className="dmap-progress-text">⚔ {clearedCount} / {totalBattle}</span>
+            <span className="dmap-hp-text" style={{ color: hpColor }}>HP {heroHp} / {heroMaxHp}</span>
+            <span className="dmap-progress-text">航程 {clearedCount} / {totalBattle}</span>
           </div>
         </div>
         <button className="ghost dmap-exit-btn" onClick={onExit}>放棄副本</button>
