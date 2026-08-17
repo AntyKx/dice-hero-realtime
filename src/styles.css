@@ -5149,12 +5149,13 @@ h1, h2, h3, p { margin: 0; }
 }
 .cms-milestone-label { font-size: 0.68rem; color: #88a0c0; }
 
-/* 關卡地圖 2026-08 單圖版：一張無接縫長圖（864×1821）直接當背景，取代先前
-   4 張手繪地圖分段拼接（消除接圖痕跡）。節點貼著圖上量好的空地座標用絕對
-   定位疊上去。石板小徑是圖裡畫好的，不用再疊一層連接線。 */
+/* 關卡地圖 2026-08 單圖版：一張無接縫長圖直接當背景，取代先前 4 張手繪地圖
+   分段拼接（消除接圖痕跡）。節點貼著圖上量好的空地座標用絕對定位疊上去。
+   石板小徑是圖裡畫好的，不用再疊一層連接線。2026-08-17：換成「ASTERVOW_
+   九場景」Q版美術包，固定尺寸 941×1672（原本是 864×1821 寫實風長圖）。 */
 .cms-map { position: relative; padding: 18px 0 40px; touch-action: pan-y; }
 .cms-map-forest {
-  position: relative; width: 100%; aspect-ratio: 864 / 1821;
+  position: relative; width: 100%; aspect-ratio: 941 / 1672;
   background-size: 100% 100%; background-repeat: no-repeat; background-position: center;
   border-radius: 14px; touch-action: pan-y;
   /* 2026-08-17：每篇章第 10 關（最終王）的節點座標都落在圖片下緣 91~95%，

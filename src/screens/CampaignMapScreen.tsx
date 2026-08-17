@@ -33,13 +33,14 @@ interface ChapterMapConfig {
   nodePositions: Record<number, { x: number; y: number }>
 }
 
-// 三個篇章的地圖總覽圖 + 10 個節點座標（畫面百分比）。2026-08-16 從 20 關
-// 砍到 10 關，改用使用者提供的「森林雪原魔王城_10關自然冒險地圖包」全新
-// 美術——這次素材包附的座標表本身就是依真實地標手動標定的（跟更早一版
-// 20 關素材包附的「其實是套用生成模板」座標不同，這次有先用戰鬥區域標記
-// 圖逐一肉眼核對過，比對結果吻合），直接採用，沒有重新量測。三張地圖美術
-// 都是 864×1821 無接縫長圖，node 座標用百分比定位，縮放後仍對齊；用
-// pairwise 像素距離腳本複驗過，任兩關的圖標不會互相框到。
+// 九張地圖的地圖總覽圖 + 10 個節點座標（畫面百分比）。2026-08-17 全面換成
+// 使用者提供的「ASTERVOW_九場景」Q版美術包，取代前一版寫實風地圖——這次
+// 座標直接取自素材包附的 JSON（`xPercent`/`yPercent`，圖片固定尺寸
+// 941×1672），JSON 本身就同時附百分比與像素座標且彼此吻合，比對過節點
+// 標示參考圖也一致，直接採用沒有重新量測。用 pairwise 像素距離腳本複驗過
+// （115px 一般節點／150px Boss或終點節點的門檻），9 張地圖裡只有雪原地城
+// 的 9-10 號有一組 134px（低於門檻但仍在安全範圍，手動核對過不會互相框
+// 到），其餘全部 clear。
 const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
   [CAMPAIGN_ID_FOREST_RUINS]: {
     eyebrow: 'ASTERVOW // ASTRAL NAVIGATION',
@@ -48,8 +49,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-forest',
     mapImage: '/assets/campaign/forest_ruins_map_full.jpg',
     nodePositions: {
-      1: { x: 38.2, y: 6.6 }, 2: { x: 78.7, y: 16.5 }, 3: { x: 20.8, y: 18.1 }, 4: { x: 46.3, y: 30.8 }, 5: { x: 22.0, y: 41.7 },
-      6: { x: 75.2, y: 40.4 }, 7: { x: 25.5, y: 58.2 }, 8: { x: 75.2, y: 68.1 }, 9: { x: 33.0, y: 76.3 }, 10: { x: 49.8, y: 91.2 },
+      1: { x: 49, y: 92 }, 2: { x: 39, y: 81 }, 3: { x: 80, y: 70 }, 4: { x: 15, y: 66 }, 5: { x: 47, y: 59 },
+      6: { x: 76, y: 55 }, 7: { x: 16, y: 36 }, 8: { x: 51, y: 34 }, 9: { x: 35, y: 18 }, 10: { x: 70, y: 14 },
     },
   },
   [CAMPAIGN_ID_SNOWFIELD]: {
@@ -59,8 +60,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-snow',
     mapImage: '/assets/campaign/snowfield_map_full.jpg',
     nodePositions: {
-      1: { x: 45.1, y: 8.0 }, 2: { x: 23.1, y: 18.7 }, 3: { x: 78.7, y: 22.2 }, 4: { x: 48.6, y: 32.1 }, 5: { x: 19.7, y: 38.7 },
-      6: { x: 78.1, y: 44.2 }, 7: { x: 49.8, y: 57.7 }, 8: { x: 75.2, y: 68.1 }, 9: { x: 22.0, y: 70.6 }, 10: { x: 49.8, y: 93.4 },
+      1: { x: 50, y: 94 }, 2: { x: 22, y: 82 }, 3: { x: 50, y: 72 }, 4: { x: 70, y: 65 }, 5: { x: 75, y: 54 },
+      6: { x: 73, y: 44 }, 7: { x: 70, y: 36 }, 8: { x: 58, y: 29 }, 9: { x: 50, y: 21 }, 10: { x: 50, y: 13 },
     },
   },
   [CAMPAIGN_ID_DEMON_CASTLE]: {
@@ -70,13 +71,12 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-castle',
     mapImage: '/assets/campaign/demon_castle_map_full.jpg',
     nodePositions: {
-      1: { x: 49.8, y: 8.0 }, 2: { x: 23.1, y: 18.4 }, 3: { x: 70.6, y: 25.0 }, 4: { x: 76.4, y: 35.1 }, 5: { x: 20.8, y: 39.0 },
-      6: { x: 76.4, y: 49.4 }, 7: { x: 40.5, y: 57.1 }, 8: { x: 22.0, y: 69.7 }, 9: { x: 60.2, y: 78.0 }, 10: { x: 49.8, y: 93.4 },
+      1: { x: 50, y: 92 }, 2: { x: 50, y: 82 }, 3: { x: 27, y: 72 }, 4: { x: 77, y: 70 }, 5: { x: 47, y: 64 },
+      6: { x: 18, y: 54 }, 7: { x: 23, y: 32 }, 8: { x: 18, y: 20 }, 9: { x: 52, y: 26 }, 10: { x: 72, y: 12 },
     },
   },
-  // 裂隙前兆／深海遺城（2026-08-16 稍晚新增）：各自 3 個子章節，每個子章節
-  // 都是獨立 campaignId + 獨立 10 關地圖，座標直接採用「裂隙前兆與深海遺城_
-  // 六章10關自然冒險地圖包」附的手動標定座標（已用戰鬥區域標記圖核對過）。
+  // 裂隙前兆／深海遺城：各自 3 個子章節，每個子章節都是獨立 campaignId +
+  // 獨立 10 關地圖，座標同樣來自上面「ASTERVOW_九場景」JSON。
   [CAMPAIGN_ID_RIFT_BROKEN_SKY]: {
     eyebrow: 'ASTERVOW // ASTRAL NAVIGATION',
     title: '裂隙前兆 · 第一章 · 破碎天幕',
@@ -84,8 +84,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-rift',
     mapImage: '/assets/campaign/rift_omen_broken_sky_map_full.jpg',
     nodePositions: {
-      1: { x: 43.4, y: 6.6 }, 2: { x: 22.6, y: 17.6 }, 3: { x: 81.0, y: 16.5 }, 4: { x: 49.8, y: 30.2 }, 5: { x: 75.2, y: 34.6 },
-      6: { x: 78.1, y: 50.5 }, 7: { x: 20.8, y: 57.7 }, 8: { x: 77.0, y: 68.1 }, 9: { x: 30.1, y: 78.0 }, 10: { x: 49.8, y: 92.9 },
+      1: { x: 13, y: 92 }, 2: { x: 20, y: 83 }, 3: { x: 44, y: 75 }, 4: { x: 55, y: 66 }, 5: { x: 27, y: 57 },
+      6: { x: 69, y: 57 }, 7: { x: 53, y: 45 }, 8: { x: 38, y: 36 }, 9: { x: 56, y: 26 }, 10: { x: 74, y: 15 },
     },
   },
   [CAMPAIGN_ID_RIFT_VOID_CHASM]: {
@@ -95,8 +95,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-rift',
     mapImage: '/assets/campaign/rift_omen_void_chasm_map_full.jpg',
     nodePositions: {
-      1: { x: 47.5, y: 5.2 }, 2: { x: 24.3, y: 14.3 }, 3: { x: 75.2, y: 15.4 }, 4: { x: 49.8, y: 32.4 }, 5: { x: 25.5, y: 39.3 },
-      6: { x: 49.8, y: 46.7 }, 7: { x: 75.2, y: 49.4 }, 8: { x: 22.0, y: 61.0 }, 9: { x: 57.9, y: 79.6 }, 10: { x: 49.8, y: 92.8 },
+      1: { x: 18, y: 8 }, 2: { x: 24, y: 19 }, 3: { x: 30, y: 32 }, 4: { x: 28, y: 45 }, 5: { x: 42, y: 49 },
+      6: { x: 60, y: 49 }, 7: { x: 72, y: 62 }, 8: { x: 75, y: 75 }, 9: { x: 63, y: 87 }, 10: { x: 50, y: 94 },
     },
   },
   [CAMPAIGN_ID_RIFT_ECLIPSE_CORE]: {
@@ -106,8 +106,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-rift',
     mapImage: '/assets/campaign/rift_omen_eclipse_core_map_full.jpg',
     nodePositions: {
-      1: { x: 40.5, y: 6.6 }, 2: { x: 75.1, y: 9.3 }, 3: { x: 23.1, y: 22.0 }, 4: { x: 49.7, y: 33.0 }, 5: { x: 75.1, y: 42.9 },
-      6: { x: 28.9, y: 53.9 }, 7: { x: 75.1, y: 64.9 }, 8: { x: 25.4, y: 70.4 }, 9: { x: 49.7, y: 79.7 }, 10: { x: 49.7, y: 92.9 },
+      1: { x: 52, y: 91 }, 2: { x: 77, y: 84 }, 3: { x: 78, y: 68 }, 4: { x: 65, y: 57 }, 5: { x: 36, y: 60 },
+      6: { x: 17, y: 51 }, 7: { x: 15, y: 37 }, 8: { x: 39, y: 43 }, 9: { x: 52, y: 34 }, 10: { x: 53, y: 20 },
     },
   },
   [CAMPAIGN_ID_DEEP_CORAL_SHALLOWS]: {
@@ -117,8 +117,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-deep-sea',
     mapImage: '/assets/campaign/deep_sea_coral_shallows_map_full.jpg',
     nodePositions: {
-      1: { x: 48.6, y: 6.6 }, 2: { x: 23.1, y: 18.1 }, 3: { x: 75.2, y: 21.4 }, 4: { x: 49.8, y: 34.0 }, 5: { x: 23.1, y: 41.7 },
-      6: { x: 77.5, y: 41.2 }, 7: { x: 72.9, y: 56.6 }, 8: { x: 23.1, y: 60.4 }, 9: { x: 66.0, y: 73.0 }, 10: { x: 49.8, y: 92.8 },
+      1: { x: 72, y: 86 }, 2: { x: 50, y: 91 }, 3: { x: 25, y: 79 }, 4: { x: 17, y: 63 }, 5: { x: 20, y: 48 },
+      6: { x: 50, y: 65 }, 7: { x: 80, y: 54 }, 8: { x: 82, y: 35 }, 9: { x: 72, y: 22 }, 10: { x: 25, y: 14 },
     },
   },
   [CAMPAIGN_ID_DEEP_SUNKEN_CAPITAL]: {
@@ -128,8 +128,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-deep-sea',
     mapImage: '/assets/campaign/deep_sea_sunken_capital_map_full.jpg',
     nodePositions: {
-      1: { x: 28.9, y: 7.7 }, 2: { x: 75.2, y: 18.7 }, 3: { x: 23.1, y: 23.6 }, 4: { x: 23.1, y: 37.3 }, 5: { x: 75.2, y: 41.2 },
-      6: { x: 22.0, y: 54.9 }, 7: { x: 75.2, y: 57.7 }, 8: { x: 54.4, y: 69.2 }, 9: { x: 30.1, y: 80.2 }, 10: { x: 49.8, y: 93.4 },
+      1: { x: 50, y: 93 }, 2: { x: 50, y: 82 }, 3: { x: 25, y: 72 }, 4: { x: 75, y: 72 }, 5: { x: 50, y: 60 },
+      6: { x: 25, y: 50 }, 7: { x: 75, y: 50 }, 8: { x: 50, y: 40 }, 9: { x: 50, y: 27 }, 10: { x: 50, y: 14 },
     },
   },
   [CAMPAIGN_ID_DEEP_EMPEROR_ABYSS]: {
@@ -139,8 +139,8 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     iconName: 'chapter-deep-sea',
     mapImage: '/assets/campaign/deep_sea_emperor_abyss_map_full.jpg',
     nodePositions: {
-      1: { x: 75.2, y: 7.1 }, 2: { x: 25.5, y: 17.6 }, 3: { x: 20.8, y: 30.8 }, 4: { x: 75.2, y: 30.8 }, 5: { x: 71.8, y: 43.9 },
-      6: { x: 20.8, y: 49.4 }, 7: { x: 28.9, y: 61.5 }, 8: { x: 75.2, y: 64.8 }, 9: { x: 49.8, y: 78.5 }, 10: { x: 49.8, y: 92.8 },
+      1: { x: 52, y: 8 }, 2: { x: 36, y: 17 }, 3: { x: 27, y: 28 }, 4: { x: 25, y: 40 }, 5: { x: 66, y: 33 },
+      6: { x: 52, y: 55 }, 7: { x: 66, y: 65 }, 8: { x: 72, y: 75 }, 9: { x: 58, y: 84 }, 10: { x: 50, y: 92 },
     },
   },
 }
