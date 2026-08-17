@@ -75,6 +75,12 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, inBat
   const keys = useRef(new Set<string>())
   const joystickOrigin = useRef<Point | null>(null)
   const lastTime = useRef<number | null>(null)
+  // joystick state 只用來畫搖桿旋鈕視覺；移動迴圈讀這顆 ref（拖曳中每次
+  // pointermove 都會變的是 state，如果 tick 的 effect 依賴 joystick state，
+  // 每次拖曳都會把 rAF 迴圈整個拆掉重排，導致排進去的 frame 永遠來不及真的
+  // 執行——這是搖桿完全不動的實際原因，鍵盤不受影響是因為鍵盤輸入只讀
+  // keys ref，不會觸發這個 effect 重跑。
+  const joystickRef = useRef<InputVector>({ x: 0, y: 0 })
 
   // 換關（進到不同 stageId）時重置角色位置/鏡頭/補給狀態，不繼承上一關的座標。
   useEffect(() => {
@@ -105,7 +111,7 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, inBat
         x: Number(keys.current.has('d') || keys.current.has('arrowright')) - Number(keys.current.has('a') || keys.current.has('arrowleft')),
         y: Number(keys.current.has('s') || keys.current.has('arrowdown')) - Number(keys.current.has('w') || keys.current.has('arrowup')),
       }
-      const input = keyboard.x || keyboard.y ? keyboard : joystick
+      const input = keyboard.x || keyboard.y ? keyboard : joystickRef.current
       const magnitude = Math.hypot(input.x, input.y) || 1
       const velocity = { x: (input.x / magnitude) * MOVE_SPEED * delta, y: (input.y / magnitude) * MOVE_SPEED * delta }
       setHero(current => {
@@ -119,7 +125,7 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, inBat
     lastTime.current = null
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [joystick, stage, inBattle])
+  }, [stage, inBattle])
 
   useEffect(() => {
     if (inBattle) return
@@ -154,7 +160,9 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, inBat
     const dx = clientX - joystickOrigin.current.x
     const dy = clientY - joystickOrigin.current.y
     const length = Math.min(58, Math.hypot(dx, dy)) || 1
-    setJoystick({ x: (dx / length) * Math.min(1, Math.abs(dx) / 58), y: (dy / length) * Math.min(1, Math.abs(dy) / 58) })
+    const next = { x: (dx / length) * Math.min(1, Math.abs(dx) / 58), y: (dy / length) * Math.min(1, Math.abs(dy) / 58) }
+    joystickRef.current = next
+    setJoystick(next)
   }
 
   const interactionLabel = (zone: ExplorationZone): string => {
@@ -198,7 +206,8 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, inBat
         {!inBattle && <div className="forest-realtime-joystick"
           onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); joystickOrigin.current = { x: event.clientX, y: event.clientY }; updateJoystick(event.clientX, event.clientY) }}
           onPointerMove={event => updateJoystick(event.clientX, event.clientY)}
-          onPointerUp={() => { joystickOrigin.current = null; setJoystick({ x: 0, y: 0 }) }}
+          onPointerUp={() => { joystickOrigin.current = null; joystickRef.current = { x: 0, y: 0 }; setJoystick({ x: 0, y: 0 }) }}
+          onPointerCancel={() => { joystickOrigin.current = null; joystickRef.current = { x: 0, y: 0 }; setJoystick({ x: 0, y: 0 }) }}
         >
           <i style={{ transform: `translate(${joystick.x * 24}px, ${joystick.y * 24}px)` }} />
         </div>}
