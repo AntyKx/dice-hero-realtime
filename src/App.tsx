@@ -75,6 +75,8 @@ import { ARENA_RELICS } from './arena/relics'
 import CampaignMapScreen from './screens/CampaignMapScreen'
 import CampaignChapterSelectScreen from './screens/CampaignChapterSelectScreen'
 import SagaSelectScreen from './screens/SagaSelectScreen'
+import ForestRealtimeExploration from './screens/ForestRealtimeExploration'
+import { isForestExploreStageId } from './exploration/forestRealtimeConfig.1to5'
 import { getCampaignStage } from './campaign/campaignStages'
 import { CAMPAIGN_ID_FOREST_RUINS, getSagaIdForCampaign } from './campaign/campaignTypes'
 import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
@@ -1452,10 +1454,42 @@ export default function App() {
           meta={meta}
           heroId={phase.heroId}
           campaignId={phase.campaignId}
-          onSelectStage={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
+          onSelectStage={stageId => setPhase(
+            isForestExploreStageId(stageId)
+              ? { type: 'campaign_explore', heroId: phase.heroId, stageId }
+              : { type: 'campaign_stage', heroId: phase.heroId, stageId }
+          )}
           onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
         />
       </div>
+    )
+  }
+
+  // 森林遺跡 1-1~1-5 連續探索示範（2026-08-17，見 src/exploration/）：只有
+  // 這 5 關會先進這裡，靠近戰鬥點才呼叫既有 campaign_stage 進 Arena；其餘
+  // 85 關維持點節點直接進 Arena，不受影響。
+  if (phase.type === 'campaign_explore') {
+    return (
+      <ForestRealtimeExploration
+        meta={meta}
+        heroId={phase.heroId}
+        stageId={phase.stageId}
+        onStartBattle={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
+        onExitStage={({ stageId, nextStageId }) => {
+          if (nextStageId) {
+            setPhase({ type: 'campaign_explore', heroId: phase.heroId, stageId: nextStageId })
+            return
+          }
+          // 1-5 出口：沒有下一關，回到森林遺跡關卡地圖（章節結算沿用既有規則，
+          // 通關當下已經在 campaign_stage 的 onCampaignStageEnd 處理過）。
+          const campaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+          setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
+        }}
+        onBack={() => {
+          const campaignId = getCampaignStage(phase.stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+          setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
+        }}
+      />
     )
   }
 
@@ -1515,7 +1549,13 @@ export default function App() {
           campaignStageId: stageId,
           ...arenaEquipFields,
         }}
-        onExit={() => setPhase({ type: 'campaign_map', heroId: hero.id, campaignId: stageCampaignId })}
+        // 森林遺跡 1-1~1-5：離開戰鬥回到探索地圖（同一關，接著走去出口），
+        // 不是直接跳回關卡地圖——這 5 關的地圖節點本來就是先進探索層。
+        onExit={() => setPhase(
+          isForestExploreStageId(stageId)
+            ? { type: 'campaign_explore', heroId: hero.id, stageId }
+            : { type: 'campaign_map', heroId: hero.id, campaignId: stageCampaignId }
+        )}
         onCampaignStageEnd={result => {
           updateMeta(m => {
             const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
@@ -1590,7 +1630,11 @@ export default function App() {
           onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_saga_select', heroId })}
-          onStartCampaignStage={(heroId, stageId) => setPhase({ type: 'campaign_stage', heroId, stageId })}
+          onStartCampaignStage={(heroId, stageId) => setPhase(
+            isForestExploreStageId(stageId)
+              ? { type: 'campaign_explore', heroId, stageId }
+              : { type: 'campaign_stage', heroId, stageId }
+          )}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
           onOpenWarehouse={() => setPhase({ type: 'warehouse' })}
           onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}
