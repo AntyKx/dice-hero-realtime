@@ -1,17 +1,21 @@
-# 章節旅程節點系統（Chapter Travel）
+# 固定式主線關卡系統（src/campaign/）
 
-森林遺跡 1–20 關選關前的過場動畫（`chapterTravelTypes.ts`/`chapterTravelData.ts`
-+ `../components/CampaignTravelPreview.tsx`）。跟 `campaignTypes.ts`/
-`chapters/forestRuins.ts`（關卡戰鬥資料）完全分開——這一套只負責「玩家
-點選關卡後、進入戰鬥前的走位畫面」，不含任何戰鬥/勝負邏輯。
+九個章節（三篇 × 三章，每章 10 關）的純資料層，執行期邏輯（波次生成、
+Objective 判定、星星計算）在 `src/arena/objectives.ts` 跟 `ArenaGame.ts`
+的 `initCampaignStage()`/`updateObjective()`，UI 在
+`SagaSelectScreen.tsx`/`CampaignChapterSelectScreen.tsx`/
+`CampaignMapScreen.tsx` 三層。完整架構說明見專案根目錄 `CLAUDE.md` 的
+「即時制 ASTERVOW 大廳 + 固定式主線關卡系統」一節，這裡不重複寫一份避免
+內容漂移。
 
-完整說明（四篇章 24 段對照表、美術替換對照表、接地感實作方式、已知限制）
-見 **`docs/campaign-travel-system.md`**（專案根目錄的 `docs/` 資料夾），
-這裡不重複寫一份避免內容漂移。
+## ⚠️ 章節旅程節點系統（Chapter Travel）——已停用，不是死碼但沒有接線
 
-快速摘要：`CampaignMapScreen.tsx` 點選關卡時先呼叫
-`hasTravelSegments(stageId)` 判斷要不要攔截，有資料就開
-`CampaignTravelPreview`，播完或按「略過」都會呼叫同一個 `onFinish` →
-原本的 `onSelectStage(stageId)`；沒有旅程資料的關卡維持原本直接跳轉的
-行為（目前森林遺跡 1–20 關全部都有資料，其他篇章/副本/Roguelite Run
-不受影響）。
+`chapterTravelTypes.ts`/`chapterTravelData.ts` + `../components/
+CampaignTravelPreview.tsx` 曾經是森林遺跡舊版 20 關選關前的過場動畫，
+**2026-08-16 森林遺跡從 20 關砍到 10 關重新設計後，`CampaignMapScreen.tsx`
+已經不再呼叫 `hasTravelSegments()`/`CampaignTravelPreview`**——這批資料是
+針對舊版 20 關的關卡順序/劇情手寫的，砍成 10 關後內容跟新關卡對不上，
+與其顯示錯亂的過場劇情，選擇直接拔線，檔案保留但目前完全沒有任何畫面
+引用。`docs/campaign-travel-system.md` 記錄的是這套系統停用前的完整設計，
+當歷史文件看即可；如果之後要幫森林遺跡重做過場動畫，要對照*現在*的 10
+關內容重寫，不能直接復用這批舊資料。

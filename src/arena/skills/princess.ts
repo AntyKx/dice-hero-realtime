@@ -8,7 +8,7 @@
  * 碎冰爆發+波及疊痕 → Lv80 敵人死亡冰痕擴散給鄰近敵人 → Lv100 Ultimate
  * 進化成範圍直接施加冰痕+延長凍結。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const FROST_MAX_STACKS = 5
 const SLOW_PER_STACK = 0.06
@@ -70,4 +70,28 @@ export function princessUltimateMastery(game: ArenaGame): void {
     e.frozenTimer = FREEZE_DURATION * 2
   }
   game.spawnFloatingText('絕對零度！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 寒霜權杖：冰刃風暴，範圍內敵人追加穿透傷害。 */
+export function princessFrostScepterUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) game.damageEnemy(e, 30)
+  }
+  game.spawnFloatingText('皇家冰晶陣！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 永冬冰晶杖：極寒領域，範圍內敵人直接凍結。 */
+export function princessIceStaffUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      e.frostStacks = FROST_MAX_STACKS
+      e.frozenTimer = Math.max(e.frozenTimer, FREEZE_DURATION * 1.5)
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0x8ad4ff, ULTIMATE_RADIUS)
+  game.spawnFloatingText('極寒凍界！', game.player.x, game.player.y - 60)
 }

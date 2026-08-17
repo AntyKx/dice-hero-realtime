@@ -3,6 +3,12 @@ import { HEROES, getHeroSprite } from '../data'
 import SpriteAnimator from '../components/SpriteAnimator'
 import type { MetaState, HeroProgress } from '../types'
 import { defaultHeroProgress, getHeroStarTitle } from '../talents'
+import { ALL_CAMPAIGN_STAGES } from '../campaign/campaignStages'
+import { CAMPAIGN_CHAPTER_ORDER } from '../campaign/campaignTypes'
+
+const CHAPTER_LABEL: Record<string, string> = {
+  forest_ruins: '森林遺跡', snowfield_wastes: '雪原', demon_king_castle: '魔王城',
+}
 
 const GM_PASSWORD = 'dice9999'
 
@@ -56,6 +62,34 @@ export default function GmScreen({ meta, onUpdateMeta, onBack, onArenaTest }: Pr
     })
   }
 
+  // 篇章關卡一鍵解鎖（2026-08-16）：只覆蓋 campaignStageProgress 這一個欄位，
+  // 用展開運算子疊在原本的 meta 上——不會動到金幣/星塵/裝備/英雄進度等其他
+  // 欄位，跟 applyAll() 同一種「安全 merge」寫法，避免直接覆蓋整份存檔。
+  const unlockChapter = (campaignId: string) => {
+    onUpdateMeta(m => {
+      const next = { ...(m.campaignStageProgress ?? {}) }
+      for (const stage of ALL_CAMPAIGN_STAGES) {
+        if (stage.campaignId !== campaignId) continue
+        next[stage.id] = { cleared: true, stars: 3, firstClearClaimed: true }
+      }
+      return { ...m, campaignStageProgress: next }
+    })
+  }
+
+  const unlockAllChapters = () => {
+    onUpdateMeta(m => {
+      const next = { ...(m.campaignStageProgress ?? {}) }
+      for (const stage of ALL_CAMPAIGN_STAGES) {
+        next[stage.id] = { cleared: true, stars: 3, firstClearClaimed: true }
+      }
+      return { ...m, campaignStageProgress: next }
+    })
+  }
+
+  const resetAllChapters = () => {
+    onUpdateMeta(m => ({ ...m, campaignStageProgress: {} }))
+  }
+
   if (!unlocked) {
     return (
       <div className="gm-gate">
@@ -93,6 +127,21 @@ export default function GmScreen({ meta, onUpdateMeta, onBack, onArenaTest }: Pr
       <button className="gm-apply-btn" style={{ marginBottom: 12 }} onClick={onArenaTest}>
         🕹 即時戰鬥測試（M1 垂直切片，knight vs goblin）
       </button>
+
+      <div className="gm-campaign-section">
+        <div className="gm-campaign-title">固定式主線關卡（森林遺跡／雪原／魔王城）</div>
+        <div className="gm-campaign-btns">
+          <button className="gm-apply-btn" onClick={unlockAllChapters}>★ 全部篇章 60 關全解鎖（三星）</button>
+          <button className="gm-step-btn" onClick={resetAllChapters}>重置全部篇章進度</button>
+        </div>
+        <div className="gm-campaign-btns">
+          {CAMPAIGN_CHAPTER_ORDER.map(id => (
+            <button key={id} className="gm-step-btn" onClick={() => unlockChapter(id)}>
+              只解鎖「{CHAPTER_LABEL[id] ?? id}」
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="gm-hero-list">
         {HEROES.map(hero => {

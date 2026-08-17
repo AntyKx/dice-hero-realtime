@@ -109,6 +109,133 @@ export const FOREST_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
   forest_dragon: FOREST_DRAGON,
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// 雪原（snowfield_wastes）+ 魔王城（demon_king_castle）固定式主線關卡專用敵人
+// （2026-08-16）。這批完全沒有專屬美術（給的素材只有地圖總覽圖，沒有逐幀
+// 怪物圖），全部用 placeholderSpriteId 借用既有 22 個資料夾的圖頂著——優先借
+// 視覺調性接近的（冰甲騎士/冰霜女巫/骷髏本來就偏白骨/雪原哥布林借舊版
+// goblin 圓潤造型），等有真的美術再逐一換掉，數值/AI 邏輯不受影響。
+// 借森林 12 隻真圖其中之一時要複製對方的 anchorRatio（腳底對齊比例），借
+// 舊版 10 隻圓形回合制素材（goblin/skeleton/orc/slimeking/mimic/dark_knight/
+// golem/ice_witch/lightning_lancer/dragon）則不用，那批圖本來就是置中裁切。
+// ══════════════════════════════════════════════════════════════════════════
+const ICE_GOBLIN: EnemyTypeDef      = { id: 'ice_goblin', name: '冰原哥布林', hpMult: 1.05, speedMult: 1.0, damageMult: 1.0, spriteHeight: 70, weight: 0, minMinute: 0, aiType: 'chase', placeholderSpriteId: 'goblin' }
+const FROST_SKELETON: EnemyTypeDef  = { id: 'frost_skeleton', name: '寒冰骷髏兵', hpMult: 0.8, speedMult: 1.4, damageMult: 0.85, spriteHeight: 72, weight: 0, minMinute: 0, aiType: 'skirmisher', placeholderSpriteId: 'skeleton' }
+const FROST_ARCHER: EnemyTypeDef    = { id: 'frost_archer', name: '冰霜弓手', hpMult: 0.75, speedMult: 1.0, damageMult: 0.95, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'ranged', placeholderSpriteId: 'goblin_archer', anchorRatio: { x: 0.423, y: 0.698 } }
+const ICE_SHAMAN: EnemyTypeDef      = { id: 'ice_shaman', name: '冰霜薩滿', hpMult: 0.9, speedMult: 0.9, damageMult: 0.55, spriteHeight: 106, weight: 0, minMinute: 0, aiType: 'support', placeholderSpriteId: 'forest_shaman', anchorRatio: { x: 0.409, y: 0.791 } }
+const FROST_WOLF: EnemyTypeDef      = { id: 'frost_wolf', name: '寒冰狼', hpMult: 1.2, speedMult: 1.35, damageMult: 1.3, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'charge', placeholderSpriteId: 'thorn_wolf', anchorRatio: { x: 0.526, y: 0.694 } }
+const YETI_BRUTE: EnemyTypeDef      = { id: 'yeti_brute', name: '雪怪蠻兵', hpMult: 2.1, speedMult: 0.7, damageMult: 1.4, spriteHeight: 76, weight: 0, minMinute: 0, aiType: 'charge', placeholderSpriteId: 'orc' }
+const SNOW_TROLL: EnemyTypeDef      = { id: 'snow_troll', name: '雪原巨魔', hpMult: 2.6, speedMult: 0.5, damageMult: 1.2, spriteHeight: 127, weight: 0, minMinute: 0, aiType: 'heavy', placeholderSpriteId: 'orc_warrior', anchorRatio: { x: 0.5, y: 0.756 } }
+// 1-4 對應：雪原篇的圖騰型破壞目標（完全靜止、無攻擊）。
+const ICE_CRYSTAL_TOTEM: EnemyTypeDef = { id: 'ice_crystal_totem', name: '冰晶法陣', hpMult: 1.0, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
+
+const IMP_SOLDIER: EnemyTypeDef     = { id: 'imp_soldier', name: '地獄小鬼兵', hpMult: 1.15, speedMult: 1.0, damageMult: 1.1, spriteHeight: 114, weight: 0, minMinute: 0, aiType: 'chase', placeholderSpriteId: 'goblin_warrior', anchorRatio: { x: 0.517, y: 0.702 } }
+const HELL_SKELETON: EnemyTypeDef   = { id: 'hell_skeleton', name: '業火骷髏', hpMult: 0.7, speedMult: 1.55, damageMult: 0.8, spriteHeight: 106, weight: 0, minMinute: 0, aiType: 'skirmisher', placeholderSpriteId: 'skeleton_scout', anchorRatio: { x: 0.469, y: 0.707 } }
+const IMP_ARCHER: EnemyTypeDef      = { id: 'imp_archer', name: '地獄弓手', hpMult: 0.78, speedMult: 1.05, damageMult: 1.0, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'ranged', placeholderSpriteId: 'goblin_archer', anchorRatio: { x: 0.423, y: 0.698 } }
+const DEMON_SHAMAN: EnemyTypeDef    = { id: 'demon_shaman', name: '邪炎術士', hpMult: 1.0, speedMult: 0.9, damageMult: 0.6, spriteHeight: 106, weight: 0, minMinute: 0, aiType: 'support', placeholderSpriteId: 'forest_shaman', anchorRatio: { x: 0.409, y: 0.791 } }
+const HELLHOUND: EnemyTypeDef       = { id: 'hellhound', name: '地獄獵犬', hpMult: 1.3, speedMult: 1.4, damageMult: 1.4, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'charge', placeholderSpriteId: 'thorn_wolf', anchorRatio: { x: 0.526, y: 0.694 } }
+const DEMON_BRUTE: EnemyTypeDef     = { id: 'demon_brute', name: '魔軍蠻兵', hpMult: 2.8, speedMult: 0.55, damageMult: 1.5, spriteHeight: 127, weight: 0, minMinute: 0, aiType: 'heavy', placeholderSpriteId: 'orc_warrior', anchorRatio: { x: 0.5, y: 0.756 } }
+const CURSED_CHEST: EnemyTypeDef    = { id: 'cursed_chest', name: '詛咒寶箱', hpMult: 1.3, speedMult: 1.1, damageMult: 1.2, spriteHeight: 62, weight: 0, minMinute: 0, aiType: 'chase', placeholderSpriteId: 'mimic' }
+// 魔王城篇的圖騰型破壞目標。
+const LAVA_TOTEM: EnemyTypeDef      = { id: 'lava_totem', name: '熔岩法陣', hpMult: 1.0, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
+
+// Boss（雪原 4 隻 + 魔王城 4 隻，1-18/2-18/3-18 雙王關直接把 5 關 Boss 複製一份
+// count:2，跟森林 1-18 雙獸人隊長同一招，不用另外設計第 5 個 Boss id）。
+// hpMult 比照森林同一序位 Boss 再往上抬 10~20%，反映後續篇章難度遞增。
+const FROST_KNIGHT_CAPTAIN: EnemyTypeDef = { id: 'frost_knight_captain', name: '霜甲騎士長', hpMult: 68, speedMult: 0.62, damageMult: 1.9, spriteHeight: 150, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'lightning_lancer' }
+const ICE_GOLEM_COLOSSUS: EnemyTypeDef   = { id: 'ice_golem_colossus', name: '冰封巨像', hpMult: 88, speedMult: 0.42, damageMult: 1.7, spriteHeight: 190, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'golem' }
+const FROST_QUEEN: EnemyTypeDef          = { id: 'frost_queen', name: '冰霜女王', hpMult: 95, speedMult: 0.8, damageMult: 2.0, spriteHeight: 155, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'ice_witch' }
+const ICE_DRAGON: EnemyTypeDef           = { id: 'ice_dragon', name: '冰霜巨龍', hpMult: 165, speedMult: 0.55, damageMult: 2.6, spriteHeight: 220, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dragon' }
+
+const DEMON_KNIGHT: EnemyTypeDef      = { id: 'demon_knight', name: '煉獄騎士', hpMult: 72, speedMult: 0.62, damageMult: 2.0, spriteHeight: 150, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dark_knight' }
+const LAVA_GOLEM: EnemyTypeDef        = { id: 'lava_golem', name: '熔岩巨像', hpMult: 92, speedMult: 0.42, damageMult: 1.8, spriteHeight: 195, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'golem' }
+const INFERNAL_PRIESTESS: EnemyTypeDef = { id: 'infernal_priestess', name: '煉獄主教', hpMult: 100, speedMult: 0.8, damageMult: 2.1, spriteHeight: 158, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'orc_chieftain' }
+const DEMON_KING: EnemyTypeDef        = { id: 'demon_king', name: '深淵魔王', hpMult: 175, speedMult: 0.55, damageMult: 2.7, spriteHeight: 225, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dark_knight_vanguard' }
+
+/** 雪原（snowfield_wastes）專用敵人 id → 資料查表。 */
+export const SNOWFIELD_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
+  ice_goblin: ICE_GOBLIN,
+  frost_skeleton: FROST_SKELETON,
+  frost_archer: FROST_ARCHER,
+  ice_shaman: ICE_SHAMAN,
+  frost_wolf: FROST_WOLF,
+  yeti_brute: YETI_BRUTE,
+  snow_troll: SNOW_TROLL,
+  ice_crystal_totem: ICE_CRYSTAL_TOTEM,
+  frost_knight_captain: FROST_KNIGHT_CAPTAIN,
+  ice_golem_colossus: ICE_GOLEM_COLOSSUS,
+  frost_queen: FROST_QUEEN,
+  ice_dragon: ICE_DRAGON,
+}
+
+/** 魔王城（demon_king_castle）專用敵人 id → 資料查表。 */
+export const DEMON_CASTLE_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
+  imp_soldier: IMP_SOLDIER,
+  hell_skeleton: HELL_SKELETON,
+  imp_archer: IMP_ARCHER,
+  demon_shaman: DEMON_SHAMAN,
+  hellhound: HELLHOUND,
+  demon_brute: DEMON_BRUTE,
+  cursed_chest: CURSED_CHEST,
+  lava_totem: LAVA_TOTEM,
+  demon_knight: DEMON_KNIGHT,
+  lava_golem: LAVA_GOLEM,
+  infernal_priestess: INFERNAL_PRIESTESS,
+  demon_king: DEMON_KING,
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 裂隙前兆（3 個子章節）+ 深海遺城（3 個子章節）固定式主線關卡專用敵人
+// （2026-08-16 稍晚新增，60 關規模）。小怪不重新設計新 EnemyTypeDef——
+// 直接重用上面舊 Roguelite 系統的 GOBLIN/SKELETON/ORC/SLIMEKING/MIMIC/
+// DARK_KNIGHT/LIGHTNING_LANCER 這幾個「風味中性」的角色（本來就有真圖，
+// 不用 placeholderSpriteId，也不用另外複製一份改名字），兩個篇章共用同一批，
+// 靠波次組合的差異（裂隙偏重 lightning_lancer/dark_knight 的重裝異界感，
+// 深海偏重 slimeking/mimic 的軟體/深海感）做出風味區隔，呼應舊
+// RIFT_OMEN_POOL/DEEP_SEA_POOL 當初的配置邏輯。只有圖騰（destroy 用）跟
+// 6 個章節 Boss 是新資料。
+// ══════════════════════════════════════════════════════════════════════════
+const RIFT_CRYSTAL_TOTEM: EnemyTypeDef = { id: 'rift_crystal_totem', name: '裂隙水晶', hpMult: 1.0, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
+const DEEP_SEA_TOTEM: EnemyTypeDef     = { id: 'deep_sea_totem', name: '深海法陣', hpMult: 1.0, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
+
+// 章節 Boss（每個子章節只有 1 個，第 10 關，沒有像森林/雪原/魔王城那樣額外的
+// 第 5 關中王）。hpMult 依子章節序位遞增（ch1 < ch2 < ch3），ch3 是
+// README 標註的「篇章最終Boss」，數值比照森林/雪原/魔王城的最終王級距。
+const RIFT_BEAST_VOLGA: EnemyTypeDef  = { id: 'rift_beast_volga', name: '天裂獸・沃爾迦', hpMult: 90, speedMult: 0.55, damageMult: 2.1, spriteHeight: 200, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dragon' }
+const VOID_SENTINEL_NEMOS: EnemyTypeDef = { id: 'void_sentinel_nemos', name: '虛空守望者・涅摩斯', hpMult: 115, speedMult: 0.45, damageMult: 2.0, spriteHeight: 195, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'golem' }
+const RIFT_APOSTLE_EROS: EnemyTypeDef = { id: 'rift_apostle_eros', name: '裂界使徒・厄洛斯', hpMult: 150, speedMult: 0.6, damageMult: 2.3, spriteHeight: 180, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dark_knight_vanguard' }
+const REEF_LEVIATHAN_ZEPHYRON: EnemyTypeDef = { id: 'reef_leviathan_zephyron', name: '礁海巨獸・澤菲隆', hpMult: 95, speedMult: 0.55, damageMult: 2.1, spriteHeight: 205, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'forest_dragon' }
+const FALLEN_REGENT_SELRONE: EnemyTypeDef = { id: 'fallen_regent_selrone', name: '墮落海攝政・賽洛恩', hpMult: 120, speedMult: 0.6, damageMult: 2.0, spriteHeight: 170, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'orc_chieftain' }
+const TIDAL_KING_OSREIN: EnemyTypeDef = { id: 'tidal_king_osrein', name: '潮汐王・奧瑟雷恩', hpMult: 155, speedMult: 0.75, damageMult: 2.2, spriteHeight: 160, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'ice_witch' }
+
+/** 裂隙前兆（3 子章節）+ 深海遺城（3 子章節）共用敵人 id → 資料查表。 */
+export const RIFT_DEEP_SEA_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
+  goblin: GOBLIN,
+  skeleton: SKELETON,
+  orc: ORC,
+  slimeking: SLIMEKING,
+  mimic: MIMIC,
+  dark_knight: DARK_KNIGHT,
+  lightning_lancer: LIGHTNING_LANCER,
+  rift_crystal_totem: RIFT_CRYSTAL_TOTEM,
+  deep_sea_totem: DEEP_SEA_TOTEM,
+  rift_beast_volga: RIFT_BEAST_VOLGA,
+  void_sentinel_nemos: VOID_SENTINEL_NEMOS,
+  rift_apostle_eros: RIFT_APOSTLE_EROS,
+  reef_leviathan_zephyron: REEF_LEVIATHAN_ZEPHYRON,
+  fallen_regent_selrone: FALLEN_REGENT_SELRONE,
+  tidal_king_osrein: TIDAL_KING_OSREIN,
+}
+
+/** 九個固定式主線篇章合併查表（id 互不重複），ArenaGame.ts 的
+ * initCampaignStage() 系列一律讀這份，不用依 campaignId 切換不同表。 */
+export const ALL_CAMPAIGN_STAGE_ENEMIES: Record<string, EnemyTypeDef> = {
+  ...FOREST_CAMPAIGN_ENEMIES,
+  ...SNOWFIELD_CAMPAIGN_ENEMIES,
+  ...DEMON_CASTLE_CAMPAIGN_ENEMIES,
+  ...RIFT_DEEP_SEA_CAMPAIGN_ENEMIES,
+}
+
 // ── 灰燼王國篇 第一章（main）：跟舊回合制三章敵人池一一對應，美術剛好齊全 ──
 const MAIN_POOL: EnemyTypeDef[] = [GOBLIN, SKELETON, ORC, SLIMEKING, LIGHTNING_LANCER, DARK_KNIGHT]
 

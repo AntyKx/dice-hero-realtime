@@ -768,6 +768,12 @@ export type MetaState = {
    * （全部未通關），不需要 migration。key 是 CampaignStage.id（如 'forest_1_5'），
    * 星數只升不降、首通只會從 false 變 true，見 campaignProgress.ts。 */
   campaignStageProgress?: Record<string, { cleared: boolean; stars: number; firstClearClaimed: boolean }>
+  /** 最後一次進去打的固定式主線關卡 id（2026-08-17，跨所有 9 個篇章通用，
+   * 全域唯一 stageId 就能反查 campaignId）——不管陣亡或過關都會更新，供
+   * 大廳「回到大廳看到的是我最後打的那一關」的預覽卡使用，見
+   * AdventureReadyScreen.tsx。純新增選填欄位，舊存檔沒有時 fallback 回
+   * 森林遺跡第一關。 */
+  lastPlayedStageId?: string
   /** 即時制專屬裝備（2026-08 裝備系統重整）：跟回合制的 inventory/loadouts
    * 完全分開，型別是 arena/equipment.ts 的 ArenaEquipment/ArenaLoadout，
    * 不是 Equipment/HeroLoadout。純新增選填欄位，舊存檔沒有時視同空陣列/
@@ -784,6 +790,12 @@ export type MetaState = {
    * computePartyBonus() 算出的加成，不進入戰鬥。純新增選填欄位，舊存檔
    * 沒有時由 sanitizeParty() 補預設值，不需要 migration。 */
   party?: import('./party').PartyState
+  /** 職業裝備強化／合成經濟（2026-08 倉庫重製，見 arena/equipment.ts）：
+   * enhanceStoneCount 用於裝備強化（小幅連續成長），synthesisMaterialCount
+   * 用於裝備合成（稀有度跳階），兩者都是帳號共用、不分英雄。純新增欄位，
+   * 舊存檔沒有時視同 0，不需要 migration。 */
+  enhanceStoneCount: number
+  synthesisMaterialCount: number
 }
 
 export type EnemyAffixId = 'thorns' | 'regen' | 'armor' | 'berserk' | 'poison_sting' | 'immune'
@@ -839,10 +851,19 @@ export type GamePhase =
   | { type: 'gm' }
   | { type: 'arena_test' } // M1 即時制垂直切片測試場景，見 REALTIME_PIVOT_PLAN.md
   | { type: 'arena_run'; heroId: string; campaign?: string } // 正式即時制冒險入口，見 REALTIME_PIVOT_PLAN.md M3；campaign 決定敵人池，見 src/arena/enemies.ts
-  // 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
-  // （Roguelite）完全分開的「第三種模式」，不共用/不覆寫 campaign 欄位語意。
-  | { type: 'campaign_map'; heroId: string }
+  // 固定式主線關卡（2026-08 森林遺跡；2026-08-16 加入雪原/魔王城共三篇章，
+  // 見 src/campaign/）：跟上面 arena_run（Roguelite）完全分開的「第三種
+  // 模式」，不共用/不覆寫 campaign 欄位語意。campaignId 決定 CampaignMapScreen
+  // 顯示哪個篇章的地圖（見 campaignTypes.ts 的 CAMPAIGN_ID_FOREST_RUINS 等常數）。
+  | { type: 'campaign_map'; heroId: string; campaignId: string }
   | { type: 'campaign_stage'; heroId: string; stageId: string }
+  // 篇選擇（2026-08-16 新增，稍晚補上兩層架構）：大廳「冒險」入口先到這裡選
+  // 灰燼王國篇／裂隙前兆篇／深海遺城篇三篇之一，再進 campaign_chapter_select
+  // 選篇底下的 3 個章節，最後才進 campaign_map；三層 phase 各自獨立，不是 modal。
+  | { type: 'campaign_saga_select'; heroId: string }
+  // 章節選擇：sagaId 決定顯示哪個篇底下的 3 個章節（見 campaignTypes.ts 的
+  // CAMPAIGN_SAGAS），選好章節後進 campaign_map。
+  | { type: 'campaign_chapter_select'; heroId: string; sagaId: string }
   // 出戰陣容設定（2026-08，見 src/party.ts）：大廳 3-slot 隊伍列點入的全頁
   // 編成畫面，不是 modal。editingSlot 記住從哪個格子點進來，離開時導回大廳。
   | { type: 'party_setup'; editingSlot: 0 | 1 | 2 }
@@ -852,3 +873,6 @@ export type GamePhase =
   // Roguelite 副本節點商店（ShopScreen.tsx）在用的既有 phase，撞名的話
   // TS union 判別會直接壞掉。
   | { type: 'astral_shop' }
+  // 倉庫（2026-08，取代大廳底部導覽的「英雄」）：裝備／遺物／道具三分頁的
+  // 全頁畫面，見 WarehouseScreen.tsx。
+  | { type: 'warehouse' }

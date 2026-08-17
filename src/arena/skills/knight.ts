@@ -8,7 +8,7 @@
  * majorTimer2=神聖壁壘冷卻、majorInvulnTimer=無敵剩餘秒數（ArenaGame.damagePlayer
  * 直接讀這個欄位擋傷害，不透過這裡）。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const MAX_MARKS = 5
 const MARK_INTERVAL = 1 // 秒/層
@@ -78,4 +78,32 @@ export function knightUltimateMastery(game: ArenaGame): void {
     if (e.alive) e.attackCooldown += ULTIMATE_STAGGER_SEC
   }
   game.spawnFloatingText('不動聖城！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08 職業裝備重製）：武器類型決定招式，跟上面
+// 的 Lv100 Mastery 是獨立疊加的兩層，不受 unlockedMajorSkillIds 影響。 ──
+
+/** 武器 A 破軍聖劍：範圍內額外突刺傷害＋短暫嘲諷（敵人攻擊延後）。 */
+export function knightSwordUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 30)
+      e.attackCooldown += 1
+    }
+  }
+  game.spawnFloatingText('聖盾破軍斬！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 裂地雙手劍：地裂衝擊，範圍內更高額外傷害＋更長擊倒硬直。 */
+export function knightGreatswordUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 45)
+      e.attackCooldown += 2
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xc79bff, ULTIMATE_RADIUS)
+  game.spawnFloatingText('裂地萬鈞擊！', game.player.x, game.player.y - 60)
 }

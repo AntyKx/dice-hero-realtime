@@ -114,10 +114,10 @@ export interface RewardConfig {
 }
 
 export interface CampaignStage {
-  id: string             // 'forest_1_1' ~ 'forest_1_20'
+  id: string             // 'forest_1_1' ~ 'forest_1_10'
   campaignId: string      // 'forest_ruins'
   chapter: number         // 1
-  stageNumber: number      // 1~20
+  stageNumber: number      // 1~10
   name: string
 
   objective: StageObjective
@@ -130,11 +130,92 @@ export interface CampaignStage {
   estimatedDurationSec: [number, number]  // [下限, 上限]，供關卡地圖顯示預估時間用
   firstClearReward: RewardConfig
 
-  /** 場景主題（見 App.css 既有的 arena 背景切換慣例），5 種森林主題之一。 */
-  bgTheme: 'forest_entrance' | 'ancient_ruins' | 'poison_forest' | 'ancient_altar' | 'dragon_nest'
+  /** 場景主題（見 App.css 既有的 arena 背景切換慣例）。森林/雪原/魔王城各 5 種
+   * （2026-08-16）；裂隙前兆/深海遺城各 6 個子章節各只給 1 種（2026-08-16
+   * 稍晚新增，60 關規模下不再比照前三篇章每篇 5 種主題的密度）。 */
+  bgTheme:
+    | 'forest_entrance' | 'ancient_ruins' | 'poison_forest' | 'ancient_altar' | 'dragon_nest'
+    | 'snow_foothills' | 'frozen_keep' | 'glacier_cavern' | 'frost_shrine' | 'ice_dragon_lair'
+    | 'demon_gate' | 'crimson_hollow' | 'shadow_keep' | 'blood_altar' | 'throne_of_ash'
+    | 'rift_broken_sky' | 'rift_void_chasm' | 'rift_eclipse_core'
+    | 'deep_coral_shallows' | 'deep_sunken_capital' | 'deep_emperor_abyss'
 }
 
 export const CAMPAIGN_ID_FOREST_RUINS = 'forest_ruins'
+// 2026-08-16 新篇章：命名刻意避開 Roguelite 舊系統（campaignPick/mapGen.ts）
+// 已經在用的 'snowfield'/'castle'/'rift_omen'/'deep_sea' 字面值（CAMPAIGN_BG_THEME
+// 那組），完全不共用任何資料——固定式主線關卡的 campaignId 一律用更長、
+// 帶場景描述的字尾避免混淆（`_ruins`/`_wastes`/`_castle`/`_broken_sky` 等）。
+export const CAMPAIGN_ID_SNOWFIELD = 'snowfield_wastes'
+export const CAMPAIGN_ID_DEMON_CASTLE = 'demon_king_castle'
+// 裂隙前兆／深海遺城（2026-08-16 稍晚新增）：每個篇章底下再分 3 個子章節，
+// 每個子章節都是獨立 10 關地圖——架構上比照前三篇章「一個 campaignId = 一張
+// 地圖」的模式，把子章節當成獨立的 campaignId，而不是在既有 CampaignStage.chapter
+// 欄位上疊第二層分組（getChapterStages() 目前只用 campaignId 過濾，改成
+// chapter-aware 會動到 CampaignMapScreen/campaignProgress 好幾個地方）。
+export const CAMPAIGN_ID_RIFT_BROKEN_SKY = 'rift_omen_broken_sky'
+export const CAMPAIGN_ID_RIFT_VOID_CHASM = 'rift_omen_void_chasm'
+export const CAMPAIGN_ID_RIFT_ECLIPSE_CORE = 'rift_omen_eclipse_core'
+export const CAMPAIGN_ID_DEEP_CORAL_SHALLOWS = 'deep_sea_coral_shallows'
+export const CAMPAIGN_ID_DEEP_SUNKEN_CAPITAL = 'deep_sea_sunken_capital'
+export const CAMPAIGN_ID_DEEP_EMPEROR_ABYSS = 'deep_sea_emperor_abyss'
 
-/** 60 星 4 個 Milestone 門檻（15/30/45/60），對應設計文件第 27~28 節。 */
-export const CHAPTER_STAR_MILESTONES = [15, 30, 45, 60] as const
+/** 九個篇章的固定順序（線性解鎖用，見 campaignProgress.ts 的 isChapterUnlocked）。 */
+export const CAMPAIGN_CHAPTER_ORDER = [
+  CAMPAIGN_ID_FOREST_RUINS, CAMPAIGN_ID_SNOWFIELD, CAMPAIGN_ID_DEMON_CASTLE,
+  CAMPAIGN_ID_RIFT_BROKEN_SKY, CAMPAIGN_ID_RIFT_VOID_CHASM, CAMPAIGN_ID_RIFT_ECLIPSE_CORE,
+  CAMPAIGN_ID_DEEP_CORAL_SHALLOWS, CAMPAIGN_ID_DEEP_SUNKEN_CAPITAL, CAMPAIGN_ID_DEEP_EMPEROR_ABYSS,
+] as const
+
+/**
+ * 「篇」（saga）分組（2026-08-16 補上）：九個篇章其實分屬三個更大的「篇」——
+ * 灰燼王國篇（森林遺跡/雪原/魔王城 3 章）、裂隙前兆篇（破碎天幕/虛空裂谷/
+ * 星蝕核心 3 章）、深海遺城篇（珊瑚淺灘/沉沒王城/海皇深淵 3 章），呼應舊
+ * Roguelite 系統原本的三個 LOBBY_CHAPTERS 命名（'main'=灰燼王國篇／
+ * 'rift_omen'=裂隙前兆篇／'deep_sea'=深海遺城篇，見 AdventureReadyScreen.tsx）。
+ * 這一層純粹是 UI 導覽用的分組資料（SagaSelectScreen 用），不影響
+ * CAMPAIGN_CHAPTER_ORDER 的線性解鎖順序——九個篇章解鎖判斷完全不變，只是
+ * 選篇章的路徑多一層「先選篇再選章」。
+ */
+export const CAMPAIGN_ID_ASH_KINGDOM_SAGA = 'ash_kingdom_saga'
+export const CAMPAIGN_ID_RIFT_OMEN_SAGA = 'rift_omen_saga'
+export const CAMPAIGN_ID_DEEP_SEA_SAGA = 'deep_sea_saga'
+
+export interface CampaignSaga {
+  id: string
+  label: string
+  sub: string
+  chapters: readonly string[]  // campaignId[]，依 CAMPAIGN_CHAPTER_ORDER 的順序
+}
+
+/** 章節 campaignId 反查所屬的篇 id——campaign_map 離開時要導回「這一章所屬
+ * 的篇」的章節選擇畫面，不能寫死。 */
+export function getSagaIdForCampaign(campaignId: string): string {
+  return CAMPAIGN_SAGAS.find(s => s.chapters.includes(campaignId))?.id ?? CAMPAIGN_SAGAS[0].id
+}
+
+export const CAMPAIGN_SAGAS: CampaignSaga[] = [
+  {
+    id: CAMPAIGN_ID_ASH_KINGDOM_SAGA,
+    label: '灰燼王國篇',
+    sub: '荊棘森林・冰封雪原・熔岩王城',
+    chapters: [CAMPAIGN_ID_FOREST_RUINS, CAMPAIGN_ID_SNOWFIELD, CAMPAIGN_ID_DEMON_CASTLE],
+  },
+  {
+    id: CAMPAIGN_ID_RIFT_OMEN_SAGA,
+    label: '裂隙前兆篇',
+    sub: '破碎天幕・虛空裂谷・星蝕核心',
+    chapters: [CAMPAIGN_ID_RIFT_BROKEN_SKY, CAMPAIGN_ID_RIFT_VOID_CHASM, CAMPAIGN_ID_RIFT_ECLIPSE_CORE],
+  },
+  {
+    id: CAMPAIGN_ID_DEEP_SEA_SAGA,
+    label: '深海遺城篇',
+    sub: '珊瑚淺灘・沉沒王城・海皇深淵',
+    chapters: [CAMPAIGN_ID_DEEP_CORAL_SHALLOWS, CAMPAIGN_ID_DEEP_SUNKEN_CAPITAL, CAMPAIGN_ID_DEEP_EMPEROR_ABYSS],
+  },
+]
+
+/** 4 個 Milestone 門檻，對應各篇章滿星數的 25/50/75/100%。2026-08-16 三篇章從
+ * 20 關砍到 10 關（滿星 30）後從 [15,30,45,60] 等比例縮小為 [8,15,23,30]，
+ * 對應設計文件第 27~28 節同一套比例。 */
+export const CHAPTER_STAR_MILESTONES = [8, 15, 23, 30] as const

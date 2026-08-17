@@ -10,7 +10,7 @@
  * （重複部署只會刷新持續時間），不做多炮塔同時存在——這是這次唯一被簡化
  * 掉的細節，核心的熱能/機率砲擊/炮塔仍然完整可玩。
  */
-import type { ArenaGame } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame } from '../ArenaGame'
 
 const HEAT_MAX = 5
 const TURRET_DEPLOY_CHANCE = 0.40
@@ -68,4 +68,27 @@ export function engineerUltimateMastery(game: ArenaGame): void {
   game.majorZoneTimer = ULTIMATE_HASTE_DURATION
   game.majorTimer2 = ULTIMATE_HASTE_DURATION
   game.spawnFloatingText('機甲降臨！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 蒸氣火炮：巨炮轟擊，對最近敵人追加高額單體傷害。 */
+export function engineerCannonUltimate(game: ArenaGame): void {
+  const target = game.enemies
+    .filter(e => e.alive && Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS)
+    .sort((a, b) => Math.hypot(a.x - game.player.x, a.y - game.player.y) - Math.hypot(b.x - game.player.x, b.y - game.player.y))[0]
+  if (target) game.damageEnemy(target, 100)
+  game.spawnFloatingText('蒸氣砲擊！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 齒輪連射槍：彈幕掃射，範圍內敵人各追加三次連續傷害。 */
+export function engineerGatlingUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 12); game.damageEnemy(e, 12); game.damageEnemy(e, 12)
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0x80a0c0, ULTIMATE_RADIUS)
+  game.spawnFloatingText('彈幕掃射！', game.player.x, game.player.y - 60)
 }

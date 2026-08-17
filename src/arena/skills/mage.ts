@@ -7,7 +7,7 @@
  * 燃燒封頂）→ Lv60 燃燒滿層有機率自爆 → Lv80 自爆連鎖點燃鄰近燃燒敵人 →
  * Lv100 Ultimate 進化成全屏引爆+隕星加速。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const BURN_STACK_INTERVAL = 3 // 秒，onAttackHit 疊一層燃燒時順便刷新的持續時間
 const BURN_MAX_STACKS_BASE = 5
@@ -77,4 +77,29 @@ export function mageUltimateMastery(game: ArenaGame): void {
 /** Lv40 烈焰隕星的週期間隔：Lv100 大招後的加速視窗內縮短為 4 秒。 */
 export function mageMeteorInterval(game: ArenaGame, baseInterval: number): number {
   return game.majorTimer2 > 0 ? ULTIMATE_HASTE_INTERVAL : baseInterval
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 赤焰法杖：對範圍內最近 3 名敵人追加多重彈道傷害。 */
+export function mageStaffUltimate(game: ArenaGame): void {
+  const targets = game.enemies
+    .filter(e => e.alive && Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS)
+    .sort((a, b) => Math.hypot(a.x - game.player.x, a.y - game.player.y) - Math.hypot(b.x - game.player.x, b.y - game.player.y))
+    .slice(0, 3)
+  for (const e of targets) game.damageEnemy(e, 35)
+  game.spawnFloatingText('烈焰隕星！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 業火魔典：範圍內敵人直接點燃至滿層灼燒。 */
+export function mageGrimoireUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      e.burnStacks = Math.max(e.burnStacks, burnMaxStacks(game))
+      e.burnTimer = Math.max(e.burnTimer, BURN_STACK_INTERVAL)
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xff6a3c, ULTIMATE_RADIUS)
+  game.spawnFloatingText('業火燎原！', game.player.x, game.player.y - 60)
 }

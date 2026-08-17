@@ -125,6 +125,14 @@ button { font: inherit; }
    safe-area-inset-top（底部安全區則交給 .av-lobby-dock／.ar-footer 自己
    的 padding-bottom 處理，見各自規則）。 */
 .page:has(.ar-screen) { padding: 0; }
+
+/* 2026-08-17：CampaignMapScreen（.cms-screen）的 .topbar 卡片本來就設計成
+   「頂部方角、只有底部圓角」（.cms-screen .topbar 的 border-radius:0 0 20px
+   20px，見 astralLegacyRebuild.css）——方角是刻意設計成貼齊螢幕最上緣，但
+   .page 預設的 padding-top 把卡片往下推，在螢幕最上方留了一截沒有任何
+   背景填色的空白。只清掉 top padding，左右/底部 padding 照舊（.cms-summary
+   /.cms-hint 在窄螢幕上仍需要它們才不會貼死螢幕邊緣）。 */
+.page:has(.cms-screen) { padding-top: 0; }
 .ar-screen { padding-top: env(safe-area-inset-top, 0px); }
 
 .topbar {
@@ -3440,6 +3448,10 @@ h1, h2, h3, p { margin: 0; }
 .av-lobby-chaptercard-label { font-size: 0.6rem; letter-spacing: 1px; color: var(--av-gold); }
 .av-lobby-chaptercard-name { font-family: var(--av-font-display); font-weight: 700; font-size: 0.95rem; color: var(--av-ink); }
 .av-lobby-chaptercard-sub { font-size: 0.68rem; color: #8090a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 2026-08-17：CHAPTER 標籤區塊變成「查看關卡地圖」入口（只有主線分頁有），跟旁邊的 ‹/› 篇章切換鈕視覺區隔開。 */
+.av-lobby-chaptercard-body.clickable { cursor: pointer; transition: border-color .15s, background .15s; }
+.av-lobby-chaptercard-body.clickable:hover { border-color: rgba(233,184,92,.5); background: rgba(233,184,92,.08); }
+.av-lobby-chaptercard-maphint { color: #8090a8; letter-spacing: 0; }
 
 .av-lobby-chapterdots { display: flex; justify-content: center; gap: 6px; }
 .av-lobby-chapterdot {
@@ -3918,6 +3930,14 @@ h1, h2, h3, p { margin: 0; }
   text-align: center; font-size: 0.75rem; color: #ff9060; padding: 8px;
   background: #ff602010; border-bottom: 1px solid #ff602020;
 }
+
+/* GM 模式篇章一鍵解鎖（2026-08-16）：跟英雄卡片列分開一個區塊，避免混在一起看起來像同一組控制項。 */
+.gm-campaign-section {
+  margin: 0 16px 16px; padding: 14px; background: #111b2e; border: 1px solid #223; border-radius: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.gm-campaign-title { font-size: 0.85rem; font-weight: 700; color: #c8daf0; }
+.gm-campaign-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .gm-hero-list {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -5116,47 +5136,79 @@ h1, h2, h3, p { margin: 0; }
 }
 .cms-milestone-label { font-size: 0.68rem; color: #88a0c0; }
 
-/* 關卡地圖 2026-08 節點對位重做：4 張手繪地圖（每張 5 關）直接當每段背景，
-   節點貼著圖上量好的空地座標用絕對定位疊上去，取代先前純 CSS 畫的蛇形路徑。
-   石板小徑是圖裡畫好的，不用再疊一層連接線。 */
-.cms-map { position: relative; display: flex; flex-direction: column; gap: 0; padding: 8px 0 24px; }
-.cms-map-segment {
-  position: relative; width: 100%; aspect-ratio: 1024 / 1536;
+/* 關卡地圖 2026-08 單圖版：一張無接縫長圖（864×1821）直接當背景，取代先前
+   4 張手繪地圖分段拼接（消除接圖痕跡）。節點貼著圖上量好的空地座標用絕對
+   定位疊上去。石板小徑是圖裡畫好的，不用再疊一層連接線。 */
+.cms-map { position: relative; padding: 18px 0 40px; }
+.cms-map-forest {
+  position: relative; width: 100%; aspect-ratio: 864 / 1821;
   background-size: 100% 100%; background-repeat: no-repeat; background-position: center;
-  border-radius: 10px; overflow: hidden;
+  border-radius: 14px;
+  /* 2026-08-17：每篇章第 10 關（最終王）的節點座標都落在圖片下緣 91~95%，
+     徽章又是最大尺寸（final 70px），名稱+星星疊起來常常逼近甚至超出圖片
+     底部——overflow:hidden 會直接把星星切掉看不到（見使用者回報）。改成
+     只在水平方向裁切（維持左右圓角乾淨），垂直方向放行，讓最終王節點的
+     文字/星星可以合法地溢出到圖片下方一點點，不用把 90 個關卡的座標
+     全部往上搬（那樣會動到跟美術對齊過的位置，見教訓：修 sprite 裁切問題
+     優先放大容器，不要為了單一 case 縮小/搬動全部內容）。 */
+  overflow: hidden visible;
 }
 
 .cms-map-node {
   position: absolute; transform: translate(-50%, -50%); z-index: 1;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
   background: none; border: none; color: inherit; padding: 0; cursor: pointer;
 }
 .cms-map-badge {
-  position: relative; width: 52px; height: 52px; border-radius: 14px;
+  position: relative; width: 44px; height: 44px; border-radius: 12px;
   background: rgba(20,30,50,.9); border: 2px solid rgba(255,255,255,.14);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 6px 16px rgba(0,0,0,.35); transition: transform .12s;
 }
 .cms-map-node:not(.locked):hover .cms-map-badge { transform: translateY(-2px); }
 .cms-map-num {
-  position: absolute; top: -6px; left: -6px; width: 19px; height: 19px; border-radius: 50%;
-  background: #ffd94a; color: #241805; font-size: 10px; font-weight: 800;
+  position: absolute; top: -5px; left: -5px; width: 16px; height: 16px; border-radius: 50%;
+  background: #ffd94a; color: #241805; font-size: 9px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.4);
 }
-.cms-map-name { font-size: 10.5px; font-weight: 700; text-align: center; max-width: 84px; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
-.cms-stars { font-size: 0.72rem; letter-spacing: 1px; }
+.cms-map-name { font-size: 9.5px; font-weight: 700; text-align: center; max-width: 74px; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
+.cms-stars { font-size: 0.64rem; letter-spacing: 1px; }
 .cms-star { color: rgba(255,255,255,0.18); }
 .cms-star.filled { color: #ffd94a; }
 .cms-map-node.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 14px rgba(255,217,74,.35), 0 6px 16px rgba(0,0,0,.35); }
 .cms-map-node.locked { opacity: .45; cursor: not-allowed; }
 .cms-map-node.locked .cms-map-badge { filter: saturate(.3); }
-.cms-map-node.boss .cms-map-badge { width: 64px; height: 64px; border-radius: 18px; border-color: rgba(255,120,80,.55); background: rgba(40,20,20,.9); }
+.cms-map-node.boss .cms-map-badge { width: 54px; height: 54px; border-radius: 16px; border-color: rgba(255,120,80,.55); background: rgba(40,20,20,.9); }
 .cms-map-node.boss.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 18px rgba(255,217,74,.4); }
-.cms-map-node.boss .cms-map-name { font-size: 11.5px; color: #ffcdb0; }
-.cms-map-node.final .cms-map-badge { width: 84px; height: 84px; border-radius: 22px; border: 3px solid #ffd94a; background: linear-gradient(145deg, rgba(90,55,15,.9), rgba(25,15,5,.95)); box-shadow: 0 0 28px rgba(255,217,74,.45), 0 10px 22px rgba(0,0,0,.45); }
-.cms-map-node.final .cms-map-name { font-size: 13px; color: #ffe7a4; }
+.cms-map-node.boss .cms-map-name { font-size: 10.5px; color: #ffcdb0; }
+.cms-map-node.final .cms-map-badge { width: 70px; height: 70px; border-radius: 20px; border: 3px solid #ffd94a; background: linear-gradient(145deg, rgba(90,55,15,.9), rgba(25,15,5,.95)); box-shadow: 0 0 28px rgba(255,217,74,.45), 0 10px 22px rgba(0,0,0,.45); }
+.cms-map-node.final .cms-map-name { font-size: 13px; color: #ffe7a4; max-width: 120px; white-space: nowrap; }
 
 .cms-hint { font-size: 0.78rem; color: #7890ac; text-align: center; margin-top: 4px; }
+
+/* ── 篇章選擇畫面（CampaignChapterSelectScreen，2026-08-16 新增）──────────
+   三張直向卡片（森林/雪原/魔王城），封面直接借用各篇章地圖總覽圖的頂端
+   一小段當縮圖（object-position 頂部對齊，那段通常是篇章 1 關的入口場景，
+   視覺上比整張長圖硬塞進矮封面好認）。鎖定卡片降低透明度+疊一層置中的
+   鎖頭說明，不能點擊（disabled）。 */
+.ccs-list { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 20px; }
+.ccs-card {
+  position: relative; display: flex; flex-direction: column; text-align: left;
+  background: rgba(16,22,36,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
+  overflow: hidden; cursor: pointer; padding: 0; color: inherit; transition: transform .15s, border-color .15s;
+}
+.ccs-card:not(.locked):hover { transform: translateY(-2px); border-color: var(--ccs-color, #fff); }
+.ccs-card.locked { cursor: not-allowed; opacity: .8; }
+.ccs-cover { position: relative; width: 100%; height: 120px; background-size: cover; background-position: top center; }
+.ccs-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,12,20,0) 40%, rgba(8,12,20,.85) 100%); }
+.ccs-lock-overlay {
+  position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(6,9,16,.72); color: #cfd8e6; font-size: .78rem; text-align: center; padding: 0 16px;
+}
+.ccs-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+.ccs-title { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 700; color: var(--ccs-color, #fff); }
+.ccs-sub { font-size: .78rem; color: #93a2ba; }
+.ccs-meta-row { display: flex; justify-content: space-between; font-size: .78rem; color: #cfd8e6; margin-top: 4px; }
 
 /* ── 章節旅程節點預覽（CampaignTravelPreview，森林遺跡 1–20 關全篇章）──
    角色以 ref 直接寫 DOM transform（不用 React state 逐幀更新）沿 pathNodes
@@ -5645,6 +5697,7 @@ h1, h2, h3, p { margin: 0; }
 .aeq-item:disabled { cursor: default; }
 .aeq-item-name { font-weight: 700; font-size: .86rem; }
 .aeq-item-tag { font-size: .7rem; color: #6fff8a; font-weight: 400; }
+.aeq-item-enhance { font-size: .7rem; color: #ffd94a; font-weight: 700; }
 .aeq-item-bonus { font-size: .72rem; color: #8fa5c8; }
 .aeq-empty-hint { font-size: .8rem; color: #7890ac; padding: 10px 0; }
 
@@ -5698,22 +5751,22 @@ h1, h2, h3, p { margin: 0; }
 .astral-codex-filter { position:relative; z-index:1; display:flex; gap:6px; overflow-x:auto; padding:0 30px 13px; scrollbar-width:thin; }
 .astral-codex-filter button { flex:0 0 auto; padding:6px 10px; border:1px solid rgba(126,169,218,.24); border-radius:999px; background:rgba(9,27,62,.54); color:#9db8dc; font-size:.68rem; cursor:pointer; transition:.16s ease-out; }
 .astral-codex-filter button:hover,.astral-codex-filter button.active { color:#fff0c5; border-color:rgba(232,198,111,.6); background:rgba(165,120,35,.22); }
-.astral-codex-grid { position:relative; z-index:1; flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); align-content:start; gap:12px; padding:2px 30px 30px; scrollbar-color:rgba(229,195,102,.5) transparent; }
-.astral-codex-card { position:relative; isolation:isolate; min-height:202px; overflow:hidden; display:flex; flex-direction:column; text-align:left; padding:13px; border:1px solid color-mix(in srgb,var(--entry-accent) 48%,transparent); border-radius:14px 5px 14px 5px; color:#f5f8ff; background:linear-gradient(145deg,rgba(25,55,103,.82),rgba(7,18,46,.94)); cursor:pointer; transition:transform .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out; }
+.astral-codex-grid { position:relative; z-index:1; flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); align-content:start; gap:8px; padding:2px 30px 30px; scrollbar-color:rgba(229,195,102,.5) transparent; }
+.astral-codex-card { position:relative; isolation:isolate; min-height:96px; overflow:hidden; display:flex; flex-direction:column; text-align:left; padding:8px; border:1px solid color-mix(in srgb,var(--entry-accent) 48%,transparent); border-radius:10px 4px 10px 4px; color:#f5f8ff; background:linear-gradient(145deg,rgba(25,55,103,.82),rgba(7,18,46,.94)); cursor:pointer; transition:transform .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out; }
 .astral-codex-card::before { content:""; position:absolute; inset:0; z-index:-1; opacity:.45; background:radial-gradient(circle at 100% 0,var(--entry-accent),transparent 42%); }
 .astral-codex-card:hover { transform:translateY(-3px); border-color:var(--entry-accent); box-shadow:0 12px 28px rgba(0,0,0,.32); }
 .astral-codex-card:active,.astral-codex-filter button:active,.astral-codex-tab:active { transform:scale(.97); }
-.astral-codex-card-orbit { position:absolute; width:84px; height:84px; top:-42px; right:-34px; border:1px solid color-mix(in srgb,var(--entry-accent) 34%,transparent); border-radius:50%; box-shadow:0 0 0 10px color-mix(in srgb,var(--entry-accent) 8%,transparent); }
+.astral-codex-card-orbit { position:absolute; width:56px; height:56px; top:-28px; right:-22px; border:1px solid color-mix(in srgb,var(--entry-accent) 34%,transparent); border-radius:50%; box-shadow:0 0 0 10px color-mix(in srgb,var(--entry-accent) 8%,transparent); }
 .astral-codex-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.astral-codex-card-icon { width:32px; height:32px; color:var(--entry-accent); border-color:color-mix(in srgb,var(--entry-accent) 55%,transparent); clip-path:polygon(24% 0,76% 0,100% 24%,100% 76%,76% 100%,24% 100%,0 76%,0 24%); }
+.astral-codex-card-icon { width:24px; height:24px; color:var(--entry-accent); border-color:color-mix(in srgb,var(--entry-accent) 55%,transparent); clip-path:polygon(24% 0,76% 0,100% 24%,100% 76%,76% 100%,24% 100%,0 76%,0 24%); }
 .astral-codex-card-mark { color:#abc1df; font-size:.58rem; letter-spacing:.08em; }
-.astral-codex-card-portrait { position:absolute; top:43px; right:-8px; width:92px; height:118px; object-fit:cover; object-position:top center; opacity:.68; mask-image:linear-gradient(180deg,#000 55%,transparent); }
+.astral-codex-card-portrait { position:absolute; top:20px; right:-6px; width:52px; height:66px; object-fit:cover; object-position:top center; opacity:.68; mask-image:linear-gradient(180deg,#000 55%,transparent); }
 .astral-codex-card-content { position:relative; z-index:1; margin-top:auto; }
-.astral-codex-card-badges { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+.astral-codex-card-badges { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:3px; }
 .astral-codex-card-badges span { color:#c6d7ed; font-size:.58rem; letter-spacing:.04em; }
-.astral-codex-card strong { display:block; max-width:78%; color:#fff6dd; font-family:var(--av-font-display,serif); font-size:.9rem; line-height:1.25; }
+.astral-codex-card strong { display:block; max-width:100%; color:#fff6dd; font-family:var(--av-font-display,serif); font-size:.72rem; line-height:1.25; }
 .astral-codex-card small { display:block; margin-top:3px; color:#9bb5d6; font-size:.65rem; }
-.astral-codex-card p { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; -webkit-line-clamp:2; min-height:34px; margin:8px 0 6px; color:#bfd1e8; font-size:.67rem; line-height:1.45; }
+.astral-codex-card p { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; -webkit-line-clamp:1; min-height:0; margin:5px 0 0; color:#bfd1e8; font-size:.6rem; line-height:1.45; }
 .astral-codex-card-open { display:flex; justify-content:space-between; color:var(--entry-accent); font-size:.63rem; letter-spacing:.08em; }
 .astral-codex-card-open b { font-size:1rem; line-height:.55; }
 .astral-codex-detail-scrim { position:absolute; z-index:5; inset:0; display:flex; align-items:end; justify-content:center; padding:24px; background:rgba(2,7,20,.7); backdrop-filter:blur(7px); }
@@ -5747,11 +5800,11 @@ h1, h2, h3, p { margin: 0; }
   .astral-codex-meta p { font-size:.65rem; }
   .astral-codex-progress { width:42%; }
   .astral-codex-filter { padding:0 14px 10px; }
-  .astral-codex-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:2px 14px calc(18px + env(safe-area-inset-bottom)); }
-  .astral-codex-card { min-height:190px; padding:10px; }
-  .astral-codex-card strong { max-width:84%; font-size:.78rem; }
-  .astral-codex-card p { font-size:.62rem; }
-  .astral-codex-card-portrait { width:74px; height:103px; right:-13px; }
+  .astral-codex-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:2px 14px calc(18px + env(safe-area-inset-bottom)); }
+  .astral-codex-card { min-height:88px; padding:7px; }
+  .astral-codex-card strong { max-width:100%; font-size:.68rem; }
+  .astral-codex-card p { font-size:.58rem; }
+  .astral-codex-card-portrait { width:44px; height:58px; right:-6px; }
   .astral-codex-detail-scrim { padding:12px; }
   .astral-codex-detail { max-height:min(81dvh,680px); padding:21px 17px calc(18px + env(safe-area-inset-bottom)); }
   .astral-codex-detail-data { grid-template-columns:1fr; }
@@ -5877,3 +5930,26 @@ h1, h2, h3, p { margin: 0; }
   .astral-codex-hero-detail-art { flex: 0 0 42%; min-height: 0; }
   .astral-codex-hero-detail-info { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
 }
+
+/* ── 倉庫（2026-08）：外層沿用 .shop-shell，內部格狀列表/篩選/詳情沿用
+   .astral-codex-* 系列，這裡只補兩者混用時缺的幾條規則。卡片尺寸本身
+   （2026-08 後續調整）直接改在下面 .astral-codex-card 的基礎規則裡，
+   星界圖鑑跟倉庫共用同一套，兩邊看起來才會一致整齊。 ── */
+.wh-shell { max-width: 900px; }
+.wh-shell .shop-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wh-shell .astral-codex-filter { padding: 0 0 10px; margin-top: 14px; }
+.wh-shell .astral-codex-grid { padding: 2px 0 30px; }
+.wh-shell .astral-codex-detail-scrim { position: fixed; }
+.astral-codex-empty { grid-column: 1 / -1; padding: 20px 0; color: #7890ac; font-size: .8rem; text-align: center; }
+.wh-material-card { cursor: default; transition: none; }
+.wh-material-card:hover,.wh-material-card:active { transform: none; box-shadow: none; border-color: color-mix(in srgb,var(--entry-accent) 48%,transparent); }
+.wh-actions { position: relative; display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.wh-actions button {
+  display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px;
+  border: 1px solid rgba(154,197,242,.3); border-radius: 10px;
+  background: rgba(13,38,76,.72); color: #cbe2ff; font-size: .78rem; cursor: pointer; transition: .15s;
+}
+.wh-actions button:hover:not(:disabled) { border-color: var(--av-gold-soft); color: var(--av-gold); }
+.wh-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.wh-actions button.wh-danger { border-color: rgba(255,110,110,.35); color: #ff9a9a; }
+.wh-actions button.wh-danger:hover { border-color: #ff6e6e; background: rgba(255,80,80,.12); color: #ffb0b0; }

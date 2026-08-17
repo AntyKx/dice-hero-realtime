@@ -4,8 +4,14 @@ import { ALL_BUFF_CARDS } from '../buffCards'
 import { ALL_POTIONS } from '../potions'
 import { ARENA_RELICS, ARENA_WEAPON_RELICS, type ArenaRelic } from '../arena/relics'
 import { getExpForLevel, getHeroStarTitle } from '../talents'
-import { computeArenaEquipBonus, getEquippedArenaItems } from '../arena/equipment'
+import {
+  computeArenaEquipBonus, getEquippedArenaItems,
+  ARENA_EQUIP_SLOTS, WEAPON_TYPE_LABEL, CLASS_FLAVOR_STAT, UNIVERSAL_SLOT_NAME, CLASS_ARMOR_NAME,
+  generateUniversalItem, generateClassWeapon, generateClassArmorItem, getWeaponDefsForHero,
+  type ArenaEquipment, type ArenaEquipSlot,
+} from '../arena/equipment'
 import { computeArenaTalentBonus } from '../arena/arenaTalents'
+import { getEquipmentSlotIcon, getEquipmentSlotIconColor } from '../equipmentIconMeta'
 import SpriteAnimator from '../components/SpriteAnimator'
 import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
 import type { MetaState } from '../types'
@@ -20,7 +26,7 @@ import type { MetaState } from '../types'
  * 拿掉，不用保留怪物圖鑑。
  */
 
-type CodexCategory = 'heroes' | 'items' | 'relics'
+type CodexCategory = 'heroes' | 'items' | 'relics' | 'equipment'
 type ItemKind = 'card' | 'potion'
 
 interface CodexBadge {
@@ -34,6 +40,7 @@ interface CodexEntry {
   kind?: ItemKind
   role?: string
   heroId?: string
+  slot?: ArenaEquipSlot
   name: string
   subtitle: string
   summary: string
@@ -42,6 +49,32 @@ interface CodexEntry {
   image?: string
   badges: CodexBadge[]
   details: { label: string; value: string }[]
+}
+
+const EQUIP_SLOT_LABEL: Record<ArenaEquipSlot, string> = {
+  weapon: '武器', head: '頭盔', body: '護甲', hands: '手套', boots: '靴子', ring: '戒指', accessory: '飾品',
+}
+const EQUIP_BONUS_LABEL: Record<string, string> = {
+  hpBonus: 'HP', defBonus: '防禦', moveSpeedPct: '移速', atkSpeedPct: '攻速',
+  lifestealPct: '生命偷取', extraProjectiles: '額外彈道', pierceBonus: '穿透',
+  thornsPct: '荊棘反傷', burnChancePct: '灼燒觸發', shieldRegenPct: '護盾回復',
+  critChancePct: '暴擊率', freezeChancePct: '凍結觸發', markDamageBonusPct: '首擊加成',
+  extraDamageReductionPct: '額外減傷', slowAuraPct: '減速光環', executeBonusPct: '處決加成',
+  overloadOnKillPct: '過載連擊', comboAtkSpeedPct: '連擊蓄力',
+}
+const EQUIP_PCT_KEYS = new Set([
+  'lifestealPct', 'thornsPct', 'burnChancePct', 'shieldRegenPct', 'critChancePct',
+  'freezeChancePct', 'markDamageBonusPct', 'extraDamageReductionPct', 'slowAuraPct',
+  'executeBonusPct', 'overloadOnKillPct', 'comboAtkSpeedPct',
+])
+function formatEquipBonus(bonus: ArenaEquipment['bonus']): string {
+  const parts = Object.entries(bonus).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => {
+    const label = EQUIP_BONUS_LABEL[k] ?? k
+    if (EQUIP_PCT_KEYS.has(k)) return `${label} +${Math.round((v ?? 0) * 100)}%`
+    if (k === 'moveSpeedPct' || k === 'atkSpeedPct') return `${label} +${v}%`
+    return `${label} +${v}`
+  })
+  return parts.length > 0 ? parts.join('・') : '無額外詞綴'
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -71,6 +104,7 @@ const CATEGORY_META: { id: CodexCategory; title: string; note: string; icon: Ast
   { id: 'heroes', title: '英雄名冊', note: '現行可編成英雄與核心技藝記錄', icon: 'nav-heroes' },
   { id: 'items', title: '道具收藏', note: '增益卡與遠征補給檔案', icon: 'shop-scroll' },
   { id: 'relics', title: '星界遺物', note: 'Arena 即時制戰利品與武器共鳴記錄', icon: 'equip-set' },
+  { id: 'equipment', title: '裝備目錄', note: '通用裝備與各職業專屬裝備型錄', icon: 'nav-equipment' },
 ]
 
 function roleName(role?: string) {
@@ -102,6 +136,8 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
   const [heroRole, setHeroRole] = useState('all')
   const [itemKind, setItemKind] = useState<'all' | ItemKind>('all')
   const [relicRole, setRelicRole] = useState('all')
+  const [equipRole, setEquipRole] = useState('all')
+  const [equipSlot, setEquipSlot] = useState<'all' | ArenaEquipSlot>('all')
   const [activeEntry, setActiveEntry] = useState<CodexEntry | null>(null)
   const [activeHero, setActiveHero] = useState<Hero | null>(null)
   const [heroDetailTab, setHeroDetailTab] = useState<'story' | 'abilities'>('story')
@@ -201,14 +237,115 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
     }
   }), [])
 
+  // 裝備目錄（2026-08 職業裝備重製新增）：不是列玩家背包，是列系統裡「所有可能
+  // 存在的裝備型態」——通用 6 部位各一筆代表項目、22 把職業武器（來自 22 個
+  // WeaponDef）、11 職業 × 6 部位的職業防具，全部用既有的 generate* 產生函式
+  // 生成傳說稀有度的代表數值（不重寫一份公式），只用來展示，不寫回存檔。
+  const equipmentEntries = useMemo<CodexEntry[]>(() => {
+    const entries: CodexEntry[] = []
+    const nonWeaponSlots = ARENA_EQUIP_SLOTS.filter((s): s is Exclude<ArenaEquipSlot, 'weapon'> => s !== 'weapon')
+
+    for (const slot of nonWeaponSlots) {
+      const item = generateUniversalItem(slot, 'legendary')
+      entries.push({
+        id: `equip-universal-${slot}`,
+        category: 'equipment',
+        role: 'universal',
+        slot,
+        name: UNIVERSAL_SLOT_NAME[slot],
+        subtitle: `通用裝備・${EQUIP_SLOT_LABEL[slot]}`,
+        summary: '任何職業皆可裝備，稀有度越高詞綴越完整。',
+        icon: getEquipmentSlotIcon(slot),
+        accent: getEquipmentSlotIconColor(slot),
+        badges: [{ label: EQUIP_SLOT_LABEL[slot] }, { label: '通用', color: '#9aacc6' }],
+        details: [
+          { label: '裝備類型', value: '通用裝備' },
+          { label: '裝備部位', value: EQUIP_SLOT_LABEL[slot] },
+          { label: '可裝備職業', value: '全職業通用' },
+          { label: '傳說詞綴範例', value: formatEquipBonus(item.bonus) },
+        ],
+      })
+    }
+
+    for (const hero of HEROES) {
+      for (const def of getWeaponDefsForHero(hero.id)) {
+        const item = generateClassWeapon(hero.id, 'legendary', def.weaponId)
+        if (!item) continue
+        const typeLabel = WEAPON_TYPE_LABEL[def.weaponType] ?? def.weaponType
+        entries.push({
+          id: `equip-weapon-${def.weaponId}`,
+          category: 'equipment',
+          role: hero.role,
+          heroId: hero.id,
+          slot: 'weapon',
+          name: def.name,
+          subtitle: `${hero.name}專屬武器・${typeLabel}`,
+          summary: `裝備後必殺技變為「${def.ultimateSkillName}」，唯有${hero.name}能裝備。`,
+          icon: getEquipmentSlotIcon('weapon'),
+          accent: roleColor(hero.role),
+          badges: [
+            { label: `${hero.name}專屬`, color: roleColor(hero.role) },
+            { label: typeLabel },
+          ],
+          details: [
+            { label: '裝備類型', value: '職業武器' },
+            { label: '所屬職業', value: hero.name },
+            { label: '武器類型', value: typeLabel },
+            { label: '必殺技招式', value: def.ultimateSkillName },
+            { label: '傳說詞綴範例', value: formatEquipBonus(item.bonus) },
+          ],
+        })
+      }
+    }
+
+    for (const hero of HEROES) {
+      const flavor = CLASS_FLAVOR_STAT[hero.role]
+      for (const slot of nonWeaponSlots) {
+        const item = generateClassArmorItem(slot, 'legendary', hero.role)
+        entries.push({
+          id: `equip-class-${hero.role}-${slot}`,
+          category: 'equipment',
+          role: hero.role,
+          heroId: hero.id,
+          slot,
+          name: CLASS_ARMOR_NAME[hero.role][slot],
+          subtitle: `${hero.name}專屬・${EQUIP_SLOT_LABEL[slot]}`,
+          summary: `固定附帶「${flavor.label}」職業特效，唯有${hero.name}能裝備。`,
+          icon: getEquipmentSlotIcon(slot),
+          accent: roleColor(hero.role),
+          badges: [
+            { label: `${hero.name}專屬`, color: roleColor(hero.role) },
+            { label: EQUIP_SLOT_LABEL[slot] },
+          ],
+          details: [
+            { label: '裝備類型', value: '職業裝備' },
+            { label: '所屬職業', value: hero.name },
+            { label: '裝備部位', value: EQUIP_SLOT_LABEL[slot] },
+            { label: '職業特效', value: flavor.label },
+            { label: '傳說詞綴範例', value: formatEquipBonus(item.bonus) },
+          ],
+        })
+      }
+    }
+
+    return entries
+  }, [])
+
   const visibleEntries = useMemo(() => {
     if (category === 'heroes') return heroEntries.filter(entry => heroRole === 'all' || entry.role === heroRole)
     if (category === 'items') return itemEntries.filter(entry => itemKind === 'all' || entry.kind === itemKind)
+    if (category === 'equipment') {
+      return equipmentEntries.filter(entry =>
+        (equipRole === 'all' || entry.role === equipRole) && (equipSlot === 'all' || entry.slot === equipSlot))
+    }
     return relicEntries.filter(entry => relicRole === 'all' || entry.role === relicRole)
-  }, [category, heroEntries, heroRole, itemEntries, itemKind, relicEntries, relicRole])
+  }, [category, heroEntries, heroRole, itemEntries, itemKind, relicEntries, relicRole, equipmentEntries, equipRole, equipSlot])
 
   const currentMeta = CATEGORY_META.find(item => item.id === category) ?? CATEGORY_META[0]
-  const totalEntries = category === 'heroes' ? heroEntries.length : category === 'items' ? itemEntries.length : relicEntries.length
+  const totalEntries = category === 'heroes' ? heroEntries.length
+    : category === 'items' ? itemEntries.length
+    : category === 'equipment' ? equipmentEntries.length
+    : relicEntries.length
   const roleOptions = HEROES.map(hero => hero.role).filter((role, index, roles) => roles.indexOf(role) === index)
 
   const switchCategory = (next: CodexCategory) => {
@@ -286,7 +423,25 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
               ))}
             </>
           )}
+          {category === 'equipment' && (
+            <>
+              <button className={equipRole === 'all' ? 'active' : ''} onClick={() => setEquipRole('all')}>全部裝備</button>
+              <button className={equipRole === 'universal' ? 'active' : ''} onClick={() => setEquipRole('universal')}>通用</button>
+              {roleOptions.map(role => (
+                <button key={role} className={equipRole === role ? 'active' : ''} onClick={() => setEquipRole(role)}>{roleName(role)}</button>
+              ))}
+            </>
+          )}
         </div>
+
+        {category === 'equipment' && (
+          <div className="astral-codex-filter astral-codex-filter-slot" aria-label="裝備部位篩選">
+            <button className={equipSlot === 'all' ? 'active' : ''} onClick={() => setEquipSlot('all')}>全部部位</button>
+            {ARENA_EQUIP_SLOTS.map(slot => (
+              <button key={slot} className={equipSlot === slot ? 'active' : ''} onClick={() => setEquipSlot(slot)}>{EQUIP_SLOT_LABEL[slot]}</button>
+            ))}
+          </div>
+        )}
 
         {category === 'heroes' ? (
           <div className="astral-codex-hero-grid">

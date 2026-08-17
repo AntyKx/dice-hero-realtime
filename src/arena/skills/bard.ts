@@ -6,7 +6,7 @@
  * 必定觸發）→ Lv60 完整循環疊攻擊力迴響 → Lv80 迴響滿層安可雙倍爆發+回血
  * → Lv100 Ultimate 進化：節拍與迴響瞬間預填，循環縮短。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const BEAT_MAX = 4
 const BEAT_BURST_MULT = 0.5
@@ -77,4 +77,29 @@ export function bardUltimateMastery(game: ArenaGame): void {
   game.majorTimer = ECHO_DECAY_SEC
   game.majorTimer2 = ULTIMATE_SHORT_CYCLE_SEC
   game.spawnFloatingText('終章協奏！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 戰歌豎琴：戰歌爆發，自我回復＋範圍內敵人受到追加傷害。 */
+export function bardHarpUltimate(game: ArenaGame): void {
+  game.player.hp = Math.min(game.player.maxHp, game.player.hp + game.player.maxHp * 0.2)
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) game.damageEnemy(e, 20)
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xffe9a8, ULTIMATE_RADIUS)
+  game.spawnFloatingText('戰歌奏鳴！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 悲鳴魯特琴：悲鳴領域，範圍內敵人追加傷害＋長硬直削弱。 */
+export function bardLuteUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 25)
+      e.attackCooldown += 1.5
+    }
+  }
+  game.spawnFloatingText('悲鳴輓歌！', game.player.x, game.player.y - 60)
 }

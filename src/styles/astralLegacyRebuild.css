@@ -394,13 +394,21 @@
 }
 .cms-summary::before { content: 'CHAPTER I · STELLAR ROUTE'; display: block; margin-bottom: 9px; color: var(--av-blue); font: 700 9px/1 Cinzel, serif; letter-spacing: .18em; }
 .cms-summary-title { color: var(--av-gold-pale); font-family: Cinzel, 'Noto Sans TC', serif; letter-spacing: .06em; }
-.cms-milestones { margin-top: 17px; }
+.cms-milestones { margin-top: 17px; justify-content: space-between; }
 .cms-milestone::before { background: rgba(116, 158, 225, .25) !important; }
 .cms-milestone-dot { color: var(--av-muted); border: 1px solid rgba(116, 158, 225, .35); background: #0b2148 !important; }
 .cms-milestone.reached .cms-milestone-dot { color: #211705; border-color: var(--av-gold); background: var(--av-gold-pale) !important; box-shadow: 0 0 16px rgba(213, 182, 107, .45); }
 .cms-milestone-label { color: var(--av-muted); }
 
-.cms-map { max-width: 620px; margin: 0 auto; }
+/* 2026-08-17：地圖上方跟星星卡片之間的空隙壓縮掉（原本 .cms-summary 的
+   margin-bottom + .cms-map 的 padding-top 疊加起來留了一大塊空白），並給
+   地圖本體套一個跟頭部卡片同色系的金框，視覺上呼應「我們現在格子的金框」
+   （.cms-map-node.cleared/.final 那批金色描邊），不是憑空造一個新配色。 */
+.cms-map { max-width: 620px; margin: 0 auto; padding-top: 0; }
+.cms-map-forest {
+  border: 2px solid var(--av-line-gold);
+  box-shadow: 0 0 28px rgba(213, 182, 107, .18), 0 10px 26px rgba(0, 0, 0, .4);
+}
 .cms-map-badge { border-color: rgba(133, 174, 237, .42) !important; background: linear-gradient(145deg, rgba(18, 43, 84, .85), rgba(7, 18, 43, .92)) !important; }
 .cms-map-num { background: var(--av-gold) !important; color: #241805 !important; }
 .cms-map-name { color: #eef5ff; }

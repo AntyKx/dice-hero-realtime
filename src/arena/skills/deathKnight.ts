@@ -8,7 +8,7 @@
  * 進入血腥狀態（吸血+增傷）→ Lv60 週期暗屬傷害+吸血 → Lv80 每場一次死亡
  * 保護 → Lv100 Ultimate 進化成持續黑暗領域。
  */
-import type { ArenaGame } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame } from '../ArenaGame'
 
 const DEATH_WILL_MISSING_CAP = 0.7
 const DEATH_WILL_DAMAGE_PER_MISSING = 0.4 / 0.7 * 0.7 // 損失70%時封頂+28%：0.28/0.7
@@ -112,4 +112,33 @@ export function deathKnightDomainLifesteal(game: ArenaGame): number {
 /** 死亡領域期間：擊殺延長領域時間，由擊殺分支呼叫。 */
 export function deathKnightOnKillExtendDomain(game: ArenaGame): void {
   if (game.majorZoneTimer > 0) game.majorZoneTimer += DOMAIN_KILL_EXTEND_SEC
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 噬魂之刃：噬魂領域，對範圍內敵人造成傷害並依總傷害回血。 */
+export function deathKnightRunebladeUltimate(game: ArenaGame): void {
+  let totalDmg = 0
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 25)
+      totalDmg += 25
+    }
+  }
+  if (totalDmg > 0) game.player.hp = Math.min(game.player.maxHp, game.player.hp + totalDmg * 0.4)
+  game.spawnGlowBurst(game.player.x, game.player.y, 0x8a2020, ULTIMATE_RADIUS)
+  game.spawnFloatingText('噬魂斬！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 死亡鐮刀：死亡收割，範圍內低血量敵人直接處決。 */
+export function deathKnightScytheUltimate(game: ArenaGame): void {
+  const EXECUTE_THRESHOLD = 0.3
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) > ULTIMATE_RADIUS) continue
+    if (e.hp / e.maxHp < EXECUTE_THRESHOLD) game.damageEnemy(e, e.hp)
+    else game.damageEnemy(e, 30)
+  }
+  game.spawnFloatingText('死亡收割！', game.player.x, game.player.y - 60)
 }

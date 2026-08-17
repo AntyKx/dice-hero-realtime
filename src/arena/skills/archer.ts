@@ -9,7 +9,7 @@
  * 掛一個計時 buff，這次沒有新增欄位去實作，先維持只有基礎週期傷害生效——
  * 核心的箭雨/穿透/連矢機制都完整可玩，這是唯一被省略的細節加成。
  */
-import type { ArenaGame } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame } from '../ArenaGame'
 
 const REFIRE_INTERVAL = 4
 const REFIRE_PIERCE = 2
@@ -66,4 +66,26 @@ export function archerUltimateMastery(game: ArenaGame): void {
   game.majorStacks2 = ULTIMATE_WAVE_COUNT
   game.majorTimer2 = ULTIMATE_WAVE_INTERVAL
   game.spawnFloatingText('萬箭穿心！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 疾風之弓：貫穿箭雨，範圍內敵人追加穿透傷害。 */
+export function archerLongbowUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) game.damageEnemy(e, 32)
+  }
+  game.spawnFloatingText('疾風箭雨！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 追魂連弩：連鎖速射，對最近 4 名敵人各追加一次傷害。 */
+export function archerCrossbowUltimate(game: ArenaGame): void {
+  const targets = game.enemies
+    .filter(e => e.alive && Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS)
+    .sort((a, b) => Math.hypot(a.x - game.player.x, a.y - game.player.y) - Math.hypot(b.x - game.player.x, b.y - game.player.y))
+    .slice(0, 4)
+  for (const e of targets) game.damageEnemy(e, 24)
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xffd94a, ULTIMATE_RADIUS)
+  game.spawnFloatingText('追魂連弩擊！', game.player.x, game.player.y - 60)
 }

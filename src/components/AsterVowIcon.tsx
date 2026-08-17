@@ -13,8 +13,8 @@ export type AsterVowIconName =
   | 'stage-elimination' | 'stage-survival' | 'stage-defense' | 'stage-hunt'
   | 'stage-destroy' | 'stage-collection' | 'stage-escape' | 'stage-boss'
   | 'nav-lobby' | 'nav-dungeon' | 'nav-heroes' | 'nav-equipment' | 'nav-menu' | 'nav-compendium'
-  | 'nav-campaign' | 'nav-shop'
-  | 'chapter-forest' | 'chapter-rift' | 'chapter-deep-sea'
+  | 'nav-campaign' | 'nav-shop' | 'nav-warehouse'
+  | 'chapter-forest' | 'chapter-rift' | 'chapter-deep-sea' | 'chapter-snow' | 'chapter-castle'
   | 'dungeon-burning-throne' | 'dungeon-ash-covenant' | 'dungeon-star-eclipse' | 'dungeon-black-tide'
   | 'role-slash' | 'role-fire' | 'role-holy' | 'role-shadow' | 'role-ice' | 'role-arrow'
   | 'role-hammer' | 'role-song' | 'role-beast' | 'role-gear' | 'role-fighter' | 'role-death'
@@ -24,7 +24,7 @@ export type AsterVowIconName =
   | 'action-reroll' | 'action-upgrade' | 'action-enhance'
   | 'system-player' | 'system-gold' | 'system-stardust' | 'system-lock' | 'system-unlock' | 'system-leaderboard'
   | 'system-gift' | 'system-cloud' | 'system-settings' | 'system-warning'
-  | 'system-clock' | 'system-talent'
+  | 'system-clock' | 'system-talent' | 'system-enhance-stone' | 'system-synthesis-material'
   | 'shop-gift' | 'shop-scroll' | 'shop-flame' | 'shop-zap' | 'shop-coin' | 'shop-gem' | 'shop-close'
 
 interface Props {
@@ -44,7 +44,7 @@ const STROKE_PROPS = {
 }
 
 const EMBLEM_NAMES = new Set<AsterVowIconName>([
-  'chapter-forest', 'chapter-rift', 'chapter-deep-sea',
+  'chapter-forest', 'chapter-rift', 'chapter-deep-sea', 'chapter-snow', 'chapter-castle',
   'dungeon-burning-throne', 'dungeon-ash-covenant', 'dungeon-star-eclipse', 'dungeon-black-tide',
 ])
 
@@ -84,6 +84,8 @@ const ICON_DEFAULT_COLOR: Partial<Record<AsterVowIconName, string>> = {
   'system-warning': '#ff8b68',
   'system-clock': '#80d1cf',
   'system-talent': '#d3abff',
+  'system-enhance-stone': '#6ad4ff',
+  'system-synthesis-material': '#c79bff',
 }
 
 const ICON_PATHS: Record<AsterVowIconName, JSX.Element> = {
@@ -104,10 +106,13 @@ const ICON_PATHS: Record<AsterVowIconName, JSX.Element> = {
   'nav-compendium': <g {...STROKE_PROPS}><path d="M12 6.5C10.2 5 8 4.3 5 4.3v13.4c3 0 5.2.8 7 2.3 1.8-1.5 4-2.3 7-2.3V4.3c-3 0-5.2.7-7 2.2z"/><path d="M12 6.5V20M8 8h1.5M14.5 8H16"/></g>,
   'nav-campaign': <g {...STROKE_PROPS}><path d="M5 21V3M5 4l13 3.3-4.5 3.4L18 14 5 17.2"/><path d="M8 20h8"/></g>,
   'nav-shop': <g {...STROKE_PROPS}><path d="M3.5 9l1.8-5h13.4l1.8 5M4 9v11h16V9M4 9c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3"/><path d="M9 20v-5h6v5"/></g>,
+  'nav-warehouse': <g {...STROKE_PROPS}><path d="M4 10h16v9H4z"/><path d="M4 10l1-4a2 2 0 012-2h10a2 2 0 012 2l1 4"/><path d="M9 10v3M15 10v3"/><circle cx="12" cy="12.5" r="1"/></g>,
 
   'chapter-forest': <g {...STROKE_PROPS}><path d="M12 3v18M12 6C9 4.5 6.5 5.2 5 7.5c3 .2 5.2 1.2 7 3M12 9c3-2.4 5.7-2.2 7.5-.2-3 .7-5.3 2-7.5 4.2M12 13c-2.7-1.5-5.2-1-7 1.3 2.8.1 5.1 1 7 3"/><path d="M8.5 21h7"/></g>,
   'chapter-rift': <g {...STROKE_PROPS}><path d="M13 2.5l-3 6 3 2-4 4 3 2.5-2 4.5"/><path d="M6 5l2 1M17 5l-2 2M17.5 12l3 .5M5.5 18l2-1"/><circle cx="17.5" cy="18" r="1.2"/></g>,
   'chapter-deep-sea': <g {...STROKE_PROPS}><path d="M3 10c2.2-2 4.2-2 6.4 0s4.2 2 6.4 0 4.2-2 5.2-.8M3 15c2.2-2 4.2-2 6.4 0s4.2 2 6.4 0 4.2-2 5.2-.8M8 6c1.2-1.8 2.5-3 4-3s2.8 1.2 4 3"/><path d="M12 4v17"/></g>,
+  'chapter-snow': <g {...STROKE_PROPS}><path d="M12 2v20M4.5 6.5l15 11M19.5 6.5l-15 11"/><path d="M12 6l-2 1.6M12 6l2 1.6M12 18l-2-1.6M12 18l2-1.6M6.4 9.3l-.3 2.4-2.2 1M6.4 9.3l2.3.8 1-2.2M17.6 9.3l.3 2.4 2.2 1M17.6 9.3l-2.3.8-1-2.2M6.4 14.7l-.3-2.4-2.2-1M6.4 14.7l2.3-.8 1 2.2M17.6 14.7l.3-2.4 2.2-1M17.6 14.7l-2.3-.8-1 2.2"/></g>,
+  'chapter-castle': <g {...STROKE_PROPS}><path d="M4 21V10l2-2V5h2v2l2-2V3h2v2l2-2v2l2 2v3l2 2v11"/><path d="M4 21h16M9 21v-5h6v5"/></g>,
   'dungeon-burning-throne': <g {...STROKE_PROPS}><path d="M12 2.5c1 4-2 5.3-.3 8.2 1.5-1.4 2.3-2.8 2.4-4.2 3.3 2.5 4.9 5.3 4.1 8.7-.8 3.4-3.1 5.8-6.2 6.3-3.1-.5-5.4-2.9-6.2-6.3C5 11.8 7 8.6 9.6 6.8c-.3 2.2.4 3.7 1.1 4.6"/><path d="M9.3 19c-1.1-2.6.7-4.5 2.7-6.4 2 1.9 3.8 3.8 2.7 6.4"/></g>,
   'dungeon-ash-covenant': <g {...STROKE_PROPS}><path d="M12 2.5l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/><path d="M8.5 21h7M12 15.2V21"/></g>,
   'dungeon-star-eclipse': <g {...STROKE_PROPS}><path d="M16.8 4.2A8.5 8.5 0 1110 20.3 7.4 7.4 0 0016.8 4.2z"/><path d="M17.5 11l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></g>,
@@ -154,6 +159,10 @@ const ICON_PATHS: Record<AsterVowIconName, JSX.Element> = {
   'system-warning': <g {...STROKE_PROPS}><path d="M12 3l10 18H2z"/><path d="M12 9v5M12 17.5h.1" strokeWidth="2"/></g>,
   'system-clock': <g {...STROKE_PROPS}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></g>,
   'system-talent': <g {...STROKE_PROPS}><path d="M12 2l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/><circle cx="12" cy="12" r="2"/></g>,
+  // 強化石：單顆切面寶石，裝備強化材料
+  'system-enhance-stone': <g {...STROKE_PROPS}><path d="M12 3l6 4-2 7-4 7-4-7-2-7z"/><path d="M6 7h12M12 3v18M8.5 7l3.5 6 3.5-6"/></g>,
+  // 合成材料：三顆小晶石聚合，裝備合成材料
+  'system-synthesis-material': <g {...STROKE_PROPS}><path d="M12 2l3 5-3 5-3-5z"/><path d="M6 12l3 5-3 5-3-5z"/><path d="M18 12l3 5-3 5-3-5z"/><path d="M9 7l-2 3M15 7l2 3"/></g>,
 
   // 禮物盒：補給類商品
   'shop-gift': <g {...STROKE_PROPS}><path d="M4 9h16v11H4z"/><path d="M4 9l1-3h14l1 3M12 6V20M12 6c-1-2.5-3-3.5-4.5-3S6 5 8 6h4zM12 6c1-2.5 3-3.5 4.5-3S18 5 16 6h-4z"/></g>,

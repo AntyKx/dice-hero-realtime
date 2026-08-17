@@ -1,7 +1,7 @@
 import { Application, Assets, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
-import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, FOREST_CAMPAIGN_ENEMIES, type EnemyTypeDef } from './enemies'
+import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, ALL_CAMPAIGN_STAGE_ENEMIES, type EnemyTypeDef } from './enemies'
 import { getCampaignStage } from '../campaign/campaignStages'
 import type { CampaignStage, EnemyWave, WaveTrigger } from '../campaign/campaignTypes'
 import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
@@ -30,28 +30,53 @@ import {
   ULTIMATE_CUTIN_SPEEDLINE_COUNT, ULTIMATE_CUTIN_SPEEDLINE_COLOR,
   type UltimatePresentationPhase,
 } from './ultimatePresentation'
-import { knightMajorTick, knightDamageReduction, knightOnHurt, knightUltimateMastery } from './skills/knight'
-import { mageOnHit, mageMajorTick, mageMeteorInterval, mageUltimateMastery } from './skills/mage'
+import {
+  knightMajorTick, knightDamageReduction, knightOnHurt, knightUltimateMastery,
+  knightSwordUltimate, knightGreatswordUltimate,
+} from './skills/knight'
+import {
+  mageOnHit, mageMajorTick, mageMeteorInterval, mageUltimateMastery,
+  mageStaffUltimate, mageGrimoireUltimate,
+} from './skills/mage'
 import {
   priestOnHit, priestMajorTick, priestDeathSaveActive, priestUltimateMastery,
   priestSanctuaryHealPerSec, priestSanctuaryDamageMult,
+  priestScepterUltimate, priestHolyTomeUltimate,
 } from './skills/priest'
 import {
   rogueOnAttackFired, rogueSpeedBonus, rogueConsumeAttackReadySkip, rogueMajorTick,
   rogueOnHit, rogueTryTeleportStrike, rogueUltimateMastery,
+  rogueDaggerUltimate, rogueDualDaggersUltimate,
 } from './skills/rogue'
-import { princessOnHit, princessSlowMult, princessOnKill, princessUltimateMastery } from './skills/princess'
-import { archerBasePierce, archerUnlimitedPierce, archerMajorTick, archerUltimateMastery } from './skills/archer'
-import { dwarfChargedDamageMult, dwarfOnHit, dwarfRockArmorDR, dwarfUltimateMastery } from './skills/dwarf'
-import { bardOnHit, bardMajorTick, bardEchoDamageMult, bardUltimateMastery } from './skills/bard'
-import { engineerOnAttackFired, engineerOnBonusShot, engineerMajorTick, engineerUltimateMastery } from './skills/engineer'
+import {
+  princessOnHit, princessSlowMult, princessOnKill, princessUltimateMastery,
+  princessFrostScepterUltimate, princessIceStaffUltimate,
+} from './skills/princess'
+import {
+  archerBasePierce, archerUnlimitedPierce, archerMajorTick, archerUltimateMastery,
+  archerLongbowUltimate, archerCrossbowUltimate,
+} from './skills/archer'
+import {
+  dwarfChargedDamageMult, dwarfOnHit, dwarfRockArmorDR, dwarfUltimateMastery,
+  dwarfWarhammerUltimate, dwarfTwinAxesUltimate,
+} from './skills/dwarf'
+import {
+  bardOnHit, bardMajorTick, bardEchoDamageMult, bardUltimateMastery,
+  bardHarpUltimate, bardLuteUltimate,
+} from './skills/bard'
+import {
+  engineerOnAttackFired, engineerOnBonusShot, engineerMajorTick, engineerUltimateMastery,
+  engineerCannonUltimate, engineerGatlingUltimate,
+} from './skills/engineer'
 import {
   fighterTrackCombo, fighterComboDamageMult, fighterOnMomentumTrigger, fighterMajorTick, fighterUltimateMastery,
+  fighterGauntletsUltimate, fighterSpiritWrapsUltimate,
 } from './skills/fighter'
 import {
   deathKnightDamageMult, deathKnightOnHit, deathKnightFrenzyDamageMult, deathKnightFrenzyLifesteal,
   deathKnightMajorTick, deathKnightTryUndyingPact, deathKnightUltimateMastery, deathKnightDomainSlowMult,
   deathKnightDomainDR, deathKnightDomainLifesteal, deathKnightOnKillExtendDomain,
+  deathKnightRunebladeUltimate, deathKnightScytheUltimate,
 } from './skills/deathKnight'
 
 export interface ArenaHudState {
@@ -113,6 +138,21 @@ export interface ArenaConfig {
   equipExtraProjectiles?: number
   equipPierceBonus?: number
   equippedWeaponTag?: string // 目前裝備武器的 weaponTag，boss 戰利品用來併入武器專屬遺物池
+  // ── 職業裝備專屬特效（2026-08 職業裝備重製，見 arena/equipment.ts 的
+  // CLASS_FLAVOR_STAT）：開局套用，全部是 computeArenaEquipBonus() 算好的
+  // 加總值，跟上面 equip* 欄位同一種寫法。 ──
+  equipThornsPct?: number
+  equipBurnChancePct?: number
+  equipShieldRegenPct?: number
+  equipCritChancePct?: number
+  equipFreezeChancePct?: number
+  equipMarkDamageBonusPct?: number
+  equipExtraDamageReductionPct?: number
+  equipSlowAuraPct?: number
+  equipExecuteBonusPct?: number
+  equipOverloadOnKillPct?: number
+  equipComboAtkSpeedPct?: number
+  equipWeaponType?: string // 目前裝備武器的 weaponType（如 'sword'/'greatsword'），決定必殺技招式
   /** 森林遺跡固定關卡（2026-08，見 src/campaign/）：有值時 init() 完全跳過
    * Arena Roguelite Run 的隨機分區生成，改跑固定波次/Hazard/Objective。
    * 跟 `campaign` 欄位語意獨立，不會互相覆寫。 */
@@ -336,7 +376,7 @@ const ELITE_DAMAGE_MULT = 1.6
 const ELITE_TINT = 0xd080ff
 
 const ULTIMATE_MAX = 100
-const ULTIMATE_RADIUS = 220
+export const ULTIMATE_RADIUS = 220 // 武器類型必殺技效果（skills/{heroId}.ts）沿用同一個範圍判定
 const ULTIMATE_DAMAGE = 80
 const ULTIMATE_CHARGE_NORMAL = 8
 const ULTIMATE_CHARGE_ELITE = 20
@@ -373,6 +413,18 @@ const ATTACK_MOVE_LOCK = 0.10     // 秒，普通攻擊發動瞬間鎖定移動�
 // 敵人 chase AI 的 attackRange 落在 40~55（enemyAI.ts），玩家武器再留一點揮擊
 // 空間，取 70。
 const MELEE_RANGE = 70
+
+// 職業裝備專屬特效（2026-08 職業裝備重製）數值常數，集中放在這裡方便日後調整。
+const SHIELD_REGEN_BASE_INTERVAL = 30 // 神官祭司護盾回復：equipShieldRegenPct=0 時的基準間隔（秒）
+const SHIELD_REGEN_MIN_INTERVAL = 8   // 疊到再高也不會低於這個間隔
+const CRIT_DAMAGE_MULT = 1.8          // 影刃刺客暴擊倍率
+const EXECUTE_HP_THRESHOLD_PCT = 0.25 // 死亡騎士處決：目標血量低於此比例才加成
+const BURN_ON_HIT_STACKS = 3          // 火焰法師職業裝備灼燒觸發時附加的層數（沿用既有 burnStacks/burnTimer 機制）
+const FREEZE_ON_HIT_DURATION = 1.2    // 皇家公主職業裝備凍結觸發時的秒數（沿用既有 frozenTimer 機制）
+const SLOW_AURA_RADIUS = 140          // 吟遊詩人減速光環半徑
+const OVERLOAD_DURATION = 3           // 機關技師擊殺過載持續秒數
+const COMBO_DECAY_WINDOW = 1.5        // 武鬥家連擊：這麼久沒命中就重置層數
+const COMBO_MAX_STACKS = 8            // 武鬥家連擊層數上限
 
 // 天賦系統 v2（2026-08）新增狀態效果數值：燃燒（火焰法師）跟聖印（神官祭司）
 // 都是「持續時間到期才結算/清空」的敵人身上狀態，用連續傷害/固定到期回血
@@ -458,6 +510,23 @@ export class ArenaGame {
   shieldTimer = 0
   shieldCharges = 0
   talentDamageReductionPct = 0 // 天賦樹永久減傷（聖騎士/矮人系小天賦），damagePlayer() 套用
+
+  // ── 職業裝備專屬特效（2026-08 職業裝備重製）：套用點見 damageEnemy()／
+  // getSlowMult()／updatePassives()／攻速消費處，純數值判定，不另開
+  // per-hero 檔案。extraDamageReductionPct/shieldRegenPct 沒有獨立欄位——
+  // 前者直接疊進 talentDamageReductionPct，後者直接換算成縮短
+  // shieldIntervalSec，建構子套用時就折算完畢。 ──
+  burnChancePct = 0
+  critChancePct = 0
+  freezeChancePct = 0
+  markDamageBonusPct = 0
+  slowAuraPct = 0
+  executeBonusPct = 0
+  overloadOnKillPct = 0 // 擊殺觸發的臨時攻速加成幅度，實際啟用中的量見 overloadTimer
+  overloadTimer = 0     // >0 時套用 overloadOnKillPct 到攻速，updatePassives() 遞減
+  comboAtkSpeedPct = 0  // 每層連擊攻速加成幅度
+  comboStacks = 0       // 目前連擊層數，damageEnemy() 命中疊層
+  comboDecayTimer = 0   // 停手多久後連擊歸零，updatePassives() 遞減／重置
 
   // ── 關卡分區（M3.6）──────────────────────────────────────────────────
   dungeon: ArenaZoneNode[] = []
@@ -557,6 +626,24 @@ export class ArenaGame {
     this.moveSpeedMult *= cfg.equipMoveSpeedMult ?? 1
     this.pierceBonus += cfg.equipPierceBonus ?? 0
     this.extraProjectiles += cfg.equipExtraProjectiles ?? 0
+    // 職業裝備專屬特效（2026-08）：跟上面裝備加成同一批套用邏輯。
+    this.thornsPct += cfg.equipThornsPct ?? 0
+    this.burnChancePct += cfg.equipBurnChancePct ?? 0
+    this.critChancePct += cfg.equipCritChancePct ?? 0
+    this.freezeChancePct += cfg.equipFreezeChancePct ?? 0
+    this.markDamageBonusPct += cfg.equipMarkDamageBonusPct ?? 0
+    this.slowAuraPct += cfg.equipSlowAuraPct ?? 0
+    this.executeBonusPct += cfg.equipExecuteBonusPct ?? 0
+    this.overloadOnKillPct = cfg.equipOverloadOnKillPct ?? 0
+    this.comboAtkSpeedPct = cfg.equipComboAtkSpeedPct ?? 0
+    // 額外減傷沒有獨立欄位，直接疊進跟裝備防禦減傷同一顆累加欄位。
+    this.talentDamageReductionPct += cfg.equipExtraDamageReductionPct ?? 0
+    // 護盾回復沒有獨立欄位，換算成縮短既有的護盾回充間隔（跟遺物/天賦共用
+    // 同一組 shieldIntervalSec/shieldTimer/shieldCharges，取較快的那個間隔）。
+    if (cfg.equipShieldRegenPct) {
+      const interval = Math.max(SHIELD_REGEN_MIN_INTERVAL, SHIELD_REGEN_BASE_INTERVAL * (1 - cfg.equipShieldRegenPct))
+      this.shieldIntervalSec = this.shieldIntervalSec > 0 ? Math.min(this.shieldIntervalSec, interval) : interval
+    }
     this.campaign = cfg.campaign ?? 'main'
     // 遺物永久收藏（2026-08）：cfg.ownedRelicIds 是這個英雄先前 boss 戰利品累積下來
     // 的永久持有清單，開局就直接套用效果（不用等這局也打贏 boss 才有感），
@@ -697,7 +784,7 @@ export class ArenaGame {
         for (const skill of skills) if (skill.summonTypeId) ids.add(skill.summonTypeId)
       }
     }
-    return [...ids].map(id => FOREST_CAMPAIGN_ENEMIES[id]).filter((t): t is EnemyTypeDef => !!t)
+    return [...ids].map(id => ALL_CAMPAIGN_STAGE_ENEMIES[id]).filter((t): t is EnemyTypeDef => !!t)
   }
 
   setSpriteHeight(sprite: Sprite, targetHeight: number) {
@@ -954,7 +1041,7 @@ export class ArenaGame {
 
     if (stage.boss) {
       this.bossState = 'alive'
-      const bossType = FOREST_CAMPAIGN_ENEMIES[stage.boss.bossEnemyId]
+      const bossType = ALL_CAMPAIGN_STAGE_ENEMIES[stage.boss.bossEnemyId]
       if (bossType) {
         const count = stage.boss.count ?? 1
         // 多隻同時出現時（1-18 雙獸人隊長）每隻血量打折，避免跟單人版 Boss
@@ -975,12 +1062,12 @@ export class ArenaGame {
   /** 依 EnemyWave 資料生成固定敵人（不是加權隨機），供開場立即波次跟 updateCampaignWaves() 共用。 */
   spawnCampaignWave(wave: EnemyWave) {
     for (const [id, count] of Object.entries(wave.enemies)) {
-      const type = FOREST_CAMPAIGN_ENEMIES[id]
+      const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
       for (let i = 0; i < count; i++) this.spawnEnemyOfType(type)
     }
     for (const [id, count] of Object.entries(wave.eliteEnemies ?? {})) {
-      const type = FOREST_CAMPAIGN_ENEMIES[id]
+      const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
       for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, { isElite: true })
     }
@@ -1128,15 +1215,26 @@ export class ArenaGame {
     return [evalOne(stage.starConditions[0]), evalOne(stage.starConditions[1]), evalOne(stage.starConditions[2])]
   }
 
-  /** custom 星星條件是逐關量身訂做的特殊情境（見資料表 1-4/1-6/1-7/1-9），不是通用機制，直接依 stage id 分派。 */
+  /** custom 星星條件是逐關量身訂做的特殊情境（見資料表 1-3/1-4/1-7，2-3/2-4/2-7，
+   * 3-3/3-4/3-7——2026-08-16 三篇章從 20 關砍到 10 關後，這三個 case 的
+   * stage id 跟著新的關卡編號重新對應），不是通用機制，直接依 stage id 分派。
+   * 雪原/魔王城兩個篇章跟森林同一序位關卡是同一套骨架換皮，直接複製三個
+   * case 換敵人 id。 */
   evaluateCustomStar(stage: CampaignStage): boolean {
     switch (stage.id) {
-      case 'forest_1_4': // 擊敗所有哥布林弓手
-      case 'forest_1_6': // 擊敗全部哥布林弓手
+      case 'forest_1_3': // 擊敗所有哥布林弓手
         return !this.enemies.some(e => e.typeId === 'goblin_archer' && e.alive)
-      case 'forest_1_7': // 擊敗全部敵人（主要 Objective 只要求擊敗薩滿）
+      case 'snowfield_2_3':
+        return !this.enemies.some(e => e.typeId === 'frost_archer' && e.alive)
+      case 'castle_3_3':
+        return !this.enemies.some(e => e.typeId === 'imp_archer' && e.alive)
+      case 'forest_1_4': // 擊敗全部敵人（主要 Objective 只要求擊敗薩滿）
+      case 'snowfield_2_4':
+      case 'castle_3_4':
         return !this.enemies.some(e => e.alive) && this.pendingWaves.length === 0
-      case 'forest_1_9': // 優先擊敗薩滿：其他非森林樹精敵人不能先死
+      case 'forest_1_7': // 優先擊敗薩滿：其他非森林樹精敵人不能先死
+      case 'snowfield_2_7':
+      case 'castle_3_7':
         return !(this.objectiveState?.customStarFailed ?? false)
       default:
         return false
@@ -1419,6 +1517,21 @@ export class ArenaGame {
         this.shieldCharges = Math.min(1, this.shieldCharges + 1)
       }
     }
+    // 機關技師職業裝備：過載倒數（overloadOnKillPct 的觸發持續時間）
+    if (this.overloadTimer > 0) this.overloadTimer = Math.max(0, this.overloadTimer - dt)
+    // 武鬥家職業裝備：連擊層數多久沒命中就重置
+    if (this.comboStacks > 0) {
+      this.comboDecayTimer -= dt
+      if (this.comboDecayTimer <= 0) this.comboStacks = 0
+    }
+  }
+
+  /** 機關技師過載＋武鬥家連擊的臨時攻速加成乘數，消費點見攻擊冷卻計算處。 */
+  getTempAtkSpeedMult(): number {
+    let mult = 1
+    if (this.overloadTimer > 0) mult *= 1 + this.overloadOnKillPct
+    if (this.comboStacks > 0) mult *= 1 + this.comboAtkSpeedPct * this.comboStacks
+    return mult
   }
 
   /**
@@ -1663,7 +1776,8 @@ export class ArenaGame {
       const dist = Math.hypot(target.x - this.player.x, target.y - this.player.y)
       if (dist > MELEE_RANGE) return
     }
-    this.player.atkTimer = this.cfg.atkCooldown * this.atkCooldownMult
+    // 機關技師過載／武鬥家連擊：臨時攻速加成疊在裝備/天賦的 atkCooldownMult 之外。
+    this.player.atkTimer = this.cfg.atkCooldown * this.atkCooldownMult / this.getTempAtkSpeedMult()
 
     // 有真的 attack 逐幀圖：先播動畫，實際開火延後到 updatePlayerAnim() 判斷
     // 播到觸發幀（見那邊的 triggerFrame）才發生，跟出手動作對齊。沒有逐幀圖
@@ -1876,6 +1990,26 @@ export class ArenaGame {
     // 逼玩家先切目標打 Core，不能只固定站樁打 Boss 本體——靠既有 summonedCount
     // 判斷還有沒有 Core 存活，不用另開一個「護盾」欄位。
     if (e.isBoss && e.typeId === 'ancient_treant_guardian' && e.summonedCount > 0) amount *= 0.4
+    // ── 職業裝備專屬特效（2026-08）：純數值判定，跟裝備欄位直接對應——
+    // markDamageBonusPct/executeBonusPct 一定要在 e.hp -= amount 之前判斷，
+    // 判斷依據是「這一下打下去之前」的血量狀態。 ──
+    if (this.markDamageBonusPct > 0 && e.hp >= e.maxHp) amount *= 1 + this.markDamageBonusPct
+    if (this.executeBonusPct > 0 && e.hp / e.maxHp < EXECUTE_HP_THRESHOLD_PCT) amount *= 1 + this.executeBonusPct
+    if (this.critChancePct > 0 && Math.random() < this.critChancePct) {
+      amount *= CRIT_DAMAGE_MULT
+      this.spawnFloatingText('暴擊！', e.x, e.y - e.spriteHeight * 0.6)
+    }
+    if (this.burnChancePct > 0 && Math.random() < this.burnChancePct) {
+      e.burnStacks = Math.min(5, e.burnStacks + BURN_ON_HIT_STACKS)
+      e.burnTimer = Math.max(e.burnTimer, 3)
+    }
+    if (this.freezeChancePct > 0 && Math.random() < this.freezeChancePct) {
+      e.frozenTimer = Math.max(e.frozenTimer, FREEZE_ON_HIT_DURATION)
+    }
+    if (this.comboAtkSpeedPct > 0) {
+      this.comboStacks = Math.min(COMBO_MAX_STACKS, this.comboStacks + 1)
+      this.comboDecayTimer = COMBO_DECAY_WINDOW
+    }
     e.hp -= amount
     if (e.hp <= 0) {
       e.alive = false
@@ -1892,6 +2026,8 @@ export class ArenaGame {
       // 皇家公主 Lv80 冰痕擴散／死亡騎士 Lv100 死亡領域擊殺延長
       if (this.cfg.heroId === 'princess') princessOnKill(this, e)
       if (this.cfg.heroId === 'death_knight') deathKnightOnKillExtendDomain(this)
+      // 機關技師職業裝備：過載連擊，擊殺後短暫攻速大增，updatePassives() 遞減
+      if (this.overloadOnKillPct > 0) this.overloadTimer = OVERLOAD_DURATION
       // Elite 詞綴 Split：死亡分裂 2~3 隻較弱的同型普通怪，血量打折避免雪球
       if (e.isElite && e.eliteModifier === 'split') {
         const type = this.findEnemyTypeById(e.typeId)
@@ -1924,9 +2060,17 @@ export class ArenaGame {
           onHuntTargetDefeated(this.objectiveState)
         }
         if (obj.type === 'destroy' && e.aiType === 'totem') onDestroyTargetDefeated(this.objectiveState)
-        if (this.campaignStage.id === 'forest_1_9') {
+        if (this.campaignStage.id === 'forest_1_7') {
           const shamanStillAlive = this.enemies.some(en => en.typeId === 'forest_shaman' && en.alive)
           if (shamanStillAlive) markCustomStarFailed(e, this.objectiveState, 'forest_shaman', ['forest_treant'])
+        }
+        if (this.campaignStage.id === 'snowfield_2_7') {
+          const shamanStillAlive = this.enemies.some(en => en.typeId === 'ice_shaman' && en.alive)
+          if (shamanStillAlive) markCustomStarFailed(e, this.objectiveState, 'ice_shaman', ['snow_troll'])
+        }
+        if (this.campaignStage.id === 'castle_3_7') {
+          const shamanStillAlive = this.enemies.some(en => en.typeId === 'demon_shaman' && en.alive)
+          if (shamanStillAlive) markCustomStarFailed(e, this.objectiveState, 'demon_shaman', ['demon_brute'])
         }
         // 1-10 古樹守衛「每次 Core 出現後 N 秒內全滅」星星條件：這一批 Root Core
         // 死掉這隻之後如果 Boss 身上已經沒有其他 Core 存活（summonedCount 見
@@ -1987,11 +2131,14 @@ export class ArenaGame {
     if (this.player.hp <= 0) this.triggerGameOver()
   }
 
-  /** 皇家公主冰痕減速／死亡騎士死亡領域減速，套用在敵人移動速度上。 */
+  /** 皇家公主冰痕減速／死亡騎士死亡領域減速／吟遊詩人職業裝備減速光環，套用在敵人移動速度上。 */
   getSlowMult(e: EnemyInstance): number {
     let mult = 1
     if (this.cfg.heroId === 'princess') mult *= princessSlowMult(this, e)
     if (this.cfg.heroId === 'death_knight') mult *= deathKnightDomainSlowMult(this)
+    if (this.slowAuraPct > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= SLOW_AURA_RADIUS) {
+      mult *= 1 - this.slowAuraPct
+    }
     return mult
   }
 
@@ -2095,8 +2242,11 @@ export class ArenaGame {
           e.eliteModifierState.chargeHit = 1
           // 1-13 荊棘追獵「不被荊棘狼的 Leap 命中」星星條件用：荊棘狼是一般
           // Charge AI 小怪，不是走 BOSS_SKILLS，沒有 skill.id 可以借，直接
-          // 依 typeId 記（目前只有這一種敵人需要這個判定）。
+          // 依 typeId 記。2-13 寒狼追獵／3-13 地獄獵犬追獵（2026-08-16）沿用
+          // 同一招，各自記自己的 skillId，互不影響。
           if (this.campaignStage && e.typeId === 'thorn_wolf') this.recordCampaignSkillHit('thorn_wolf_leap')
+          if (this.campaignStage && e.typeId === 'frost_wolf') this.recordCampaignSkillHit('frost_wolf_leap')
+          if (this.campaignStage && e.typeId === 'hellhound') this.recordCampaignSkillHit('hellhound_leap')
         }
         if (this.isOutOfArenaBounds(e.x, e.y) || e.stateTimer >= CHARGE_CONFIG.dashMaxDurationSec) {
           e.state = 'stunned'; e.stateTimer = 0
@@ -2228,7 +2378,10 @@ export class ArenaGame {
         e.eliteModifierState.chargeHit = 1
         // 1-5/1-18 狂暴獸人隊長「不被 Charge 命中」星星條件：這隻 Boss 目前只有
         // 一種 charge 技能，直接依 typeId 記，不用另外追蹤「目前是哪個 skill.id」。
+        // 2-5/2-18 霜甲騎士長、3-5/3-18 煉獄騎士（2026-08-16）沿用同一招。
         if (this.campaignStage && e.typeId === 'orc_chieftain') this.recordCampaignSkillHit('orc_chieftain_charge')
+        if (this.campaignStage && e.typeId === 'frost_knight_captain') this.recordCampaignSkillHit('frost_knight_ice_charge')
+        if (this.campaignStage && e.typeId === 'demon_knight') this.recordCampaignSkillHit('demon_knight_charge')
       }
       if (this.isOutOfArenaBounds(e.x, e.y)) {
         e.state = 'seek'
@@ -2532,7 +2685,7 @@ export class ArenaGame {
           e.state = 'seek'
           if (!e.alive) return
           const count = skill.summonCount ?? 3
-          const type = skill.summonTypeId ? FOREST_CAMPAIGN_ENEMIES[skill.summonTypeId] : undefined
+          const type = skill.summonTypeId ? ALL_CAMPAIGN_STAGE_ENEMIES[skill.summonTypeId] : undefined
           if (!type) return
           for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 * i) / count
@@ -2562,7 +2715,7 @@ export class ArenaGame {
         this.spawnTelegraph('circle', e.x, e.y, { radius: 60, angle: 0, width: 0 }, e, () => {
           e.state = 'seek'
           if (!e.alive) return
-          const type = skill.summonTypeId ? FOREST_CAMPAIGN_ENEMIES[skill.summonTypeId] : undefined
+          const type = skill.summonTypeId ? ALL_CAMPAIGN_STAGE_ENEMIES[skill.summonTypeId] : undefined
           if (!type) return
           // 跟 summon_cores 不同：這裡是純戰場壓力，不掛減傷語意，但還是要有
           // 上限，不然長時間拖戰會慢慢疊出一片怪海（見設計文件「不要塞怪海」）。
@@ -2889,6 +3042,33 @@ export class ArenaGame {
       if (dist <= ULTIMATE_RADIUS) this.damageEnemy(e, ULTIMATE_DAMAGE)
     }
     this.spawnGlowBurst(this.player.x, this.player.y, 0xff8a3c, ULTIMATE_RADIUS)
+    // 職業裝備（2026-08）：武器類型決定必殺技招式，裝上就換招，跟下面的
+    // Lv100 天賦大師是獨立的兩層——這裡疊加的效果不受 unlockedMajorSkillIds
+    // 影響，兩層互不衝突（各自在基礎 AoE 傷害之外疊加機制）。
+    switch (`${this.cfg.heroId}_${this.cfg.equipWeaponType}`) {
+      case 'knight_sword': knightSwordUltimate(this); break
+      case 'knight_greatsword': knightGreatswordUltimate(this); break
+      case 'mage_staff': mageStaffUltimate(this); break
+      case 'mage_grimoire': mageGrimoireUltimate(this); break
+      case 'priest_scepter': priestScepterUltimate(this); break
+      case 'priest_holy_tome': priestHolyTomeUltimate(this); break
+      case 'rogue_dagger': rogueDaggerUltimate(this); break
+      case 'rogue_dual_daggers': rogueDualDaggersUltimate(this); break
+      case 'princess_frost_scepter': princessFrostScepterUltimate(this); break
+      case 'princess_ice_staff': princessIceStaffUltimate(this); break
+      case 'archer_longbow': archerLongbowUltimate(this); break
+      case 'archer_crossbow': archerCrossbowUltimate(this); break
+      case 'dwarf_warhammer': dwarfWarhammerUltimate(this); break
+      case 'dwarf_twin_axes': dwarfTwinAxesUltimate(this); break
+      case 'bard_harp': bardHarpUltimate(this); break
+      case 'bard_lute': bardLuteUltimate(this); break
+      case 'death_knight_runeblade': deathKnightRunebladeUltimate(this); break
+      case 'death_knight_scythe': deathKnightScytheUltimate(this); break
+      case 'engineer_cannon': engineerCannonUltimate(this); break
+      case 'engineer_gatling': engineerGatlingUltimate(this); break
+      case 'fighter_gauntlets': fighterGauntletsUltimate(this); break
+      case 'fighter_spirit_wraps': fighterSpiritWrapsUltimate(this); break
+    }
     // 天賦系統 v2：Lv100 Mastery 把原本 Ultimate 進化成職業專屬版本，沿用同一套
     // Cut-in 演出（不另外做新視覺層），只在基礎傷害之外疊加各自的機制。
     switch (this.cfg.heroId) {

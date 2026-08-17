@@ -6,7 +6,7 @@
  * （觸發時刷新加速視窗）→ Lv60 命中疊暗影標記滿層引爆 → Lv80 機率瞬移
  * 背後突襲必定觸發追加攻擊 → Lv100 Ultimate 進化成多重殘影 AoE。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const SPEED_WINDOW_SEC = 1.5
 const SPEED_BONUS = 0.25
@@ -75,4 +75,28 @@ export function rogueUltimateMastery(game: ArenaGame): void {
   if (!game.unlockedMajorSkillIds.has('rogue_lv100')) return
   game.majorTimer = SPEED_WINDOW_SEC * 2
   game.spawnFloatingText('百影夜襲！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 夜影匕首：對最近的敵人瞬影連刺，追加高額單體傷害。 */
+export function rogueDaggerUltimate(game: ArenaGame): void {
+  const target = game.enemies
+    .filter(e => e.alive && Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS)
+    .sort((a, b) => Math.hypot(a.x - game.player.x, a.y - game.player.y) - Math.hypot(b.x - game.player.x, b.y - game.player.y))[0]
+  if (target) game.damageEnemy(target, 90)
+  game.spawnFloatingText('暗影連襲！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 雙月魅影匕：範圍內多名敵人各自追加多段傷害（亂舞）。 */
+export function rogueDualDaggersUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 18)
+      game.damageEnemy(e, 18)
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0x8a3cff, ULTIMATE_RADIUS)
+  game.spawnFloatingText('千刃亂舞！', game.player.x, game.player.y - 60)
 }

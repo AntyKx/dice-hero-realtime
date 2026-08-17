@@ -22,7 +22,10 @@ import { getRandomCurse } from './curses'
 import { loadMeta, saveMeta, calcRunStardust } from './meta'
 import { saveRun, loadSavedRun, clearSavedRun, type RunSave } from './save'
 import { tryGenerateDrop, getEquippedItems, computeEquipBonus, SALVAGE_VALUE, generateEquipment, tryGenerateEclipseDrop, tryGenerateThroneDrops, tryGenerateBlackTideDrop, tryGenerateCovenantDrop } from './equipment'
-import { computeArenaEquipBonus, getEquippedArenaItems, defBonusToDamageReductionPct, getEquippedWeapon, generateRandomDrop } from './arena/equipment'
+import {
+  computeArenaEquipBonus, getEquippedArenaItems, defBonusToDamageReductionPct, getEquippedWeapon,
+  generateRandomDrop,
+} from './arena/equipment'
 import {
   computeTalentBonus, addHeroExp, checkStarConditions, calcRunExp, defaultHeroProgress,
   getHeroStarTitle, HERO_TALENT_TREES,
@@ -70,10 +73,14 @@ import ArenaScreen from './arena/ArenaScreen'
 import { computeArenaTalentBonus, generateHeroTalentTree } from './arena/arenaTalents'
 import { ARENA_RELICS } from './arena/relics'
 import CampaignMapScreen from './screens/CampaignMapScreen'
+import CampaignChapterSelectScreen from './screens/CampaignChapterSelectScreen'
+import SagaSelectScreen from './screens/SagaSelectScreen'
 import { getCampaignStage } from './campaign/campaignStages'
+import { CAMPAIGN_ID_FOREST_RUINS, getSagaIdForCampaign } from './campaign/campaignTypes'
 import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
 import PartySetupScreen from './screens/PartySetupScreen'
 import AstralShopScreen from './screens/AstralShopScreen'
+import WarehouseScreen from './screens/WarehouseScreen'
 import { sanitizeParty, computePartyBonus } from './party'
 
 const APP_VERSION = __APP_BUILD__
@@ -136,8 +143,13 @@ const SAVE_PHASES: Array<GamePhase['type']> = [
   'map', 'battle', 'reward', 'relic_reward', 'event', 'shop', 'rest', 'equipment_drop', 'chapter_clear',
 ]
 
+// GM 模式入口（2026-08-16）：GmScreen 本身已經有密碼保護，這裡只是加一層
+// 「怎麼打開」——網址帶 ?gm=1 直接以 gm phase 啟動，不用在正常 UI 裡放一顆
+// 容易被誤點的按鈕。兩層保護（要知道網址參數 + 要知道密碼）對測試用途足夠。
+const START_IN_GM_MODE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('gm') === '1'
+
 export default function App() {
-  const [phase, setPhase] = useState<GamePhase>({ type: 'main_menu' })
+  const [phase, setPhase] = useState<GamePhase>(START_IN_GM_MODE ? { type: 'gm' } : { type: 'main_menu' })
   const [run, setRun] = useState<RunState>(createRun(HEROES[0].id, 0))
   const [meta, setMeta] = useState<MetaState>(() => loadMeta())
   const [portraitHero, setPortraitHero] = useState<typeof HEROES[0] | null>(null)
@@ -366,6 +378,22 @@ export default function App() {
       // 只有真的裝著那把武器才會解鎖武器專屬遺物池——沒裝備武器時完全不傳，
       // 不要因為「這個英雄理論上能用這把武器」就預先解鎖。
       equippedWeaponTag: weapon?.weaponTag,
+      // 職業裝備專屬特效（2026-08 職業裝備重製）：跟上面裝備加成同一批透傳。
+      equipThornsPct: bonus.thornsPct,
+      equipBurnChancePct: bonus.burnChancePct,
+      equipShieldRegenPct: bonus.shieldRegenPct,
+      equipCritChancePct: bonus.critChancePct,
+      equipFreezeChancePct: bonus.freezeChancePct,
+      equipMarkDamageBonusPct: bonus.markDamageBonusPct,
+      equipExtraDamageReductionPct: bonus.extraDamageReductionPct,
+      equipSlowAuraPct: bonus.slowAuraPct,
+      equipExecuteBonusPct: bonus.executeBonusPct,
+      equipOverloadOnKillPct: bonus.overloadOnKillPct,
+      equipComboAtkSpeedPct: bonus.comboAtkSpeedPct,
+      // 武器類型決定必殺技招式：沒裝武器時 undefined，applyUltimateDamage() 的
+      // switch 全部 miss，維持純基礎 AoE（理論上不會發生，但保底安全）。
+      equipWeaponType: weapon?.weaponType,
+      ultimateSkillName: weapon?.ultimateSkillName,
     }
   }
 
@@ -1369,7 +1397,7 @@ export default function App() {
     // （原本套用 ×0.6 係數硬換算過去），改讀完全獨立的
     // meta.arenaInventory/arenaLoadouts，數值本來就是照 Arena 量級設計的，
     // 不需要額外係數。
-    const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
+    const { hpBonus: equipHpBonus, ultimateSkillName, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
     // 出戰陣容支援加成（2026-08，見 src/party.ts）：隊長＝目前出戰英雄（合一），
     // 支援只提供設定化的 HP%/傷害% 加成，疊在既有天賦/裝備加成之外，不動
     // ArenaGame.ts 內部。
@@ -1389,13 +1417,20 @@ export default function App() {
           ...arenaEquipFields,
           stars: heroProgress.stars,
           attackType: getAttackType(hero.role),
-          ultimateName: hero.skill,
+          // 職業裝備（2026-08）：目前裝備武器的招式名稱，沒裝武器時 fallback 回 hero.skill。
+          ultimateName: ultimateSkillName ?? hero.skill,
           ownedRelicIds: heroProgress.ownedRelicIds,
         }}
         onExit={() => setPhase({ type: 'main_menu' })}
         onRunEnd={(won, floorsCleared, goldEarned, ownedRelicIds) => {
           awardRunExp(hero.id, won, floorsCleared)
           if (goldEarned > 0) updateMeta(m => ({ ...m, gold: m.gold + goldEarned }))
+          // 倉庫強化石（2026-08）：通關才給，數量隨過關層數微幅加成，讓玩家不用
+          // 非得分解裝備才有材料強化。
+          if (won) {
+            const stones = 3 + Math.floor(Math.random() * 4) + Math.min(5, floorsCleared)
+            updateMeta(m => ({ ...m, enhanceStoneCount: m.enhanceStoneCount + stones }))
+          }
           // 遺物是跨局永久收藏（2026-08）：ArenaScreen 回傳的是這局結束當下完整的
           // 持有清單（含這局新選到的那一個，若有），整份覆蓋寫回，不是增量疊加。
           updateMeta(m => {
@@ -1416,8 +1451,34 @@ export default function App() {
         <CampaignMapScreen
           meta={meta}
           heroId={phase.heroId}
+          campaignId={phase.campaignId}
           onSelectStage={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
+          onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
+        />
+      </div>
+    )
+  }
+
+  if (phase.type === 'campaign_saga_select') {
+    return (
+      <div className="page">
+        <SagaSelectScreen
+          meta={meta}
+          onSelectSaga={sagaId => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId })}
           onBack={() => setPhase({ type: 'adventure_ready' })}
+        />
+      </div>
+    )
+  }
+
+  if (phase.type === 'campaign_chapter_select') {
+    return (
+      <div className="page">
+        <CampaignChapterSelectScreen
+          meta={meta}
+          sagaId={phase.sagaId}
+          onSelectChapter={campaignId => setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })}
+          onBack={() => setPhase({ type: 'campaign_saga_select', heroId: phase.heroId })}
         />
       </div>
     )
@@ -1427,8 +1488,12 @@ export default function App() {
     const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
-    const { hpBonus: equipHpBonus, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
+    const { hpBonus: equipHpBonus, ultimateSkillName, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
     const stageId = phase.stageId
+    // 三篇章共用同一個 campaign_stage phase，回地圖時要回到「這一關所屬的
+    // 篇章地圖」而不是寫死森林遺跡——直接從 stageId 反查 campaignId，不用
+    // 在 phase 裡多存一份（跟 stageId 本來就是一對一，存兩份只會有兜不攏的風險）。
+    const stageCampaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
     // 出戰陣容支援加成（2026-08，見 src/party.ts），同 arena_run 分支邏輯。
     const partyBonus = computePartyBonus(sanitizeParty(meta.party, HEROES.map(h => h.id), hero.id))
     return (
@@ -1444,21 +1509,25 @@ export default function App() {
           unlockedMajorSkillIds: talentBonus.unlockedMajorSkillIds,
           stars: heroProgress.stars,
           attackType: getAttackType(hero.role),
-          ultimateName: hero.skill,
+          // 職業裝備（2026-08）：目前裝備武器的招式名稱，沒裝武器時 fallback 回 hero.skill。
+          ultimateName: ultimateSkillName ?? hero.skill,
           ownedRelicIds: heroProgress.ownedRelicIds,
           campaignStageId: stageId,
           ...arenaEquipFields,
         }}
-        onExit={() => setPhase({ type: 'campaign_map', heroId: hero.id })}
+        onExit={() => setPhase({ type: 'campaign_map', heroId: hero.id, campaignId: stageCampaignId })}
         onCampaignStageEnd={result => {
           updateMeta(m => {
             const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
-            let next = recordStageResult(m, stageId, result.won ? result.stars : 0)
+            // 不管陣亡或過關都要記錄「最後打的關卡」，供大廳預覽卡使用。
+            let next: MetaState = { ...m, lastPlayedStageId: stageId }
+            next = recordStageResult(next, stageId, result.won ? result.stars : 0)
             // 關卡掉落（2026-08 裝備系統重整）：每次通關都掉 1 件一般（normal）
             // 稀有度裝備——特殊裝備留給抽獎系統，關卡掉落故意壓在最低稀有度。
             if (result.won) {
               const drop = generateRandomDrop(hero.id, [['normal', 100]])
-              next = { ...next, arenaInventory: [...(next.arenaInventory ?? []), drop] }
+              const stones = 3 + Math.floor(Math.random() * 4)
+              next = { ...next, arenaInventory: [...(next.arenaInventory ?? []), drop], enhanceStoneCount: next.enhanceStoneCount + stones }
             }
             if (result.won && !wasFirstClearClaimed) {
               const stage = getCampaignStage(stageId)
@@ -1505,6 +1574,11 @@ export default function App() {
     return <AstralShopScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'adventure_ready' })} />
   }
 
+  // 倉庫（2026-08，取代大廳底部導覽的「英雄」）：裝備／遺物／道具三分頁的全頁畫面。
+  if (phase.type === 'warehouse') {
+    return <WarehouseScreen meta={meta} onMetaUpdate={updateMeta} onBack={() => setPhase({ type: 'adventure_ready' })} />
+  }
+
 
   if (phase.type === 'adventure_ready' || phase.type === 'hero_select' || phase.type === 'route_select') {
     return (
@@ -1515,9 +1589,10 @@ export default function App() {
           onSetFateLevel={lv => updateMeta(m => ({ ...m, activeFateLevel: Math.min(lv, m.fateLevel) }))}
           onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
-          onLeaderboard={() => setPhase({ type: 'leaderboard' })}
-          onOpenCampaignMap={heroId => setPhase({ type: 'campaign_map', heroId })}
+          onOpenCampaignMap={heroId => setPhase({ type: 'campaign_saga_select', heroId })}
+          onStartCampaignStage={(heroId, stageId) => setPhase({ type: 'campaign_stage', heroId, stageId })}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
+          onOpenWarehouse={() => setPhase({ type: 'warehouse' })}
           onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}
           onOpenShop={() => setPhase({ type: 'astral_shop' })}
           user={user}

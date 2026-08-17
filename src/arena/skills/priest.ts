@@ -6,7 +6,7 @@
  * 自癒（施放時聖印立即結算）→ Lv60 低血時攻擊追加範圍聖光+回血 → Lv80
  * 聖印上限/回血翻倍+瀕死自動保命 → Lv100 Ultimate 進化成持續聖域。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const HOLY_MARK_DURATION = 4
 const HOLY_MARK_MAX_BASE = 3
@@ -83,4 +83,24 @@ export function priestSanctuaryHealPerSec(game: ArenaGame): number {
 /** 聖域期間（Lv100）敵人受到傷害 +15%，供 damageEnemy() 呼叫端加成用。 */
 export function priestSanctuaryDamageMult(game: ArenaGame): number {
   return game.majorStacks2 > 0 ? 1.15 : 1
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 聖光權杖：自療爆發。 */
+export function priestScepterUltimate(game: ArenaGame): void {
+  game.player.hp = Math.min(game.player.maxHp, game.player.hp + game.player.maxHp * 0.3)
+  game.spawnGlowBurst(game.player.x, game.player.y, 0x8ad4ff, 90)
+  game.spawnFloatingText('光輪祝禱！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 聖徽法典：護盾爆發（連擋 2 下）＋範圍內敵人短暫反傷。 */
+export function priestHolyTomeUltimate(game: ArenaGame): void {
+  game.shieldCharges = Math.max(game.shieldCharges, 2)
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) e.attackCooldown += 1
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xffe9a8, 90)
+  game.spawnFloatingText('聖光庇護結界！', game.player.x, game.player.y - 60)
 }

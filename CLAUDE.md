@@ -26,7 +26,7 @@ npx wrangler pages deploy dist --project-name diceherorpg --branch=DiceHeroRpg  
 - `+0.1.0` minor：新功能、新內容（新遺物/buff卡/裝備組、新機制）
 - `+1.0.0` major：全新副本、全新系統、重大架構變動
 
-目前版本：`1.5.2`
+目前版本：`9.4.0`
 
 ## 架構概覽
 
@@ -231,3 +231,102 @@ PNG 背景透明處理：`scripts/remove-bg.mjs` 使用三階段 BFS（移除背
 - `registerType: 'autoUpdate'` — 自動安裝新版 SW，不需使用者確認
 - `skipWaiting: true` — 新 SW 立刻接管，不等舊分頁關閉
 - SW 更新靠 content hash（非版號），每次 build 有改動就會觸發更新
+
+### 即時制 ASTERVOW 大廳 + 固定式主線關卡系統（src/campaign/，2026-08 陸續建置）
+
+跟上面「## 架構概覽」記錄的回合制 Roguelite（`main_menu → hero_select → map →
+battle`）是完全獨立的第二套遊戲模式，彼此不共用資料/邏輯。玩家從
+`main_menu` 進入後看到的是 ASTERVOW 風格大廳（`AdventureReadyScreen.tsx`，
+`.ar-screen`），底下的戰鬥引擎是即時制的 `ArenaGame.ts`/`ArenaScreen.tsx`
+（見 `src/arena/`），不是 `BattleScreen.tsx` 的骰子回合制。
+
+#### 篇（Saga）→ 章（Chapter）→ 關（Stage）三層結構
+
+```
+campaign_saga_select（SagaSelectScreen）
+  → campaign_chapter_select{sagaId}（CampaignChapterSelectScreen）
+    → campaign_map{campaignId}（CampaignMapScreen，10 個節點地圖）
+      → campaign_stage{stageId}（ArenaScreen 即時制戰鬥）
+```
+
+九個固定式主線章節（`CampaignStage.campaignId`）分屬三篇（`CAMPAIGN_SAGAS`，
+`campaignTypes.ts`），每章固定 10 關（`CampaignStage.stageNumber` 1~10，
+第 10 關永遠是章節 Boss）：
+
+| 篇（Saga） | 章節（campaignId） | 資料檔（src/campaign/chapters/） |
+|---|---|---|
+| 灰燼王國篇 | forest_ruins（森林遺跡）／snowfield_wastes（雪原）／demon_king_castle（魔王城） | forestRuins.ts／snowfield.ts／demonCastle.ts |
+| 裂隙前兆篇 | rift_omen_broken_sky（破碎天幕）／rift_omen_void_chasm（虛空裂谷）／rift_omen_eclipse_core（星蝕核心） | riftOmenBrokenSky.ts／riftOmenVoidChasm.ts／riftOmenEclipseCore.ts |
+| 深海遺城篇 | deep_sea_coral_shallows（珊瑚淺灘）／deep_sea_sunken_capital（沉沒王城）／deep_sea_emperor_abyss（海皇深淵） | deepSeaCoralShallows.ts／deepSeaSunkenCapital.ts／deepSeaEmperorAbyss.ts |
+
+九個章節線性解鎖（`CAMPAIGN_CHAPTER_ORDER`，`campaignProgress.ts` 的
+`isChapterUnlocked()`）：要通關上一章最後一關才解鎖下一章；篇本身的解鎖
+（`isSagaUnlocked()`）等於「篇底下第一章」是否解鎖，沒有另外一套判斷。
+
+刻意避開舊 Roguelite 系統（`campaignPick`/`mapGen.ts`）已經在用的
+`'main'`/`'rift_omen'`/`'deep_sea'`/`'snowfield'`/`'castle'` 字面值，
+`CampaignStage.campaignId`/`bgTheme` 一律用更長、帶場景描述的字尾避免混淆
+（見 `campaignTypes.ts` 開頭註解）。
+
+重要檔案：
+- `campaignTypes.ts` — 型別 + `CAMPAIGN_SAGAS`/`CAMPAIGN_CHAPTER_ORDER` 常數
+- `campaignStages.ts` — `ALL_CAMPAIGN_STAGES`（九章合併，共 90 關）查表函式
+- `campaignProgress.ts` — 純函式：解鎖判斷、星數彙總、關卡結算寫回
+- `campaignChapterMeta.ts` — 九章的展示用 label/icon/color/封面圖，
+  `AdventureReadyScreen.tsx` 大廳預覽卡跟 `CampaignChapterSelectScreen.tsx`
+  章節卡共用同一份，`cover`（章節選擇卡封面）跟 `lobbyCover`（大廳頂部
+  預覽卡封面）刻意分開兩個欄位——只有森林遺跡的 `lobbyCover` 指向專屬大廳
+  美術，其餘 8 章兩個欄位都指向自己的地圖總覽圖
+- `campaignStageBg.ts` — `CampaignStage.bgTheme` → 戰鬥背景圖路徑
+- `chapters/*.ts` — 九個章節各自的 10 關資料（objective/waves/hazards/
+  starConditions/boss），每個檔案開頭註解都有寫清楚跟其他章節的差異
+- `src/arena/enemies.ts` 的 `ALL_CAMPAIGN_STAGE_ENEMIES` — 九章共用的敵人/
+  Boss 查表，`ArenaGame.ts` 的 `initCampaignStage()` 系列讀這份，不是
+  `CAMPAIGN_ENEMY_POOLS`（那是 Roguelite Run 的加權隨機池）
+- `src/arena/bossSkills.ts` 的 `BOSS_SKILLS` — 九章 Boss 技能組，key 是
+  `bossEnemyId`，3 階段對應血量 100~70%／70~35%／35~0%
+
+`evaluateCustomStar()`（`ArenaGame.ts`）等少數星星判定邏輯是逐關 hardcode
+（依 `stage.id` 字面值分派，不是資料驅動），新增/砍章節關卡數時要記得
+一起改，見該函式開頭註解的清單。
+
+#### 大廳「出發」與最後遊玩紀錄（AdventureReadyScreen.tsx）
+
+大廳頂部預覽卡（`.av-lobby-map-card`）跟著 `meta.lastPlayedStageId`
+（不管陣亡或過關都會更新，`App.tsx` 的 `onCampaignStageEnd`）動態顯示「最後
+打的那一關」所屬章節的圖示/名稱/封面圖，不是寫死森林遺跡；金色 CTA 按鈕是
+「出發！」，直接開打預覽中的那一關（`onStartCampaignStage`），查看完整
+篇/章/關地圖要點 CHAPTER 標籤區塊（`onOpenCampaignMap`），兩者是分開的
+入口。
+
+#### GM 除錯模式（GmScreen.tsx）
+
+網址帶 `?gm=1`（`App.tsx` 的 `START_IN_GM_MODE`）直接以 `gm` phase 啟動，
+密碼寫死在 `GmScreen.tsx` 的 `GM_PASSWORD`。除了原本的英雄等級/星等調整，
+2026-08-16 補上固定式主線關卡一鍵解鎖（全部九章 90 關三星／單一章節／
+重置），全部走 `onUpdateMeta()` 安全 merge 寫法，只動 `campaignStageProgress`
+欄位，不會覆蓋金幣/星塵/裝備/英雄進度。
+
+### 即時制裝備強化／分解／合成經濟（src/arena/equipment.ts、WarehouseScreen.tsx）
+
+跟上面「### 裝備系統（src/equipment.ts）」的回合制裝備完全分開——即時制
+自己的裝備存在 `meta.arenaInventory: ArenaEquipment[]`（帳號共用單一陣列，
+不分英雄），`meta.arenaLoadouts` 只是「誰裝了哪個 id」的對照表。
+
+大廳底部導覽「倉庫」（`WarehouseScreen.tsx`，取代原本的「英雄」入口）分
+裝備／遺物／道具三個分頁，裝備分頁可以強化/分解/合成：
+
+- `enhanceCost(level)`/`applyEnhance(item)` — 花 `enhanceStoneCount`+金幣，
+  `enhanceLevel` 0~10（`ENHANCE_MAX_LEVEL`），每級 `bonus` 全數值
+  ×(1+`ENHANCE_BONUS_PER_LEVEL`)，封頂 +50%
+- `getEffectiveBonus(item)` — 套用強化加成後的實際數值，**所有讀
+  `item.bonus` 的地方（含 `computeArenaEquipBonus()`、UI 顯示）都要改讀這個
+  函式的結果**，不然強化了但沒生效
+- `salvageArenaEquipment(item)`/`SALVAGE_TABLE` — 分解換強化石／合成材料，
+  只有 rare/legendary 才出合成材料
+- `synthesizeUpgrade(item)`/`SYNTHESIS_COST` — 花合成材料+金幣把稀有度跳
+  一階（magic→rare→legendary），legendary 回 `null`（已頂級）
+
+`meta.enhanceStoneCount`/`meta.synthesisMaterialCount` 是新增的兩個帳號共
+用材料貨幣，關卡通關（`campaign_stage`/`arena_run` 都有）小額額外掉強化
+石，合成材料只從分解 rare+ 裝備拿。

@@ -9,7 +9,7 @@
  * 蓄力重擊命中額外多疊1層）→ Lv60 命中額外範圍震盪+硬直 → Lv80 破甲滿層
  * 獲得減傷 → Lv100 Ultimate 進化成大範圍硬直+冷卻歸零。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const CHARGED_DAMAGE_MULT = 1.4
 const STAGGER_NORMAL = 0.3
@@ -66,4 +66,31 @@ export function dwarfUltimateMastery(game: ArenaGame): void {
   }
   game.player.atkTimer = 0
   game.spawnFloatingText('山嶽崩塌！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 山嶽戰錘：山崩地裂震擊，範圍內敵人追加傷害＋長硬直。 */
+export function dwarfWarhammerUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 40)
+      e.frozenTimer = Math.max(e.frozenTimer, 1)
+    }
+  }
+  game.spawnFloatingText('震地戰錘！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 雙頭巨斧：旋風亂斬，範圍內敵人追加傷害＋疊破甲層數。 */
+export function dwarfTwinAxesUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) {
+      game.damageEnemy(e, 25)
+      e.armorBreakStacks = Math.min(3, e.armorBreakStacks + 2)
+    }
+  }
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xffcf6b, ULTIMATE_RADIUS)
+  game.spawnFloatingText('旋風劈斬！', game.player.x, game.player.y - 60)
 }

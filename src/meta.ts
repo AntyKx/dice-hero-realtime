@@ -56,6 +56,8 @@ export function defaultMeta(): MetaState {
     arenaLoadouts: defaultArenaLoadouts(),
     arenaGachaPityCount: 0,
     party: { leaderId: HEROES[0].id, supportIds: [null, null] },
+    enhanceStoneCount: 0,
+    synthesisMaterialCount: 0,
   }
 }
 

@@ -3,8 +3,8 @@ import { HEROES } from '../data'
 import type { MetaState } from '../types'
 import {
   type ArenaEquipment, type ArenaLoadoutSlot,
-  ARENA_RARITY_COLOR,
-  getEquippedArenaItems, computeArenaEquipBonus,
+  ARENA_RARITY_COLOR, WEAPON_TYPE_LABEL,
+  getEquippedArenaItems, computeArenaEquipBonus, getEffectiveBonus,
 } from '../arena/equipment'
 import { computeArenaTalentBonus } from '../arena/arenaTalents'
 import AsterVowIcon from '../components/AsterVowIcon'
@@ -42,11 +42,21 @@ const PORTRAIT_POSITION: Record<string, string> = {
 const BONUS_LABEL: Record<string, string> = {
   hpBonus: 'HP', defBonus: '防禦', moveSpeedPct: '移速', atkSpeedPct: '攻速',
   lifestealPct: '生命偷取', extraProjectiles: '額外彈道', pierceBonus: '穿透',
+  // 職業裝備專屬特效（2026-08 職業裝備重製）
+  thornsPct: '荊棘反傷', burnChancePct: '灼燒觸發', shieldRegenPct: '護盾回復',
+  critChancePct: '暴擊率', freezeChancePct: '凍結觸發', markDamageBonusPct: '首擊加成',
+  extraDamageReductionPct: '額外減傷', slowAuraPct: '減速光環', executeBonusPct: '處決加成',
+  overloadOnKillPct: '過載連擊', comboAtkSpeedPct: '連擊蓄力',
 }
+const PCT_BONUS_KEYS = new Set([
+  'lifestealPct', 'thornsPct', 'burnChancePct', 'shieldRegenPct', 'critChancePct',
+  'freezeChancePct', 'markDamageBonusPct', 'extraDamageReductionPct', 'slowAuraPct',
+  'executeBonusPct', 'overloadOnKillPct', 'comboAtkSpeedPct',
+])
 function formatBonus(bonus: ArenaEquipment['bonus']): string {
   return Object.entries(bonus).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => {
     const label = BONUS_LABEL[k] ?? k
-    if (k === 'lifestealPct') return `${label} +${Math.round((v ?? 0) * 100)}%`
+    if (PCT_BONUS_KEYS.has(k)) return `${label} +${Math.round((v ?? 0) * 100)}%`
     if (k === 'moveSpeedPct' || k === 'atkSpeedPct') return `${label} +${v}%`
     return `${label} +${v}`
   }).join('・')
@@ -57,9 +67,10 @@ function ItemRow({ item, onClick, tag }: { item: ArenaEquipment; onClick?: () =>
     <button className={`aeq-item rarity-${item.rarity}`} onClick={onClick} disabled={!onClick}
       style={{ borderColor: `${ARENA_RARITY_COLOR[item.rarity]}66` }}>
       <span className="aeq-item-name" style={{ color: ARENA_RARITY_COLOR[item.rarity] }}>
-        {item.name}{tag && <span className="aeq-item-tag"> {tag}</span>}
+        {item.name}{(item.enhanceLevel ?? 0) > 0 && <span className="aeq-item-enhance"> +{item.enhanceLevel}</span>}
+        {tag && <span className="aeq-item-tag"> {tag}</span>}
       </span>
-      <span className="aeq-item-bonus">{formatBonus(item.bonus)}</span>
+      <span className="aeq-item-bonus">{formatBonus(getEffectiveBonus(item))}</span>
     </button>
   )
 }
@@ -105,7 +116,14 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
 
   function pickerCandidates(slot: ArenaLoadoutSlot): ArenaEquipment[] {
     const itemSlot = slot === 'ring1' || slot === 'ring2' ? 'ring' : slot
-    return inventory.filter(i => i.slot === itemSlot && (i.slot !== 'weapon' || i.heroRole === hero.role))
+    // 武器一定是職業鎖定（沒有通用武器）；非武器部位通用裝備誰都能戴，
+    // 職業裝備（2026-08 新增）則要跟武器一樣鎖定當前英雄的職業。
+    return inventory.filter(i => i.slot === itemSlot && (i.kind === 'universal' || i.heroRole === hero.role))
+  }
+
+  function itemTag(item: ArenaEquipment): string | undefined {
+    if (item.slot === 'weapon') return item.weaponType ? WEAPON_TYPE_LABEL[item.weaponType] : undefined
+    return item.kind === 'class' ? '職業' : undefined
   }
 
   function renderSlot(slot: ArenaLoadoutSlot) {
@@ -159,7 +177,7 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
             <div className="aeq-picker-list">
               {pickerCandidates(pickingSlot).length === 0 && <p className="aeq-empty-hint">這個部位還沒有可用的裝備。</p>}
               {pickerCandidates(pickingSlot).map(item => (
-                <ItemRow key={item.id} item={item} onClick={() => equip(item, pickingSlot)} />
+                <ItemRow key={item.id} item={item} tag={itemTag(item)} onClick={() => equip(item, pickingSlot)} />
               ))}
             </div>
             <button className="ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setPickingSlot(null)}>取消</button>

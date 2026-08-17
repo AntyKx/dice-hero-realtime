@@ -6,7 +6,7 @@
  * （既有Keystone，對Boss連段也能疊）→ Lv60 連擊≥5次追加擊退硬直 → Lv80
  * 氣勢爆發瞬間無敵 → Lv100 Ultimate 進化：連擊/氣勢門檻暫時降低。
  */
-import type { ArenaGame, EnemyInstance } from '../ArenaGame'
+import { ULTIMATE_RADIUS, type ArenaGame, type EnemyInstance } from '../ArenaGame'
 
 const COMBO_THRESHOLD = 3
 const COMBO_DAMAGE_MULT = 0.4
@@ -63,4 +63,26 @@ export function fighterUltimateMastery(game: ArenaGame): void {
   game.majorTimer2 = ULTIMATE_WINDOW_SEC
   game.comboCount = Math.max(game.comboCount, STAGGER_COMBO_THRESHOLD)
   game.spawnFloatingText('真氣爆發！', game.player.x, game.player.y - 60)
+}
+
+// ── 職業裝備武器必殺技（2026-08）：跟上面 Lv100 Mastery 獨立疊加的一層。 ──
+
+/** 武器 A 連拳護手：連環爆拳，對最近敵人快速追加多段傷害。 */
+export function fighterGauntletsUltimate(game: ArenaGame): void {
+  const target = game.enemies
+    .filter(e => e.alive && Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS)
+    .sort((a, b) => Math.hypot(a.x - game.player.x, a.y - game.player.y) - Math.hypot(b.x - game.player.x, b.y - game.player.y))[0]
+  if (target) { game.damageEnemy(target, 20); game.damageEnemy(target, 20); game.damageEnemy(target, 20) }
+  game.spawnFloatingText('連環爆拳！', game.player.x, game.player.y - 60)
+}
+
+/** 武器 B 縛靈拳甲：真氣蓄力爆發，範圍內敵人追加高額傷害＋自身短暫無敵。 */
+export function fighterSpiritWrapsUltimate(game: ArenaGame): void {
+  for (const e of game.enemies) {
+    if (!e.alive) continue
+    if (Math.hypot(e.x - game.player.x, e.y - game.player.y) <= ULTIMATE_RADIUS) game.damageEnemy(e, 45)
+  }
+  game.majorInvulnTimer = Math.max(game.majorInvulnTimer, INVULN_DURATION)
+  game.spawnGlowBurst(game.player.x, game.player.y, 0xff4040, ULTIMATE_RADIUS)
+  game.spawnFloatingText('縛靈爆裂拳！', game.player.x, game.player.y - 60)
 }

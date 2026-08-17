@@ -1,5 +1,11 @@
 # 森林遺跡 1–20 關接地式旅程系統
 
+> ⚠️ **2026-08-16 起已停用**：森林遺跡從 20 關砍到 10 關重新設計後，
+> `CampaignMapScreen.tsx` 已經不再呼叫這套系統（`hasTravelSegments`/
+> `CampaignTravelPreview` 沒有任何畫面引用）。以下內容是停用前的設計
+> 存檔，當歷史文件參考即可，不要假設它仍在運作；見
+> `src/campaign/README.md` 的說明。
+
 森林遺跡主線（`forest_1_1` ~ `forest_1_20`）選關前的走位過場。跟
 `src/campaign/campaignTypes.ts`/`chapters/forestRuins.ts`（關卡戰鬥資料：
 敵人、波次、目標、獎勵、三星條件、Boss）完全分開——這一套只負責「玩家
