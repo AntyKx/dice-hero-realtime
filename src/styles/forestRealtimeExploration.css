@@ -12,4 +12,11 @@
 .forest-realtime-joystick{position:absolute;left:20px;bottom:20px;width:82px;height:82px;border-radius:50%;background:rgba(6,11,32,.58);border:1px solid rgba(201,168,76,.78);z-index:9;touch-action:none}.forest-realtime-joystick i{position:absolute;left:25px;top:25px;width:30px;height:30px;border-radius:50%;background:#e7ce77;box-shadow:0 0 14px rgba(255,228,134,.65)}
 .forest-realtime-footer{min-height:38px;padding:9px 14px calc(9px + env(safe-area-inset-bottom));color:#a9bedb;background:#060b20;font-size:11px;text-align:center}
 @media (min-width:700px){.forest-realtime-shell{max-width:520px;margin:0 auto;border-inline:1px solid rgba(201,168,76,.35)}.forest-realtime-viewport{min-height:720px}}
+
+/* 戰鬥原地觸發（2026-08-17）：只包住這個 wrapper 做進場動畫，不碰
+   .arena-screen 本身——避免影響其他 89 關/Roguelite Run 的一般全螢幕
+   戰鬥入場（那些沒有「原地觸發」的前情，不需要這個效果）。 */
+.forest-realtime-battle-overlay{animation:forest-realtime-battle-in .28s ease-out}
+@keyframes forest-realtime-battle-in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.forest-realtime-battle-overlay{animation:none}}
 @media (prefers-reduced-motion:reduce){.forest-realtime-world{will-change:auto}.forest-realtime-hero{box-shadow:none}}

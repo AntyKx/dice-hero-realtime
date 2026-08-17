@@ -16,8 +16,11 @@ interface Props {
   meta: MetaState
   heroId: string
   stageId: string
-  /** 靠近戰鬥點時呼叫，跟既有 campaign_stage 入口同一個 callback，不新增戰鬥邏輯。 */
-  onStartBattle: (stageId: string) => void
+  /** 是不是有一場 Arena 戰鬥正疊在這個畫面上（原地觸發，不整頁導航）。
+   * true 時要停止移動輸入/鏡頭更新，避免角色在戰鬥疊層底下偷偷移動。 */
+  inBattle: boolean
+  /** 靠近戰鬥點時呼叫；外層決定要不要疊上 Arena，這裡不知道戰鬥怎麼渲染。 */
+  onStartBattle: () => void
   /** 走到出口且這關已通關時呼叫；nextStageId 有值代表接續下一關的探索地圖，
    * 沒有值代表這是 1-5 出口，交給呼叫端導回關卡地圖／章節結算。 */
   onExitStage: (request: { stageId: string; nextStageId?: string }) => void
@@ -55,7 +58,7 @@ const ZONE_LABEL: Record<ExplorationZone['kind'], string> = {
   skirmish: '清場戰鬥', totem: '圖騰戰鬥', shaman: '薩滿戰鬥', boss: 'BOSS 戰鬥', supply: '補給', exit: '出口',
 }
 
-export default function ForestRealtimeExploration({ meta, heroId, stageId, onStartBattle, onExitStage, onBack }: Props) {
+export default function ForestRealtimeExploration({ meta, heroId, stageId, inBattle, onStartBattle, onExitStage, onBack }: Props) {
   const stage = useMemo(() => getForestRealtimeStage(stageId) ?? FOREST_REALTIME_STAGES_1_TO_5[0], [stageId])
   const hero = useMemo(() => HEROES.find(h => h.id === heroId) ?? HEROES[0], [heroId])
   const heroSprite = useMemo(() => getHeroSprite(hero, meta.heroProgress[hero.id]?.stars ?? 0), [hero, meta.heroProgress])
@@ -89,7 +92,10 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, onSta
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
 
+  // 戰鬥疊層開啟時（inBattle）整個移動迴圈直接不跑——角色留在觸發戰鬥當下
+  // 的位置，等疊層收掉後從原地繼續，不是暫停後還會偷偷位移。
   useEffect(() => {
+    if (inBattle) return
     let frame = 0
     const tick = (time: number) => {
       const previous = lastTime.current ?? time
@@ -110,18 +116,20 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, onSta
       })
       frame = requestAnimationFrame(tick)
     }
+    lastTime.current = null
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [joystick, stage])
+  }, [joystick, stage, inBattle])
 
   useEffect(() => {
+    if (inBattle) return
     const zone = stage.zones.find(candidate => distance(heroPos, zoneCenter(candidate)) <= candidate.triggerRadius) ?? null
     setActiveZoneId(zone?.id ?? null)
     setCamera(current => ({
       x: current.x + (clamp(heroPos.x - VIEWPORT.width / 2, 0, stage.world.width - VIEWPORT.width) - current.x) * CAMERA_LERP,
       y: current.y + (clamp(heroPos.y - VIEWPORT.height / 2, 0, stage.world.height - VIEWPORT.height) - current.y) * CAMERA_LERP,
     }))
-  }, [heroPos, stage])
+  }, [heroPos, stage, inBattle])
 
   const activeZone = stage.zones.find(zone => zone.id === activeZoneId) ?? null
   const stageIdx = FOREST_REALTIME_STAGES_1_TO_5.findIndex(candidate => candidate.stageId === stage.stageId)
@@ -129,7 +137,7 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, onSta
 
   const interact = (zone: ExplorationZone) => {
     if (isCombatZone(zone.kind)) {
-      onStartBattle(stage.stageId)
+      onStartBattle()
       return
     }
     if (zone.kind === 'exit') {
@@ -179,7 +187,7 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, onSta
             <SpriteAnimator sprite={heroSprite} state="idle" scale={heroScale} idleFrame={0} />
           </div>
         </div>
-        {activeZone && (
+        {!inBattle && activeZone && (
           <div className="forest-realtime-interaction">
             <strong>{activeZone.label}</strong>
             <button type="button" disabled={activeZone.kind === 'exit' && !stageCleared} onClick={() => interact(activeZone)}>
@@ -187,13 +195,13 @@ export default function ForestRealtimeExploration({ meta, heroId, stageId, onSta
             </button>
           </div>
         )}
-        <div className="forest-realtime-joystick"
+        {!inBattle && <div className="forest-realtime-joystick"
           onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); joystickOrigin.current = { x: event.clientX, y: event.clientY }; updateJoystick(event.clientX, event.clientY) }}
           onPointerMove={event => updateJoystick(event.clientX, event.clientY)}
           onPointerUp={() => { joystickOrigin.current = null; setJoystick({ x: 0, y: 0 }) }}
         >
           <i style={{ transform: `translate(${joystick.x * 24}px, ${joystick.y * 24}px)` }} />
-        </div>
+        </div>}
       </section>
       <footer className="forest-realtime-footer">WASD／方向鍵或虛擬搖桿移動 · 靠近事件區後互動 · 地圖鏡頭跟隨英雄</footer>
     </main>

@@ -1444,91 +1444,17 @@ export default function App() {
     )
   }
 
-  // ── 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
-  // （Roguelite）完全分開的「第三種模式」，各自獨立的 GamePhase 分支，不共用
-  // campaign 欄位語意，也不會互相干擾對方的存檔/進度。
-  if (phase.type === 'campaign_map') {
-    return (
-      <div className="page">
-        <CampaignMapScreen
-          meta={meta}
-          heroId={phase.heroId}
-          campaignId={phase.campaignId}
-          onSelectStage={stageId => setPhase(
-            isForestExploreStageId(stageId)
-              ? { type: 'campaign_explore', heroId: phase.heroId, stageId }
-              : { type: 'campaign_stage', heroId: phase.heroId, stageId }
-          )}
-          onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
-        />
-      </div>
-    )
-  }
-
-  // 森林遺跡 1-1~1-5 連續探索示範（2026-08-17，見 src/exploration/）：只有
-  // 這 5 關會先進這裡，靠近戰鬥點才呼叫既有 campaign_stage 進 Arena；其餘
-  // 85 關維持點節點直接進 Arena，不受影響。
-  if (phase.type === 'campaign_explore') {
-    return (
-      <ForestRealtimeExploration
-        meta={meta}
-        heroId={phase.heroId}
-        stageId={phase.stageId}
-        onStartBattle={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
-        onExitStage={({ stageId, nextStageId }) => {
-          if (nextStageId) {
-            setPhase({ type: 'campaign_explore', heroId: phase.heroId, stageId: nextStageId })
-            return
-          }
-          // 1-5 出口：沒有下一關，回到森林遺跡關卡地圖（章節結算沿用既有規則，
-          // 通關當下已經在 campaign_stage 的 onCampaignStageEnd 處理過）。
-          const campaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
-          setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
-        }}
-        onBack={() => {
-          const campaignId = getCampaignStage(phase.stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
-          setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
-        }}
-      />
-    )
-  }
-
-  if (phase.type === 'campaign_saga_select') {
-    return (
-      <div className="page">
-        <SagaSelectScreen
-          meta={meta}
-          onSelectSaga={sagaId => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId })}
-          onBack={() => setPhase({ type: 'adventure_ready' })}
-        />
-      </div>
-    )
-  }
-
-  if (phase.type === 'campaign_chapter_select') {
-    return (
-      <div className="page">
-        <CampaignChapterSelectScreen
-          meta={meta}
-          sagaId={phase.sagaId}
-          onSelectChapter={campaignId => setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })}
-          onBack={() => setPhase({ type: 'campaign_saga_select', heroId: phase.heroId })}
-        />
-      </div>
-    )
-  }
-
-  if (phase.type === 'campaign_stage') {
-    const hero = HEROES.find(h => h.id === phase.heroId) ?? HEROES[0]
+  // 固定式主線關卡的 Arena 畫面（2026-08）：抽成共用函式，因為 2026-08-17
+  // 起有兩個呼叫點——一般的 campaign_stage phase（其餘 85 關，全螢幕導航），
+  // 以及森林遺跡 1-1~1-5 探索層裡「原地觸發」的戰鬥疊層（campaign_explore
+  // phase 的 inBattle 分支）。兩邊共用同一份英雄數值/裝備/天賦/隊伍加成
+  // 計算與 onCampaignStageEnd 結算邏輯，只有 onExit 導去哪裡不同，避免兩處
+  // 各自維護一份設定造成之後改壞其中一邊沒同步。
+  const renderCampaignArena = (heroId: string, stageId: string, onExit: () => void) => {
+    const hero = HEROES.find(h => h.id === heroId) ?? HEROES[0]
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
     const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
     const { hpBonus: equipHpBonus, ultimateSkillName, ...arenaEquipFields } = getActiveArenaEquipConfig(hero.id)
-    const stageId = phase.stageId
-    // 三篇章共用同一個 campaign_stage phase，回地圖時要回到「這一關所屬的
-    // 篇章地圖」而不是寫死森林遺跡——直接從 stageId 反查 campaignId，不用
-    // 在 phase 裡多存一份（跟 stageId 本來就是一對一，存兩份只會有兜不攏的風險）。
-    const stageCampaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
-    // 出戰陣容支援加成（2026-08，見 src/party.ts），同 arena_run 分支邏輯。
     const partyBonus = computePartyBonus(sanitizeParty(meta.party, HEROES.map(h => h.id), hero.id))
     return (
       <ArenaScreen
@@ -1543,19 +1469,12 @@ export default function App() {
           unlockedMajorSkillIds: talentBonus.unlockedMajorSkillIds,
           stars: heroProgress.stars,
           attackType: getAttackType(hero.role),
-          // 職業裝備（2026-08）：目前裝備武器的招式名稱，沒裝武器時 fallback 回 hero.skill。
           ultimateName: ultimateSkillName ?? hero.skill,
           ownedRelicIds: heroProgress.ownedRelicIds,
           campaignStageId: stageId,
           ...arenaEquipFields,
         }}
-        // 森林遺跡 1-1~1-5：離開戰鬥回到探索地圖（同一關，接著走去出口），
-        // 不是直接跳回關卡地圖——這 5 關的地圖節點本來就是先進探索層。
-        onExit={() => setPhase(
-          isForestExploreStageId(stageId)
-            ? { type: 'campaign_explore', heroId: hero.id, stageId }
-            : { type: 'campaign_map', heroId: hero.id, campaignId: stageCampaignId }
-        )}
+        onExit={onExit}
         onCampaignStageEnd={result => {
           updateMeta(m => {
             const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
@@ -1585,6 +1504,106 @@ export default function App() {
           })
         }}
       />
+    )
+  }
+
+  // ── 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
+  // （Roguelite）完全分開的「第三種模式」，各自獨立的 GamePhase 分支，不共用
+  // campaign 欄位語意，也不會互相干擾對方的存檔/進度。
+  if (phase.type === 'campaign_map') {
+    return (
+      <div className="page">
+        <CampaignMapScreen
+          meta={meta}
+          heroId={phase.heroId}
+          campaignId={phase.campaignId}
+          onSelectStage={stageId => setPhase(
+            isForestExploreStageId(stageId)
+              ? { type: 'campaign_explore', heroId: phase.heroId, stageId }
+              : { type: 'campaign_stage', heroId: phase.heroId, stageId }
+          )}
+          onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
+        />
+      </div>
+    )
+  }
+
+  // 森林遺跡 1-1~1-5 連續探索示範（2026-08-17，見 src/exploration/）：只有
+  // 這 5 關會先進這裡；其餘 85 關維持點節點直接進 Arena，不受影響。
+  // 2026-08-17 改版：靠近戰鬥點不再整頁導航去 campaign_stage，而是把
+  // ForestRealtimeExploration 留著掛載、疊一層 Arena（inBattle=true）—— 使用
+  // 者要的是「原地觸發戰鬥」而不是切換場景；ArenaScreen 本身是
+  // position:fixed 全螢幕，疊在探索層上面就會自然蓋滿，戰鬥結束疊層收掉、
+  // 探索層原本的角色位置/鏡頭完全沒被卸載過，直接接續。
+  if (phase.type === 'campaign_explore') {
+    return (
+      <>
+        <ForestRealtimeExploration
+          meta={meta}
+          heroId={phase.heroId}
+          stageId={phase.stageId}
+          inBattle={!!phase.inBattle}
+          onStartBattle={() => setPhase({ ...phase, inBattle: true })}
+          onExitStage={({ stageId, nextStageId }) => {
+            if (nextStageId) {
+              setPhase({ type: 'campaign_explore', heroId: phase.heroId, stageId: nextStageId })
+              return
+            }
+            // 1-5 出口：沒有下一關，回到森林遺跡關卡地圖（章節結算沿用既有規則，
+            // 通關當下已經在 renderCampaignArena 的 onCampaignStageEnd 處理過）。
+            const campaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+            setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
+          }}
+          onBack={() => {
+            const campaignId = getCampaignStage(phase.stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+            setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
+          }}
+        />
+        {phase.inBattle && (
+          <div className="forest-realtime-battle-overlay">
+            {renderCampaignArena(phase.heroId, phase.stageId, () => setPhase({ ...phase, inBattle: false }))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  if (phase.type === 'campaign_saga_select') {
+    return (
+      <div className="page">
+        <SagaSelectScreen
+          meta={meta}
+          onSelectSaga={sagaId => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId })}
+          onBack={() => setPhase({ type: 'adventure_ready' })}
+        />
+      </div>
+    )
+  }
+
+  if (phase.type === 'campaign_chapter_select') {
+    return (
+      <div className="page">
+        <CampaignChapterSelectScreen
+          meta={meta}
+          sagaId={phase.sagaId}
+          onSelectChapter={campaignId => setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })}
+          onBack={() => setPhase({ type: 'campaign_saga_select', heroId: phase.heroId })}
+        />
+      </div>
+    )
+  }
+
+  // 其餘 85 關（非森林遺跡 1-1~1-5）維持點地圖節點直接全螢幕進 Arena；
+  // 那 5 關已經不會進到這個 phase，戰鬥改在 campaign_explore 裡原地觸發。
+  if (phase.type === 'campaign_stage') {
+    const stageId = phase.stageId
+    // 三篇章共用同一個 campaign_stage phase，回地圖時要回到「這一關所屬的
+    // 篇章地圖」而不是寫死森林遺跡——直接從 stageId 反查 campaignId，不用
+    // 在 phase 裡多存一份（跟 stageId 本來就是一對一，存兩份只會有兜不攏的風險）。
+    const stageCampaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+    return renderCampaignArena(
+      phase.heroId, stageId,
+      () => setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId: stageCampaignId }),
     )
   }
 

@@ -858,10 +858,10 @@ export type GamePhase =
   | { type: 'campaign_map'; heroId: string; campaignId: string }
   | { type: 'campaign_stage'; heroId: string; stageId: string }
   // 森林遺跡 1-1~1-5 連續探索示範（2026-08-17，見 src/exploration/）：只有這
-  // 5 關的地圖節點/大廳出發會先進這裡，走到戰鬥點才呼叫既有 campaign_stage
-  // 進入 Arena，其餘 85 關維持點節點直接進 Arena 不變。見
-  // ForestRealtimeExploration.tsx 開頭註解的範圍說明。
-  | { type: 'campaign_explore'; heroId: string; stageId: string }
+  // 5 關的地圖節點/大廳出發會先進這裡；其餘 85 關維持點節點直接進 Arena
+  // 不變。inBattle 為 true 時 App.tsx 會在探索畫面上疊一層 Arena 戰鬥（原地
+  // 觸發，不整頁導航離開，探索層維持掛載不卸載），不是切到 campaign_stage。
+  | { type: 'campaign_explore'; heroId: string; stageId: string; inBattle?: boolean }
   // 篇選擇（2026-08-16 新增，稍晚補上兩層架構）：大廳「冒險」入口先到這裡選
   // 灰燼王國篇／裂隙前兆篇／深海遺城篇三篇之一，再進 campaign_chapter_select
   // 選篇底下的 3 個章節，最後才進 campaign_map；三層 phase 各自獨立，不是 modal。
