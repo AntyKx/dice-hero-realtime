@@ -76,11 +76,24 @@
 }
 
 * { box-sizing: border-box; }
+/* 2026-08-17：`touch-action: manipulation` 只會關掉雙擊放大，捏合縮放
+   （pinch-zoom）跟雙指/多指手勢還是被允許（規格定義 manipulation = pan +
+   pinch-zoom 都開，只關掉 double-tap-zoom）——這就是使用者回報「戰鬥關卡
+   節點某個角度可以滑動」的成因：手指在關卡地圖上稍微跑成雙指/捏合手勢時
+   瀏覽器會觸發原生縮放，縮放後頁面就變成可以整個拖動平移，感覺像節點
+   「可以滑動」。改成 `pan-y`（只允許單指垂直捲動，水平平移／捏合縮放／
+   雙擊縮放全部關掉）才會真正鎖死，跟 index.html 的
+   `user-scalable=no`/`maximum-scale=1` viewport meta 是兩層防線（iOS
+   Safari 10+ 會忽略 user-scalable=no，CSS 這層才是真正擋得住的）。個別
+   畫面既有的 `touch-action: pan-x`（如 .eq-hero-list 手機版橫向捲動列表）
+   是該元素自己宣告的觸控行為，優先權比這裡的全域預設高，不受影響。 */
 html {
-  touch-action: manipulation;
+  touch-action: pan-y;
+  overflow-x: hidden;
 }
 body {
-  touch-action: manipulation;
+  touch-action: pan-y;
+  overflow-x: hidden;
   margin: 0;
   background:
     radial-gradient(circle at top, rgba(80, 150, 255, 0.22), transparent 32%),
@@ -5139,11 +5152,11 @@ h1, h2, h3, p { margin: 0; }
 /* 關卡地圖 2026-08 單圖版：一張無接縫長圖（864×1821）直接當背景，取代先前
    4 張手繪地圖分段拼接（消除接圖痕跡）。節點貼著圖上量好的空地座標用絕對
    定位疊上去。石板小徑是圖裡畫好的，不用再疊一層連接線。 */
-.cms-map { position: relative; padding: 18px 0 40px; }
+.cms-map { position: relative; padding: 18px 0 40px; touch-action: pan-y; }
 .cms-map-forest {
   position: relative; width: 100%; aspect-ratio: 864 / 1821;
   background-size: 100% 100%; background-repeat: no-repeat; background-position: center;
-  border-radius: 14px;
+  border-radius: 14px; touch-action: pan-y;
   /* 2026-08-17：每篇章第 10 關（最終王）的節點座標都落在圖片下緣 91~95%，
      徽章又是最大尺寸（final 70px），名稱+星星疊起來常常逼近甚至超出圖片
      底部——overflow:hidden 會直接把星星切掉看不到（見使用者回報）。改成
