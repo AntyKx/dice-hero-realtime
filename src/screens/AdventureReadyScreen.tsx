@@ -9,7 +9,7 @@ import { computeEquipBonus, getEquippedItems } from '../equipment'
 import type { Equipment } from '../types'
 import { FEATURE_FLAGS } from '../featureFlags'
 import { generateHeroTalentTree, isTalentNodeAvailable, pointCostForKind, requiredLevelForTier, type ArenaTalentNode } from '../arena/arenaTalents'
-import { CAMPAIGN_ID_FOREST_RUINS, type StageObjectiveType } from '../campaign/campaignTypes'
+import { CAMPAIGN_ID_FOREST_RUINS, CAMPAIGN_SAGAS, getSagaIdForCampaign, type StageObjectiveType } from '../campaign/campaignTypes'
 import { getPlayerName } from '../scoring'
 import CompendiumScreen from './CompendiumScreen'
 import type { User } from '../lib/firebase'
@@ -19,7 +19,7 @@ import { getStageProgress, isStageUnlocked } from '../campaign/campaignProgress'
 import { CAMPAIGN_CHAPTER_META } from '../campaign/campaignChapterMeta'
 import { StarRow } from './CampaignMapScreen'
 import AsterVowIcon, { type AsterVowIconName } from '../components/AsterVowIcon'
-import { CHAPTER_ICON, getDungeonIcon, ROLE_ICON_META } from '../iconMeta'
+import { getDungeonIcon, ROLE_ICON_META } from '../iconMeta'
 import { EQUIPMENT_SLOT_ICON, EQUIPMENT_SLOT_ICON_COLOR } from '../equipmentIconMeta'
 
 export type AdventureStartConfig =
@@ -57,7 +57,6 @@ interface Props {
 }
 
 type ModeTab = 'main' | 'dungeon'
-type CampaignPick = 'main' | 'rift_omen' | 'deep_sea' | 'ash_kingdom'
 
 const FATE_DESCS: Record<number, string> = {
   0: '標準難度',
@@ -73,27 +72,13 @@ const FATE_DESCS: Record<number, string> = {
   10: '敵人詞綴數量再 +1（普通 3、精英 4、Boss 4）',
 }
 
-/** 大廳章節輪播（2026-08，2026-08-17 補上 sagaLabel/defaultChapterName）：
- * 三個輪播位置其實對應 CAMPAIGN_SAGAS 的三篇（灰燼王國篇/裂隙前兆篇/深海
- * 遺城篇）——sagaLabel 給 CHAPTER N 標籤帶出篇名（「CHAPTER 2 · 裂隙前兆篇」
- * 這種格式），defaultChapterName 是還沒有逐關資料可追蹤時要顯示的「代表
- * 章節」（裂隙前兆篇/深海遺城篇目前仍是即時制 Roguelite 隨機章節，沒有
- * 像森林遺跡那樣的 lastPlayedStageId 可用，固定顯示各篇第一章）。bgImage
- * 是 2026-08-14 補的大廳關卡預覽圖（16:9），只有 main 這個位置會被
- * previewCampaignMeta.lobbyCover 動態蓋掉，rift_omen/deep_sea 維持固定圖。 */
-const LOBBY_CHAPTERS: { pick: CampaignPick; icon: AsterVowIconName; name: string; sagaLabel: string; defaultChapterName: string; color: string; sub: string; bgImage: string }[] = [
-  { pick: 'main',       icon: CHAPTER_ICON.main,      name: '森林遺跡',   sagaLabel: '灰燼王國篇',   defaultChapterName: '森林遺跡', color: '#e9b85c', sub: '灰燼王國篇・固定式主線', bgImage: '/assets/backgrounds/lobby_preview_2026_08/forest_ruins.jpg' },
-  { pick: 'rift_omen',  icon: CHAPTER_ICON.rift_omen, name: '裂隙前兆篇', sagaLabel: '裂隙前兆篇',   defaultChapterName: '破碎天幕', color: '#8fa6e6', sub: '星蝕・空間裂隙・異界侵略', bgImage: '/assets/backgrounds/lobby_preview_2026_08/rift_omen.jpg' },
-  { pick: 'deep_sea',   icon: CHAPTER_ICON.deep_sea,  name: '深海遺城篇', sagaLabel: '深海遺城篇',   defaultChapterName: '珊瑚淺灘', color: '#6fc0d8', sub: '氧氣・潮汐・深壓・亂流', bgImage: '/assets/backgrounds/lobby_preview_2026_08/deep_sea.jpg' },
-]
-
 /** 地城副本瀏覽順序（2026-08-14）：跟舊版清單式 UI 的 DG_GROUPS 分組順序
  * 一致（灰燼王國篇→裂隙前兆篇→深海遺城篇），只是攤平成一個線性陣列，
  * 供大廳統一卡片版面左右切換用，不再用可展開/收合的分組清單。 */
 const DUNGEON_BROWSE_ORDER: string[] = ['burning_throne', 'ash_covenant', 'star_eclipse', 'black_tide']
 
-/** 地城副本大廳預覽圖（2026-08-14，16:9），跟上面 LOBBY_CHAPTERS.bgImage
- * 同一批素材，取代純 CSS 漸層色塊當背景。 */
+/** 地城副本大廳預覽圖（2026-08-14，16:9），跟 CAMPAIGN_CHAPTER_META 的
+ * lobbyCover 同一批素材，取代純 CSS 漸層色塊當背景。 */
 const DUNGEON_BG_IMAGE: Record<string, string> = {
   burning_throne: '/assets/backgrounds/lobby_preview_2026_08/burning_throne.jpg',
   ash_covenant: '/assets/backgrounds/lobby_preview_2026_08/ash_covenant.jpg',
@@ -121,7 +106,13 @@ export default function AdventureReadyScreen({
   const [drawerOpen, setDrawerOpen]     = useState(false)
   const [showCloud, setShowCloud]       = useState(false)
   const [showCompendium, setShowCompendium] = useState(false)
-  const [campaignPick, setCampaignPick] = useState<CampaignPick>('main')
+  // 大廳章節切換卡（2026-08-17 統一）：三個位置對應 CAMPAIGN_SAGAS 的三篇，
+  // 全部走固定式主線的動態預覽（之前只有第一個位置是這樣，另外兩個還接著
+  // 舊版即時制隨機生成關卡，切過去看起來掛同樣的篇名但其實是另一套系統、
+  // 沒有跟真實進度同步——使用者回報「打到虛空裂谷卻還停在 CHAPTER 1」就是
+  // 這個落差）。manualPreviewCampaignId 是使用者手動滑動篇章卡時的覆蓋值；
+  // 沒手動滑動過時（null）一律跟著 meta.lastPlayedStageId 自動定位到對應篇。
+  const [manualPreviewCampaignId, setManualPreviewCampaignId] = useState<string | null>(null)
   const [selectedRoute, setSelectedRoute] = useState<RouteType>('risk')
   const [selectedDifficulty, setSelectedDifficulty] = useState<DungeonDifficulty>('normal')
   const [portraitHero, setPortraitHero]     = useState<Hero | null>(null)
@@ -147,14 +138,20 @@ export default function AdventureReadyScreen({
   // 目前這個篇章的關卡陣列範圍內移動，不會跨篇章、不循環繞回；鎖定中的
   // 關卡仍可預覽（顯示鎖頭+解鎖條件），只是不能真正進入。
   const lastPlayedStage = meta.lastPlayedStageId ? getCampaignStage(meta.lastPlayedStageId) : undefined
-  const previewCampaignId = lastPlayedStage?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+  const previewCampaignId = manualPreviewCampaignId ?? lastPlayedStage?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
   const previewCampaignStages = getChapterStages(previewCampaignId)
   const previewCampaignMeta = CAMPAIGN_CHAPTER_META[previewCampaignId]
-  const [previewStageId, setPreviewStageId] = useState<string>(() => {
-    if (lastPlayedStage) return lastPlayedStage.id
-    const firstOpen = previewCampaignStages.find(s => isStageUnlocked(meta, s.id) && !getStageProgress(meta, s.id).cleared)
-    return (firstOpen ?? previewCampaignStages[previewCampaignStages.length - 1]).id
-  })
+  // 某篇章「目前該打哪一關」的預設值：優先選第一個已解鎖但尚未通關的關卡
+  // （還在進行中的關卡），全部通關或全部鎖定時 fallback 回最後一關。手動
+  // 切換篇章（jumpToSaga）時也用同一套邏輯決定要停在哪一關。
+  const defaultStageIdForCampaign = (campaignId: string): string => {
+    const stages = getChapterStages(campaignId)
+    const firstOpen = stages.find(s => isStageUnlocked(meta, s.id) && !getStageProgress(meta, s.id).cleared)
+    return (firstOpen ?? stages[stages.length - 1]).id
+  }
+  const [previewStageId, setPreviewStageId] = useState<string>(() =>
+    lastPlayedStage ? lastPlayedStage.id : defaultStageIdForCampaign(previewCampaignId)
+  )
   const previewStageIdx = Math.max(0, previewCampaignStages.findIndex(s => s.id === previewStageId))
   const previewStage = previewCampaignStages[previewStageIdx] ?? previewCampaignStages[0]
   const previewProg = getStageProgress(meta, previewStage.id)
@@ -163,6 +160,30 @@ export default function AdventureReadyScreen({
     const next = previewStageIdx + dir
     if (next < 0 || next >= previewCampaignStages.length) return
     setPreviewStageId(previewCampaignStages[next].id)
+  }
+
+  // 篇章切換（2026-08-17）：CHAPTER 卡片左右箭頭/圓點在 CAMPAIGN_SAGAS 的
+  // 三篇之間循環，每篇挑「目前該打哪一章」（該篇底下第一個還有未通關關卡
+  // 的章節，全通關則停在第一章）當代表章節，再用 defaultStageIdForCampaign
+  // 決定停在哪一關。
+  const previewSagaId = getSagaIdForCampaign(previewCampaignId)
+  const previewSagaIdx = Math.max(0, CAMPAIGN_SAGAS.findIndex(s => s.id === previewSagaId))
+  const activeSaga = CAMPAIGN_SAGAS[previewSagaIdx] ?? CAMPAIGN_SAGAS[0]
+  const defaultCampaignForSaga = (sagaId: string): string => {
+    const saga = CAMPAIGN_SAGAS.find(s => s.id === sagaId) ?? CAMPAIGN_SAGAS[0]
+    const openChapter = saga.chapters.find(campaignId =>
+      getChapterStages(campaignId).some(s => isStageUnlocked(meta, s.id) && !getStageProgress(meta, s.id).cleared)
+    )
+    return openChapter ?? saga.chapters[0]
+  }
+  const jumpToSaga = (sagaId: string) => {
+    const targetCampaignId = defaultCampaignForSaga(sagaId)
+    setManualPreviewCampaignId(targetCampaignId)
+    setPreviewStageId(defaultStageIdForCampaign(targetCampaignId))
+  }
+  const cycleSaga = (dir: 1 | -1) => {
+    const next = (previewSagaIdx + dir + CAMPAIGN_SAGAS.length) % CAMPAIGN_SAGAS.length
+    jumpToSaga(CAMPAIGN_SAGAS[next].id)
   }
 
   const isDungeonUnlocked = (d: { minLevel?: number; requireCampaign?: string }) => {
@@ -213,15 +234,12 @@ export default function AdventureReadyScreen({
   }
 
   const fireStart = (heroId: string) => {
-    // 灰燼王國篇（campaignPick === 'main'）2026-08 改為固定式主線關卡入口，
-    // 不再是即時制 Roguelite 隨機章節；2026-08-17 起「出發」直接開打目前
-    // 預覽中的那一關（跟地城副本 CTA 同樣語意），查看完整地圖改成點 CHAPTER
-    // 標籤（見 onOpenCampaignMap 呼叫點）。裂隙前兆篇/深海遺城篇（舊
-    // LOBBY_CHAPTERS 分支）維持原本的 Roguelite 流程不變。
-    if (modeTab === 'main' && campaignPick === 'main') {
+    // 主線冒險分頁 2026-08 起全面改為固定式主線關卡入口（三篇九章共用同一套，
+    // 2026-08-17 起 CHAPTER 卡片三個位置也統一了，不再有舊版 Roguelite 隨機
+    // 章節分支）：「出發」直接開打目前預覽中的那一關，查看完整地圖改成點
+    // CHAPTER 標籤（見 onOpenCampaignMap 呼叫點）。
+    if (modeTab === 'main') {
       if (previewUnlocked) onStartCampaignStage(heroId, previewStage.id)
-    } else if (modeTab === 'main') {
-      onStart({ campaign: campaignPick, heroId, routeType: selectedRoute })
     } else if (currentDungeonUnlocked) {
       onStart({ campaign: 'dungeon', heroId, dungeonId: currentDungeon.id, difficulty: selectedDifficulty })
     }
@@ -240,14 +258,6 @@ export default function AdventureReadyScreen({
 
   // 大廳底部導覽「英雄」按鈕沿用既有立繪 Modal 入口，指向目前出戰隊長。
   const stageHero = HEROES.find(h => h.id === selectedHeroId) ?? HEROES[0]
-
-  const chapterIdx = LOBBY_CHAPTERS.findIndex(c => c.pick === campaignPick)
-  const activeChapter = LOBBY_CHAPTERS[chapterIdx] ?? LOBBY_CHAPTERS[0]
-  const cycleChapter = (dir: 1 | -1) => {
-    const next = (chapterIdx + dir + LOBBY_CHAPTERS.length) % LOBBY_CHAPTERS.length
-    setCampaignPick(LOBBY_CHAPTERS[next].pick)
-  }
-  const chapterEnterLabel = activeChapter.pick === 'main' ? '查看關卡地圖' : '出發！'
 
   // 玩家資訊列/抽屜的「等級」用真實的全英雄總星數代替（沒有帳號等級系統，
   // 不能為了配 mockup 的 "LV.12" 造一個假數字），總星數本來就是遊戲內
@@ -291,17 +301,13 @@ export default function AdventureReadyScreen({
             className="av-lobby-map-card"
             style={
               {
-                // 主線分頁（campaignPick === 'main'）背景改成「最後打的那個篇章」
-                // 的專屬預覽圖（2026-08-17，見 CAMPAIGN_CHAPTER_META）——不是逐關
-                // 換圖（試過改成逐關戰鬥場景圖，畫面太素被打回票），是跟著
-                // lastPlayedStageId 換成對應篇章（森林遺跡/雪原/魔王城/…）的那
-                // 一張圖，同篇章內左右切換關卡時背景不變。裂隙前兆篇/深海遺城篇
-                // 這兩個「舊 Roguelite 分頁」（LOBBY_CHAPTERS 的另外兩張卡）沒有
-                // 逐關資料，維持原本整篇通用的 bgImage。
+                // 主線分頁背景改成「目前預覽中的篇章」的專屬預覽圖（2026-08-17，
+                // 見 CAMPAIGN_CHAPTER_META）——不是逐關換圖（試過改成逐關戰鬥場景
+                // 圖，畫面太素被打回票），是跟著 previewCampaignId（預設 lastPlayed
+                // StageId 所在篇章，手動切換篇章時跟著換）換成對應篇章（森林遺跡/
+                // 雪原/魔王城/…）的那一張圖，同篇章內左右切換關卡時背景不變。
                 backgroundImage: `linear-gradient(180deg, rgba(8,15,36,.25) 0%, rgba(8,15,36,.4) 55%, rgba(6,11,28,.9) 100%), url(${
-                  modeTab === 'dungeon' ? DUNGEON_BG_IMAGE[currentDungeon.id]
-                    : activeChapter.pick === 'main' ? previewCampaignMeta.lobbyCover
-                    : activeChapter.bgImage
+                  modeTab === 'dungeon' ? DUNGEON_BG_IMAGE[currentDungeon.id] : previewCampaignMeta.lobbyCover
                 })`,
               }
             }
@@ -354,10 +360,8 @@ export default function AdventureReadyScreen({
             <div className="av-lobby-map-caption">
               {modeTab === 'dungeon' ? (
                 <span><AsterVowIcon name={getDungeonIcon(currentDungeon.id)} size={19} /> {currentDungeon.name}</span>
-              ) : activeChapter.pick === 'main' ? (
-                <span><AsterVowIcon name={previewCampaignMeta.iconName} size={19} /> {previewCampaignMeta.label}・第 {previewStage.stageNumber} 關</span>
               ) : (
-                <span><AsterVowIcon name={activeChapter.icon} size={19} /> {activeChapter.name}</span>
+                <span><AsterVowIcon name={previewCampaignMeta.iconName} size={19} /> {previewCampaignMeta.label}・第 {previewStage.stageNumber} 關</span>
               )}
             </div>
           </div>
@@ -391,45 +395,39 @@ export default function AdventureReadyScreen({
           ) : (
             <>
               <div className="av-lobby-chaptercard">
-                <button className="av-lobby-chaptercard-nav" onClick={() => cycleChapter(-1)} aria-label="上一篇章">‹</button>
-                {/* CHAPTER 標籤區塊本身變成入口（2026-08-17）：點它才會開「查看
-                    關卡地圖」的完整篇/章/關三層選單，取代原本長在金色 CTA 按鈕
-                    上的行為——CTA 按鈕現在永遠是直接開打目前預覽關卡的「出發」。
-                    只有主線（campaignPick==='main'）有真正的地圖可看，裂隙前兆篇/
-                    深海遺城篇（舊 Roguelite 隨機關卡）維持原樣不可點。 */}
+                <button className="av-lobby-chaptercard-nav" onClick={() => cycleSaga(-1)} aria-label="上一篇章">‹</button>
+                {/* CHAPTER 標籤區塊本身是入口（2026-08-17）：點它開「查看關卡地圖」
+                    的完整篇/章/關三層選單，取代原本長在金色 CTA 按鈕上的行為——
+                    CTA 按鈕現在永遠是直接開打目前預覽關卡的「出發」。三個篇章
+                    2026-08-17 統一都走固定式主線動態預覽，不再有只顯示代表章節、
+                    不能點地圖的舊版分支。 */}
                 <div
-                  className={`av-lobby-chaptercard-body${activeChapter.pick === 'main' ? ' clickable' : ''}`}
-                  onClick={activeChapter.pick === 'main' ? () => onOpenCampaignMap(selectedHeroId) : undefined}
-                  role={activeChapter.pick === 'main' ? 'button' : undefined}
-                  aria-label={activeChapter.pick === 'main' ? '查看關卡地圖' : undefined}
+                  className="av-lobby-chaptercard-body clickable"
+                  onClick={() => onOpenCampaignMap(selectedHeroId)}
+                  role="button"
+                  aria-label="查看關卡地圖"
                 >
                   <div
                     className="av-lobby-chaptercard-thumb"
-                    style={
-                      activeChapter.pick === 'main'
-                        ? { borderColor: previewCampaignMeta.color + '66', background: previewCampaignMeta.color + '18', color: previewCampaignMeta.color }
-                        : { borderColor: activeChapter.color + '66', background: activeChapter.color + '18', color: activeChapter.color }
-                    }
+                    style={{ borderColor: previewCampaignMeta.color + '66', background: previewCampaignMeta.color + '18', color: previewCampaignMeta.color }}
                   >
-                    <AsterVowIcon name={activeChapter.pick === 'main' ? previewCampaignMeta.iconName : activeChapter.icon} size={32} />
+                    <AsterVowIcon name={previewCampaignMeta.iconName} size={32} />
                   </div>
                   <div className="av-lobby-chaptercard-text">
-                    {/* CHAPTER 標籤帶出篇名（2026-08-17）：CHAPTER 1 · 灰燼王國篇／
-                        CHAPTER 2 · 裂隙前兆篇／CHAPTER 3 · 深海遺城篇，三個位置統一
-                        格式，不是只有主線才有篇名。 */}
-                    <div className="av-lobby-chaptercard-label">CHAPTER {chapterIdx + 1} · {activeChapter.sagaLabel}{activeChapter.pick === 'main' && <span className="av-lobby-chaptercard-maphint"> · 查看地圖 ›</span>}</div>
-                    <div className="av-lobby-chaptercard-name">{activeChapter.pick === 'main' ? previewCampaignMeta.label : activeChapter.defaultChapterName}</div>
-                    <div className="av-lobby-chaptercard-sub">
-                      {activeChapter.pick === 'main' ? previewStage.name : activeChapter.sub}
-                    </div>
+                    {/* CHAPTER 標籤帶出篇名：CHAPTER 1 · 灰燼王國篇／CHAPTER 2 ·
+                        裂隙前兆篇／CHAPTER 3 · 深海遺城篇，跟著 previewCampaignId
+                        實際所屬的篇自動定位，不是寫死跟著使用者手動選過的分頁。 */}
+                    <div className="av-lobby-chaptercard-label">CHAPTER {previewSagaIdx + 1} · {activeSaga.label}<span className="av-lobby-chaptercard-maphint"> · 查看地圖 ›</span></div>
+                    <div className="av-lobby-chaptercard-name">{previewCampaignMeta.label}</div>
+                    <div className="av-lobby-chaptercard-sub">{previewStage.name}</div>
                   </div>
                 </div>
-                <button className="av-lobby-chaptercard-nav" onClick={() => cycleChapter(1)} aria-label="下一篇章">›</button>
+                <button className="av-lobby-chaptercard-nav" onClick={() => cycleSaga(1)} aria-label="下一篇章">›</button>
               </div>
               <div className="av-lobby-chapterdots" role="tablist" aria-label="切換篇章">
-                {LOBBY_CHAPTERS.map((c, i) => (
-                  <button key={c.pick} className={`av-lobby-chapterdot${i === chapterIdx ? ' active' : ''}`}
-                    onClick={() => setCampaignPick(c.pick)} aria-label={c.name} aria-selected={i === chapterIdx} />
+                {CAMPAIGN_SAGAS.map((saga, i) => (
+                  <button key={saga.id} className={`av-lobby-chapterdot${i === previewSagaIdx ? ' active' : ''}`}
+                    onClick={() => jumpToSaga(saga.id)} aria-label={saga.label} aria-selected={i === previewSagaIdx} />
                 ))}
               </div>
             </>
@@ -475,7 +473,7 @@ export default function AdventureReadyScreen({
                 </>
               )}
             </div>
-          ) : activeChapter.pick === 'main' ? (
+          ) : (
             <div className="av-lobby-stageinfo">
               <div className="av-lobby-stageinfo-nav">
                 <button disabled={previewStageIdx <= 0} onClick={() => cyclePreviewStage(-1)} aria-label="上一關">‹ 上一關</button>
@@ -499,10 +497,6 @@ export default function AdventureReadyScreen({
                 )}
               </div>
             </div>
-          ) : (
-            <div className="av-lobby-stageinfo">
-              <div className="av-lobby-stageinfo-row"><span>{activeChapter.sub}・隨機生成關卡，無固定進度</span></div>
-            </div>
           )}
 
           <div className="av-lobby-cta-row">
@@ -511,15 +505,11 @@ export default function AdventureReadyScreen({
               <button className="av-cta-btn" disabled={!canStart} onClick={handleStart}>
                 {currentDungeonUnlocked ? '出發！' : '尚未解鎖'}
               </button>
-            ) : activeChapter.pick === 'main' ? (
+            ) : (
               // 主線 CTA（2026-08-17）：跟地城副本一樣直接「出發」，開打目前
               // 預覽中的那一關，不再繞去關卡地圖——地圖改成點 CHAPTER 標籤進去看。
               <button className="av-cta-btn" disabled={!previewUnlocked} onClick={() => onStartCampaignStage(selectedHeroId, previewStage.id)}>
                 {previewUnlocked ? '出發！' : '尚未解鎖'}
-              </button>
-            ) : (
-              <button className="av-cta-btn" onClick={() => fireStart(selectedHeroId)}>
-                {chapterEnterLabel}
               </button>
             )}
           </div>
