@@ -5,7 +5,7 @@ import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, ALL_CAMPAIGN_STAG
 import { getCampaignStage } from '../campaign/campaignStages'
 import type { CampaignStage, EnemyWave, WaveTrigger } from '../campaign/campaignTypes'
 import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
-import { getExploreWorld, type ExploreWorld, type ExploreLandmark, type LandmarkKind } from './exploreWorlds'
+import { getExploreWorld, type ExploreWorld, type ExploreLandmark, type LandmarkKind, type ExploreRect } from './exploreWorlds'
 import {
   isObjectiveWon, isObjectiveLost, updateObjectiveState, spawnCollectibles,
   onHuntTargetDefeated, onDestroyTargetDefeated, markCustomStarFailed, type ObjectiveState,
@@ -371,6 +371,10 @@ const ARENA_MARGIN = 40
 // （2026-08 真機回報：清完怪找不到門、角色可以滑出邊界，根源就是這裡）。
 const ARENA_TOP_MARGIN = 110
 const HUD_EMIT_INTERVAL = 150 // ms，HUD 不用每 frame 更新
+// 森林遺跡探索模式玩家與地圖實體物件（大門柱/祭壇高台/圖騰基座等）碰撞判定
+// 用的圓形半徑，跟 ENEMY_CONTACT_RADIUS 同一量級，讓「撞到東西」的手感跟
+// 「撞到敵人」一致。
+const EXPLORE_PLAYER_COLLIDE_RADIUS = 30
 
 const ELITE_HP_MULT = 2.2
 const ELITE_DAMAGE_MULT = 1.6
@@ -758,10 +762,11 @@ export class ArenaGame {
     this.bgTextures = bgTexList
     this.portraitTextureCache.set(this.cfg.heroId, portraitTex)
 
-    // 探索模式的手繪地圖是橫向構圖（fit-width 貼在世界最上方，見
-    // exploreWorlds.ts 檔頭說明），圖片涵蓋不到的下半部世界要先鋪一層純色
-    // 打底，不然那段會露出畫布底色。這層必須在 bgSprite 之前 addChild，
-    // 才會被蓋在背景圖底下而不是疊在上面。
+    // 探索模式的地圖是橫向構圖（fit-width 貼在世界最上方，見 exploreWorlds.ts
+    // 檔頭說明），世界高度已經盡量貼近縮放後的圖片高度，圖片涵蓋不到的極少量
+    // 下緣先鋪一層純色打底（顏色取圖片自己下緣的平均色，不是隨便挑的），
+    // 不然會露出畫布底色。這層必須在 bgSprite 之前 addChild，才會被蓋在
+    // 背景圖底下而不是疊在上面。
     if (this.exploreWorld) {
       const ground = new Graphics()
       ground.rect(0, 0, this.exploreWorld.world.width, this.exploreWorld.world.height)
@@ -1263,14 +1268,16 @@ export class ArenaGame {
     return { x: zone.x - margin, y: zone.y + Math.random() * zone.height }
   }
 
-  /** 鏡頭跟隨（roam 跟隨玩家，encounter 鎖在 battleZone 中心），clamp 在世界邊界內，lerp 平滑移動。 */
+  /** 鏡頭永遠跟隨玩家本人（不分 roam/encounter），clamp 在世界邊界內，
+   * lerp 平滑移動——2026-08-18 修正：之前 encounter 狀態鏡頭目標改鎖
+   * battleZone 中心，玩家一進戰鬤區鏡頭會跳去對準區域中心而不是角色，
+   * 視覺上變成「角色從畫面外跑進來」，跟需求「英雄永遠在正中央」相反。 */
   updateExploreCamera() {
     if (!this.exploreWorld || !this.app || !this.worldLayer) return
     const { width, height } = this.app.screen
     const world = this.exploreWorld.world
-    const z = this.exploreWorld.battleZone
-    const targetX = this.exploreState === 'encounter' ? z.x + z.width / 2 : this.player.x
-    const targetY = this.exploreState === 'encounter' ? z.y + z.height / 2 : this.player.y
+    const targetX = this.player.x
+    const targetY = this.player.y
     const camX = Math.max(0, Math.min(Math.max(0, world.width - width), targetX - width / 2))
     const camY = Math.max(0, Math.min(Math.max(0, world.height - height), targetY - height / 2))
     this.camera.x += (camX - this.camera.x) * 0.12
@@ -1916,15 +1923,45 @@ export class ArenaGame {
       // 影刃刺客 Lv20 影襲步：命中後短暫視窗內移動速度加成
       const rogueBonus = this.cfg.heroId === 'rogue' ? rogueSpeedBonus(this) : 0
       const speed = this.cfg.moveSpeed * this.moveSpeedMult * p.moveSpeedDebuffMult * (1 + rogueBonus)
-      p.x += (dx / len) * speed * dt
-      p.y += (dy / len) * speed * dt
+      const stepX = (dx / len) * speed * dt
+      const stepY = (dy / len) * speed * dt
       this.facing = { x: dx / len, y: dy / len }
+
+      // 森林遺跡探索模式：X/Y 分開判定地圖實體物件碰撞（大門柱/祭壇高台/
+      // 圖騰基座等），卡住的那一軸不位移，另一軸照常滑動——貼著障礙物邊緣
+      // 移動才不會卡死。其他 89 關/Roguelite 沒有 colliders，行為不變。
+      const colliders = this.exploreWorld?.colliders
+      if (colliders && colliders.length > 0) {
+        const nx = p.x + stepX
+        if (!this.hitsAnyExploreCollider(nx, p.y, colliders)) p.x = nx
+        const ny = p.y + stepY
+        if (!this.hitsAnyExploreCollider(p.x, ny, colliders)) p.y = ny
+      } else {
+        p.x += stepX
+        p.y += stepY
+      }
     }
     const bounds = this.getMovementBounds()
     p.x = Math.max(bounds.minX, Math.min(bounds.maxX, p.x))
     p.y = Math.max(bounds.minY, Math.min(bounds.maxY, p.y))
     this.playerSprite.x = p.x
     this.playerSprite.y = p.y
+  }
+
+  /** 圓形（半徑 EXPLORE_PLAYER_COLLIDE_RADIUS）對矩形碰撞判定，供
+   * updatePlayerMovement() 的探索模式位移使用——不是真正的物理引擎，只是
+   * 「圓心到矩形最近點的距離 < 半徑」這種常見 2D 頂點遊戲位移解法，夠用
+   * 就好。 */
+  hitsAnyExploreCollider(x: number, y: number, colliders: ExploreRect[]): boolean {
+    const r = EXPLORE_PLAYER_COLLIDE_RADIUS
+    for (const rect of colliders) {
+      const closestX = Math.max(rect.x, Math.min(x, rect.x + rect.width))
+      const closestY = Math.max(rect.y, Math.min(y, rect.y + rect.height))
+      const dx = x - closestX
+      const dy = y - closestY
+      if (dx * dx + dy * dy < r * r) return true
+    }
+    return false
   }
 
   /** 移動邊界：一般關卡等同過去行為（螢幕邊界）；森林遺跡探索模式 roam 時
