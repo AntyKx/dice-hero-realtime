@@ -61,7 +61,7 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     mapImage: '/assets/campaign/snowfield_map_full.jpg',
     nodePositions: {
       1: { x: 50, y: 94 }, 2: { x: 22, y: 82 }, 3: { x: 50, y: 72 }, 4: { x: 70, y: 65 }, 5: { x: 75, y: 54 },
-      6: { x: 73, y: 44 }, 7: { x: 70, y: 36 }, 8: { x: 58, y: 29 }, 9: { x: 50, y: 21 }, 10: { x: 50, y: 13 },
+      6: { x: 73, y: 44 }, 7: { x: 70, y: 36 }, 8: { x: 58, y: 29 }, 9: { x: 40, y: 21 }, 10: { x: 50, y: 13 },
     },
   },
   [CAMPAIGN_ID_DEMON_CASTLE]: {
@@ -205,8 +205,8 @@ export default function CampaignMapScreen({ meta, heroId, campaignId, onSelectSt
               >
                 <span className="cms-map-badge">
                   {unlocked
-                    ? <AsterVowIcon name={isBoss ? 'stage-boss' : OBJECTIVE_ICON[stage.objective.type]} size={isFinal ? 30 : isBoss ? 24 : 18} />
-                    : <AsterVowIcon name="system-lock" size={18} />}
+                    ? <AsterVowIcon name={isBoss ? 'stage-boss' : OBJECTIVE_ICON[stage.objective.type]} size={isFinal ? 22 : isBoss ? 17 : 13} />
+                    : <AsterVowIcon name="system-lock" size={13} />}
                   {!isFinal && <span className="cms-map-num">{stage.stageNumber}</span>}
                 </span>
                 <span className="cms-map-name">{stage.name}</span>

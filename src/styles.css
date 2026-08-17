@@ -5168,35 +5168,44 @@ h1, h2, h3, p { margin: 0; }
   overflow: hidden visible;
 }
 
+/* 2026-08-17：真機實測（窄螢幕）發現節點徽章/名稱/星星互相黏在一起——
+   桌機瀏覽器測試時容器渲染得比手機寬很多，同樣的節點間距（百分比）在手機
+   上換算成的實際像素小很多，但徽章/文字原本是寫死 px，因此手機上明顯擁擠
+   （桌機測試看起來沒事是因為 .cms-map 本身有 max-width:620px，桌機寬螢幕
+   下地圖容器比手機寬得多，同樣的固定 px 徽章占地圖比例小很多）。改用
+   clamp(下限px, Nvw, 上限px)：.cms-map 沒有自己的左右 padding，寬度基本上
+   跟著「視窗寬 - .page 左右 padding」線性變化（直到撞到 620px 上限為止），
+   所以 vw 為主的尺寸能讓「徽章占地圖寬度的比例」在各種螢幕寬度下維持穩定
+   ——不用重新調整 90 個節點座標，上限值沿用使用者確認可接受的縮小後尺寸。 */
 .cms-map-node {
   position: absolute; transform: translate(-50%, -50%); z-index: 1;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
   background: none; border: none; color: inherit; padding: 0; cursor: pointer;
 }
 .cms-map-badge {
-  position: relative; width: 44px; height: 44px; border-radius: 12px;
+  position: relative; width: clamp(20px, 7vw, 30px); height: clamp(20px, 7vw, 30px); border-radius: 9px;
   background: rgba(20,30,50,.9); border: 2px solid rgba(255,255,255,.14);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 6px 16px rgba(0,0,0,.35); transition: transform .12s;
 }
 .cms-map-node:not(.locked):hover .cms-map-badge { transform: translateY(-2px); }
 .cms-map-num {
-  position: absolute; top: -5px; left: -5px; width: 16px; height: 16px; border-radius: 50%;
-  background: #ffd94a; color: #241805; font-size: 9px; font-weight: 800;
+  position: absolute; top: -4px; left: -4px; width: clamp(9px, 3vw, 12px); height: clamp(9px, 3vw, 12px); border-radius: 50%;
+  background: #ffd94a; color: #241805; font-size: clamp(5px, 1.6vw, 6.5px); font-weight: 800;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.4);
 }
-.cms-map-name { font-size: 9.5px; font-weight: 700; text-align: center; max-width: 74px; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
-.cms-stars { font-size: 0.64rem; letter-spacing: 1px; }
+.cms-map-name { font-size: clamp(5.5px, 1.7vw, 7px); font-weight: 700; text-align: center; max-width: clamp(40px, 12vw, 52px); line-height: 1.1; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+.cms-stars { font-size: clamp(0.36rem, 1.1vw, 0.46rem); letter-spacing: 0.5px; }
 .cms-star { color: rgba(255,255,255,0.18); }
 .cms-star.filled { color: #ffd94a; }
 .cms-map-node.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 14px rgba(255,217,74,.35), 0 6px 16px rgba(0,0,0,.35); }
 .cms-map-node.locked { opacity: .45; cursor: not-allowed; }
 .cms-map-node.locked .cms-map-badge { filter: saturate(.3); }
-.cms-map-node.boss .cms-map-badge { width: 54px; height: 54px; border-radius: 16px; border-color: rgba(255,120,80,.55); background: rgba(40,20,20,.9); }
+.cms-map-node.boss .cms-map-badge { width: clamp(26px, 9vw, 38px); height: clamp(26px, 9vw, 38px); border-radius: 12px; border-color: rgba(255,120,80,.55); background: rgba(40,20,20,.9); }
 .cms-map-node.boss.cleared .cms-map-badge { border-color: #ffd94a; box-shadow: 0 0 18px rgba(255,217,74,.4); }
-.cms-map-node.boss .cms-map-name { font-size: 10.5px; color: #ffcdb0; }
-.cms-map-node.final .cms-map-badge { width: 70px; height: 70px; border-radius: 20px; border: 3px solid #ffd94a; background: linear-gradient(145deg, rgba(90,55,15,.9), rgba(25,15,5,.95)); box-shadow: 0 0 28px rgba(255,217,74,.45), 0 10px 22px rgba(0,0,0,.45); }
-.cms-map-node.final .cms-map-name { font-size: 13px; color: #ffe7a4; max-width: 120px; white-space: nowrap; }
+.cms-map-node.boss .cms-map-name { font-size: clamp(6px, 1.9vw, 7.8px); color: #ffcdb0; }
+.cms-map-node.final .cms-map-badge { width: clamp(34px, 12vw, 50px); height: clamp(34px, 12vw, 50px); border-radius: 16px; border: 2px solid #ffd94a; background: linear-gradient(145deg, rgba(90,55,15,.9), rgba(25,15,5,.95)); box-shadow: 0 0 28px rgba(255,217,74,.45), 0 10px 22px rgba(0,0,0,.45); }
+.cms-map-node.final .cms-map-name { font-size: clamp(7.5px, 2.2vw, 9px); color: #ffe7a4; max-width: clamp(64px, 18vw, 84px); white-space: nowrap; }
 
 .cms-hint { font-size: 0.78rem; color: #7890ac; text-align: center; margin-top: 4px; }
 
