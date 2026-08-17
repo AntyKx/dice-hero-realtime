@@ -4,7 +4,6 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import App from './App'
 import './styles.css'
 import './styles/astralLegacyRebuild.css'
-import './styles/forestRealtimeExploration.css'
 
 const APP_BUILD   = __APP_BUILD__    // e.g. "v1.7.5 (2026-06-15)"
 const APP_VERSION = __APP_VERSION__  // e.g. "1.7.5"

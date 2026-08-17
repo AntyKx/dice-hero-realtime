@@ -75,8 +75,6 @@ import { ARENA_RELICS } from './arena/relics'
 import CampaignMapScreen from './screens/CampaignMapScreen'
 import CampaignChapterSelectScreen from './screens/CampaignChapterSelectScreen'
 import SagaSelectScreen from './screens/SagaSelectScreen'
-import ForestRealtimeExploration from './screens/ForestRealtimeExploration'
-import { isForestExploreStageId } from './exploration/forestRealtimeConfig.1to5'
 import { getCampaignStage } from './campaign/campaignStages'
 import { CAMPAIGN_ID_FOREST_RUINS, getSagaIdForCampaign } from './campaign/campaignTypes'
 import { recordStageResult, claimFirstClearReward, getStageProgress } from './campaign/campaignProgress'
@@ -1444,12 +1442,12 @@ export default function App() {
     )
   }
 
-  // 固定式主線關卡的 Arena 畫面（2026-08）：抽成共用函式，因為 2026-08-17
-  // 起有兩個呼叫點——一般的 campaign_stage phase（其餘 85 關，全螢幕導航），
-  // 以及森林遺跡 1-1~1-5 探索層裡「原地觸發」的戰鬥疊層（campaign_explore
-  // phase 的 inBattle 分支）。兩邊共用同一份英雄數值/裝備/天賦/隊伍加成
-  // 計算與 onCampaignStageEnd 結算邏輯，只有 onExit 導去哪裡不同，避免兩處
-  // 各自維護一份設定造成之後改壞其中一邊沒同步。
+  // 固定式主線關卡的 Arena 畫面（2026-08，2026-08-17 抽成共用函式）：所有
+  // 90 關（含森林遺跡 1-1~1-5）都走同一個 campaign_stage phase、同一個
+  // ArenaScreen。1-1~1-5 的「同一張地圖完成探索＋戰鬤」完全是
+  // ArenaGame.ts 內部依 stageId 自動切換的行為（見 exploreWorlds.ts／
+  // initExploreStage），這裡跟其他 85 關的呼叫方式完全一樣，不需要另外
+  // 判斷或另一個 phase。
   const renderCampaignArena = (heroId: string, stageId: string, onExit: () => void) => {
     const hero = HEROES.find(h => h.id === heroId) ?? HEROES[0]
     const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
@@ -1517,54 +1515,10 @@ export default function App() {
           meta={meta}
           heroId={phase.heroId}
           campaignId={phase.campaignId}
-          onSelectStage={stageId => setPhase(
-            isForestExploreStageId(stageId)
-              ? { type: 'campaign_explore', heroId: phase.heroId, stageId }
-              : { type: 'campaign_stage', heroId: phase.heroId, stageId }
-          )}
+          onSelectStage={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
           onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
         />
       </div>
-    )
-  }
-
-  // 森林遺跡 1-1~1-5 連續探索示範（2026-08-17，見 src/exploration/）：只有
-  // 這 5 關會先進這裡；其餘 85 關維持點節點直接進 Arena，不受影響。
-  // 2026-08-17 改版：靠近戰鬥點不再整頁導航去 campaign_stage，而是把
-  // ForestRealtimeExploration 留著掛載、疊一層 Arena（inBattle=true）—— 使用
-  // 者要的是「原地觸發戰鬥」而不是切換場景；ArenaScreen 本身是
-  // position:fixed 全螢幕，疊在探索層上面就會自然蓋滿，戰鬥結束疊層收掉、
-  // 探索層原本的角色位置/鏡頭完全沒被卸載過，直接接續。
-  if (phase.type === 'campaign_explore') {
-    return (
-      <>
-        <ForestRealtimeExploration
-          meta={meta}
-          heroId={phase.heroId}
-          stageId={phase.stageId}
-          inBattle={!!phase.inBattle}
-          onStartBattle={() => setPhase({ ...phase, inBattle: true })}
-          onExitStage={({ stageId, nextStageId }) => {
-            if (nextStageId) {
-              setPhase({ type: 'campaign_explore', heroId: phase.heroId, stageId: nextStageId })
-              return
-            }
-            // 1-5 出口：沒有下一關，回到森林遺跡關卡地圖（章節結算沿用既有規則，
-            // 通關當下已經在 renderCampaignArena 的 onCampaignStageEnd 處理過）。
-            const campaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
-            setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
-          }}
-          onBack={() => {
-            const campaignId = getCampaignStage(phase.stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
-            setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId })
-          }}
-        />
-        {phase.inBattle && (
-          <div className="forest-realtime-battle-overlay">
-            {renderCampaignArena(phase.heroId, phase.stageId, () => setPhase({ ...phase, inBattle: false }))}
-          </div>
-        )}
-      </>
     )
   }
 
@@ -1593,8 +1547,8 @@ export default function App() {
     )
   }
 
-  // 其餘 85 關（非森林遺跡 1-1~1-5）維持點地圖節點直接全螢幕進 Arena；
-  // 那 5 關已經不會進到這個 phase，戰鬥改在 campaign_explore 裡原地觸發。
+  // 全部 90 關（含森林遺跡 1-1~1-5）都走這裡；1-1~1-5 的探索＋原地戰鬤是
+  // ArenaGame.ts 內部依 stageId 自動切換，這裡不用特殊處理。
   if (phase.type === 'campaign_stage') {
     const stageId = phase.stageId
     // 三篇章共用同一個 campaign_stage phase，回地圖時要回到「這一關所屬的
@@ -1649,11 +1603,7 @@ export default function App() {
           onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_saga_select', heroId })}
-          onStartCampaignStage={(heroId, stageId) => setPhase(
-            isForestExploreStageId(stageId)
-              ? { type: 'campaign_explore', heroId, stageId }
-              : { type: 'campaign_stage', heroId, stageId }
-          )}
+          onStartCampaignStage={(heroId, stageId) => setPhase({ type: 'campaign_stage', heroId, stageId })}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
           onOpenWarehouse={() => setPhase({ type: 'warehouse' })}
           onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}

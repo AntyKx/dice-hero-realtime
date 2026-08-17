@@ -1,10 +1,11 @@
-import { Application, Assets, Graphics, Sprite, Text, Texture } from 'pixi.js'
+import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import { Pool } from './Pool'
 import type { ArenaCard } from './cards'
 import { getCampaignEnemyPool, getCampaignBoss, pickEnemyType, ALL_CAMPAIGN_STAGE_ENEMIES, type EnemyTypeDef } from './enemies'
 import { getCampaignStage } from '../campaign/campaignStages'
 import type { CampaignStage, EnemyWave, WaveTrigger } from '../campaign/campaignTypes'
 import { getCampaignStageBgPath } from '../campaign/campaignStageBg'
+import { getExploreWorld, type ExploreWorld, type ExploreLandmark, type LandmarkKind } from './exploreWorlds'
 import {
   isObjectiveWon, isObjectiveLost, updateObjectiveState, spawnCollectibles,
   onHuntTargetDefeated, onDestroyTargetDefeated, markCustomStarFailed, type ObjectiveState,
@@ -451,6 +452,22 @@ export class ArenaGame {
   bgSprite: Sprite | null = null
   bgTextures: Texture[] = []
 
+  // ── 森林遺跡 1-1~1-5「同一張地圖完成探索＋戰鬤」（2026-08-17，見
+  // exploreWorlds.ts）：worldLayer 是所有會跟著鏡頭捲動的物件（背景/玩家/
+  // 敵人/特效…）共用的父容器，鏡頭移動只要搬動這一個容器，裡面每個子物件
+  // 的 x/y 完全不用改寫成「螢幕座標」，繼續當世界座標用——這是刻意選的
+  // 作法，PixiJS 容器本身就會處理座標轉換，不用去改動散落在全檔案幾十處
+  // 「sprite.x = e.x」這種賦值。非探索關卡（其餘 89 關／Roguelite）
+  // exploreWorld 永遠是 null，camera 永遠是 {0,0}，worldLayer 位置永遠是
+  // (0,0)——等於完全沒有這層轉換，行為跟改動前一模一樣。 */
+  worldLayer: Container | null = null
+  camera = { x: 0, y: 0 }
+  exploreWorld: ExploreWorld | null = null
+  exploreState: 'roam' | 'encounter' | 'cleared' = 'roam'
+  exploreLandmarkSprites: { landmark: ExploreLandmark; gfx: Graphics; text: Text }[] = []
+  exploreExitGfx: Graphics | null = null
+  exploreBossTriggered = false
+
   player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0, moveSpeedDebuffMult: 1, moveSpeedDebuffTimer: 0 }
   playerHitTimer = 0 // >0 時玩家 sprite 染紅閃爍，見 damagePlayer()/updatePlayerAnim()
   moveDir = { x: 0, y: 0 } // -1~1 連續值，類比搖桿輸入，取代舊的拖曳移動
@@ -701,6 +718,10 @@ export class ArenaGame {
     this.app = app
     container.appendChild(app.canvas)
 
+    // worldLayer 必須在其他東西 addChild 之前建立好，見上面欄位宣告的說明。
+    this.worldLayer = new Container()
+    app.stage.addChild(this.worldLayer)
+
     // 森林遺跡固定關卡（2026-08）：跟 Arena Roguelite Run 完全不同的敵人來源
     // ——不是 getCampaignEnemyPool() 那組加權池，是這一關 waves/boss 實際點名
     // 用到的森林敵人。placeholderSpriteId 有值代表這個 id 還沒有專屬美術，
@@ -733,17 +754,27 @@ export class ArenaGame {
     this.bgTextures = bgTexList
     this.portraitTextureCache.set(this.cfg.heroId, portraitTex)
 
+    // 森林遺跡 1-1~1-5：探索世界資料要在算玩家出生點之前就決定好，出生點
+    // 用世界座標（地圖下方），不是螢幕中心。
+    this.exploreWorld = this.campaignStage ? getExploreWorld(this.campaignStage.id) ?? null : null
+
     const bgSprite = new Sprite(this.bgTextures[0])
     bgSprite.anchor.set(0.5)
-    app.stage.addChild(bgSprite)
+    this.worldLayer!.addChild(bgSprite)
     this.bgSprite = bgSprite
     this.layoutBackground()
 
-    this.player = {
-      x: app.screen.width / 2, y: app.screen.height - ARENA_MARGIN - 40,
-      hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0,
-      moveSpeedDebuffMult: 1, moveSpeedDebuffTimer: 0,
-    }
+    this.player = this.exploreWorld
+      ? {
+          x: this.exploreWorld.spawn.x, y: this.exploreWorld.spawn.y,
+          hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0,
+          moveSpeedDebuffMult: 1, moveSpeedDebuffTimer: 0,
+        }
+      : {
+          x: app.screen.width / 2, y: app.screen.height - ARENA_MARGIN - 40,
+          hp: this.cfg.maxHp, maxHp: this.cfg.maxHp, atkTimer: 0,
+          moveSpeedDebuffMult: 1, moveSpeedDebuffTimer: 0,
+        }
 
     const playerSprite = new Sprite(heroFrames.idle[0])
     // 有真的逐幀圖（例如火焰法師）就用腳底置中錨點，讓不同幀的裁切高度不一致
@@ -753,7 +784,7 @@ export class ArenaGame {
     this.setSpriteHeight(playerSprite, HERO_RENDER_HEIGHT)
     playerSprite.x = this.player.x
     playerSprite.y = this.player.y
-    app.stage.addChild(playerSprite)
+    this.worldLayer!.addChild(playerSprite)
     this.playerSprite = playerSprite
 
     this.initUltimatePresentation()
@@ -955,11 +986,21 @@ export class ArenaGame {
     }
   }
 
-  /** 背景圖鋪滿整個畫面（等同 CSS background-size:cover），置中裁切多餘部分。 */
+  /** 背景圖鋪滿整個畫面（等同 CSS background-size:cover），置中裁切多餘部分。
+   * 森林遺跡探索模式鋪的是整張世界地圖（1440×2560），不是螢幕大小——鏡頭
+   * 移動時 worldLayer 平移，背景自然跟著露出不同區域，不用另外處理捲動。 */
   layoutBackground() {
     if (!this.app || !this.bgSprite) return
-    const { width, height } = this.app.screen
     const tex = this.bgSprite.texture
+    if (this.exploreWorld) {
+      const { width, height } = this.exploreWorld.world
+      const scale = Math.max(width / tex.width, height / tex.height)
+      this.bgSprite.scale.set(scale)
+      this.bgSprite.x = width / 2
+      this.bgSprite.y = height / 2
+      return
+    }
+    const { width, height } = this.app.screen
     const scale = Math.max(width / tex.width, height / tex.height)
     this.bgSprite.scale.set(scale)
     this.bgSprite.x = width / 2
@@ -985,6 +1026,9 @@ export class ArenaGame {
    */
   initCampaignStage(stage: CampaignStage) {
     if (!this.app) return
+    // 森林遺跡 1-1~1-5：完全不同的進場流程（不立刻生怪、不立刻放 Boss，
+    // 交給 updateExploreWorld() 依玩家走到哪裡才觸發），見 exploreWorlds.ts。
+    if (this.exploreWorld) { this.initExploreStage(stage, this.exploreWorld); return }
     this.currentZoneType = 'battle'
     this.enemiesEmptySec = 0
     // stage_start 的波次直接生成，其餘留給 updateCampaignWaves() 依各自的
@@ -1014,7 +1058,7 @@ export class ArenaGame {
       gfx.circle(0, 0, 30).fill({ color: 0x2a4a7a }).stroke({ color: 0x8ad4ff, width: 3 })
       gfx.circle(0, 0, 12).fill({ color: 0x8ad4ff, alpha: 0.8 })
       gfx.x = width / 2; gfx.y = height * 0.32
-      this.app.stage.addChild(gfx)
+      this.worldLayer!.addChild(gfx)
       const maxHp = stage.objective.defenseTargetMaxHp ?? 400
       this.defenseCore = { x: width / 2, y: height * 0.32, hp: maxHp, maxHp, gfx }
     }
@@ -1030,7 +1074,7 @@ export class ArenaGame {
       const gfx = new Graphics()
       gfx.rect(-26, -36, 52, 72).fill({ color: 0x6db8ff, alpha: 0.7 }).stroke({ color: 0xffffff, width: 2 })
       gfx.x = x; gfx.y = y
-      this.app.stage.addChild(gfx)
+      this.worldLayer!.addChild(gfx)
       this.objectiveState.escapeX = x; this.objectiveState.escapeY = y; this.objectiveState.escapeGfx = gfx
     }
 
@@ -1059,27 +1103,192 @@ export class ArenaGame {
     }
   }
 
-  /** 依 EnemyWave 資料生成固定敵人（不是加權隨機），供開場立即波次跟 updateCampaignWaves() 共用。 */
-  spawnCampaignWave(wave: EnemyWave) {
+  /** 依 EnemyWave 資料生成固定敵人（不是加權隨機），供開場立即波次跟 updateCampaignWaves() 共用。
+   * nearZone 有值時（森林遺跡探索模式）改成從這個矩形邊緣冒出來，而不是
+   * spawnEnemyOfType() 預設的「整個畫面邊緣」（那個邏輯是螢幕座標，探索
+   * 模式下鏡頭會偏移，直接沿用會生到不合理的世界座標位置）。 */
+  spawnCampaignWave(wave: EnemyWave, nearZone?: { x: number; y: number; width: number; height: number }) {
     for (const [id, count] of Object.entries(wave.enemies)) {
       const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
-      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type)
+      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined)
     }
     for (const [id, count] of Object.entries(wave.eliteEnemies ?? {})) {
       const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
-      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, { isElite: true })
+      const pos = nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined
+      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, { ...pos, isElite: true })
     }
   }
 
   /** 依 StageHazardConfig 資料生成一團固定 Hazard（隨機落點，避開螢幕最邊緣）。 */
   spawnStageHazard(h: NonNullable<CampaignStage['hazards']>[number]) {
     if (!this.app) return
+    if (this.exploreWorld) {
+      const z = this.exploreWorld.battleZone
+      const x = z.x + Math.random() * z.width
+      const y = z.y + Math.random() * z.height
+      this.spawnHazard(x, y, h.radius, h.dps, h.duration, h.kind, h.slowMult, h.rootSec)
+      return
+    }
     const { width, height } = this.app.screen
     const x = width * 0.2 + Math.random() * width * 0.6
     const y = height * 0.3 + Math.random() * height * 0.5
     this.spawnHazard(x, y, h.radius, h.dps, h.duration, h.kind, h.slowMult, h.rootSec)
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // 森林遺跡 1-1~1-5：同一張地圖完成探索＋戰鬤＋結算（2026-08-17）
+  // ══════════════════════════════════════════════════════════════════
+
+  /** 探索關卡進場：跟 initCampaignStage 一樣要準備 objectiveState，但完全
+   * 不立刻生怪/放 Boss——那些留給 updateExploreWorld() 依玩家走到哪裡才
+   * 觸發。持續型 Hazard（不是排程觸發的那種）維持開場就存在，只是位置改
+   * 落在 battleZone 附近，不是整個世界隨機。 */
+  initExploreStage(stage: CampaignStage, world: ExploreWorld) {
+    this.currentZoneType = 'battle'
+    this.enemiesEmptySec = 0
+    this.exploreState = 'roam'
+    this.exploreBossTriggered = false
+    this.pendingWaves = []
+    this.objectiveState = {
+      objective: stage.objective,
+      resolved: false,
+      won: false,
+      huntTargetDefeated: false,
+      elapsedInObjectiveSec: 0,
+      destroyRemaining: stage.objective.destroyCount ?? 0,
+      collectibles: [],
+      collectedCount: 0,
+      escapeX: 0,
+      escapeY: 0,
+      escapeGfx: null,
+      customStarFailed: false,
+    }
+    for (const h of stage.hazards ?? []) {
+      if ((h.triggerAtSec ?? 0) > 0) continue
+      for (let i = 0; i < h.count; i++) this.spawnStageHazard(h)
+    }
+    for (const landmark of world.landmarks) this.spawnExploreLandmark(landmark)
+    this.exploreExitGfx = this.spawnExploreExitMarker(world.exit)
+
+    // 鏡頭直接對準出生點，不要從世界左上角慢慢漂過去。
+    const vw = this.app?.screen.width ?? 390
+    const vh = this.app?.screen.height ?? 700
+    this.camera = {
+      x: Math.max(0, Math.min(world.world.width - vw, world.spawn.x - vw / 2)),
+      y: Math.max(0, Math.min(world.world.height - vh, world.spawn.y - vh / 2)),
+    }
+    this.worldLayer?.position.set(-this.camera.x, -this.camera.y)
+  }
+
+  /** 每幀推進：鏡頭跟隨、走到 battleZone 觸發既有戰鬤資料、戰鬤清空後解鎖
+   * 出口、走到出口完成整關。不呼叫 isObjectiveWon() 自動判定（見
+   * updateObjective 的 exploreWorld 分支），完成時機完全由這裡手動決定。 */
+  updateExploreWorld(_dt: number) {
+    if (!this.exploreWorld || !this.campaignStage) return
+    const world = this.exploreWorld
+    this.updateExploreCamera()
+
+    if (this.exploreState === 'roam') {
+      const z = world.battleZone
+      const inZone = this.player.x >= z.x && this.player.x <= z.x + z.width
+        && this.player.y >= z.y && this.player.y <= z.y + z.height
+      if (inZone) this.triggerExploreEncounter(this.campaignStage, world)
+    } else if (this.exploreState === 'encounter') {
+      if (this.pendingWaves.length === 0 && this.enemies.length === 0) {
+        this.exploreState = 'cleared'
+        if (this.exploreExitGfx) this.exploreExitGfx.alpha = 1
+        this.spawnFloatingText('已清空，可以前往出口', this.player.x, this.player.y - 50)
+      }
+    } else if (this.exploreState === 'cleared') {
+      const dist = Math.hypot(this.player.x - world.exit.x, this.player.y - world.exit.y)
+      if (dist <= world.exit.radius) this.finishCampaignStage(true)
+    }
+  }
+
+  /** 走進 battleZone：Boss 關（1-5）直接站在 zone 中央生成 Boss，其餘關卡
+   * 觸發 stage.waves 的 stage_start 波次（其餘波次維持照既有 WaveTrigger
+   * 規則自動接續，見 updateCampaignWaves——完全沒有改寫波次資料或平衡）。 */
+  triggerExploreEncounter(stage: CampaignStage, world: ExploreWorld) {
+    this.exploreState = 'encounter'
+    this.spawnGlowBurst(this.player.x, this.player.y, 0xff6a4a, 90)
+    for (const entry of this.exploreLandmarkSprites) {
+      if (entry.landmark.kind === 'boss') { entry.gfx.visible = false; entry.text.visible = false }
+    }
+
+    if (stage.boss) {
+      this.bossState = 'alive'
+      const bossType = ALL_CAMPAIGN_STAGE_ENEMIES[stage.boss.bossEnemyId]
+      if (bossType) {
+        const count = stage.boss.count ?? 1
+        const hpOpt = count > 1 ? { hpMultOverride: 0.6 } : undefined
+        const z = world.battleZone
+        for (let i = 0; i < count; i++) {
+          const x = count > 1 ? z.x + z.width * (0.35 + i * 0.3) : z.x + z.width / 2
+          const y = z.y + z.height * 0.22
+          this.spawnEnemyOfType(bossType, { ...hpOpt, x, y })
+        }
+      }
+      return
+    }
+
+    this.pendingWaves = (stage.waves ?? []).filter(w => {
+      if (w.trigger.type === 'stage_start') { this.spawnCampaignWave(w, world.battleZone); return false }
+      return true
+    })
+  }
+
+  /** battleZone 矩形邊緣（往外擴一點 margin）隨機挑一點，取代 spawnEnemyOfType()
+   * 預設的「整個螢幕邊緣」隨機點——探索模式下螢幕邊緣不等於合理的世界座標。 */
+  pickZoneEdgeSpawn(zone: { x: number; y: number; width: number; height: number }): { x: number; y: number } {
+    const margin = 70
+    const edge = Math.floor(Math.random() * 4)
+    if (edge === 0) return { x: zone.x + Math.random() * zone.width, y: zone.y - margin }
+    if (edge === 1) return { x: zone.x + zone.width + margin, y: zone.y + Math.random() * zone.height }
+    if (edge === 2) return { x: zone.x + Math.random() * zone.width, y: zone.y + zone.height + margin }
+    return { x: zone.x - margin, y: zone.y + Math.random() * zone.height }
+  }
+
+  /** 鏡頭跟隨（roam 跟隨玩家，encounter 鎖在 battleZone 中心），clamp 在世界邊界內，lerp 平滑移動。 */
+  updateExploreCamera() {
+    if (!this.exploreWorld || !this.app || !this.worldLayer) return
+    const { width, height } = this.app.screen
+    const world = this.exploreWorld.world
+    const z = this.exploreWorld.battleZone
+    const targetX = this.exploreState === 'encounter' ? z.x + z.width / 2 : this.player.x
+    const targetY = this.exploreState === 'encounter' ? z.y + z.height / 2 : this.player.y
+    const camX = Math.max(0, Math.min(Math.max(0, world.width - width), targetX - width / 2))
+    const camY = Math.max(0, Math.min(Math.max(0, world.height - height), targetY - height / 2))
+    this.camera.x += (camX - this.camera.x) * 0.12
+    this.camera.y += (camY - this.camera.y) * 0.12
+    this.worldLayer.position.set(-this.camera.x, -this.camera.y)
+  }
+
+  spawnExploreLandmark(landmark: ExploreLandmark) {
+    if (!this.worldLayer) return
+    const color: Record<LandmarkKind, number> = {
+      totem: 0xd88a4a, altar: 0x8ad4ff, shaman: 0xb06adf, chest: 0xffd94a, supply: 0x6adf9a, boss: 0xff5a5a,
+    }
+    const gfx = new Graphics()
+    gfx.roundRect(-30, -30, 60, 60, 12).fill({ color: color[landmark.kind], alpha: 0.85 }).stroke({ color: 0xffffff, width: 2 })
+    gfx.x = landmark.x; gfx.y = landmark.y
+    this.worldLayer.addChild(gfx)
+    const text = new Text({ text: landmark.label, style: { fontSize: 14, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
+    text.anchor.set(0.5)
+    text.x = landmark.x; text.y = landmark.y + 42
+    this.worldLayer.addChild(text)
+    this.exploreLandmarkSprites.push({ landmark, gfx, text })
+  }
+
+  spawnExploreExitMarker(exit: { x: number; y: number; radius: number }): Graphics | null {
+    if (!this.worldLayer) return null
+    const gfx = new Graphics()
+    gfx.circle(0, 0, 36).fill({ color: 0x6adf9a, alpha: 0.3 }).stroke({ color: 0x6adf9a, width: 3 })
+    gfx.x = exit.x; gfx.y = exit.y
+    gfx.alpha = 0.35 // 通關前半透明，表示還不能用；清空後 updateExploreWorld 會設回 1
+    this.worldLayer.addChild(gfx)
+    return gfx
   }
 
   /** 每幀檢查是否有排定的波次/Hazard 該觸發了（森林遺跡固定關卡專用）。 */
@@ -1107,7 +1316,7 @@ export class ArenaGame {
       const idx = this.pendingWaves.findIndex(w => this.isWaveTriggerReady(w.trigger))
       if (idx >= 0) {
         const [w] = this.pendingWaves.splice(idx, 1)
-        this.spawnCampaignWave(w)
+        this.spawnCampaignWave(w, this.exploreWorld?.battleZone)
         spawnedThisFrame = true
       }
     }
@@ -1143,7 +1352,11 @@ export class ArenaGame {
     }
 
     if (isObjectiveLost(state, this)) { this.finishCampaignStage(false); return }
-    if (isObjectiveWon(state, this)) { this.finishCampaignStage(true) }
+    // 森林遺跡探索模式（exploreWorld 有值）不用這裡的自動判定——玩家清空
+    // battleZone 敵人的當下 isObjectiveWon() 可能就已經是 true 了，但關卡
+    // 還沒真的結束（要等玩家走到出口），見 updateExploreWorld()。完成時機
+    // 完全由那邊手動呼叫 finishCampaignStage(true)。
+    if (!this.exploreWorld && isObjectiveWon(state, this)) { this.finishCampaignStage(true) }
   }
 
   /** 森林遺跡固定關卡結算：暫停戰鬥、算三星、把結果塞進 HUD（見 ArenaHudState.campaignResult）。跟 Arena Roguelite Run 的 triggerGameOver()/pauseForBossLoot() 完全分開，不共用語意。 */
@@ -1397,7 +1610,7 @@ export class ArenaGame {
     sprite.tint = baseTint
     sprite.x = pos.x
     sprite.y = pos.y
-    if (!sprite.parent) this.app.stage.addChild(sprite)
+    if (!sprite.parent) this.worldLayer!.addChild(sprite)
 
     const enemy: EnemyInstance = {
       sprite,
@@ -1488,6 +1701,7 @@ export class ArenaGame {
       this.enemiesEmptySec = this.enemies.length === 0 ? this.enemiesEmptySec + dt : 0
       this.updateCampaignWaves(dt)
       this.updateObjective(dt)
+      if (this.exploreWorld) this.updateExploreWorld(dt)
     }
     this.updateFloatingTexts(dt)
     this.updateGlows(dt)
@@ -1693,11 +1907,28 @@ export class ArenaGame {
       p.y += (dy / len) * speed * dt
       this.facing = { x: dx / len, y: dy / len }
     }
-    const { width, height } = this.app.screen
-    p.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, p.x))
-    p.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, p.y))
+    const bounds = this.getMovementBounds()
+    p.x = Math.max(bounds.minX, Math.min(bounds.maxX, p.x))
+    p.y = Math.max(bounds.minY, Math.min(bounds.maxY, p.y))
     this.playerSprite.x = p.x
     this.playerSprite.y = p.y
+  }
+
+  /** 移動邊界：一般關卡等同過去行為（螢幕邊界）；森林遺跡探索模式 roam 時
+   * 是整張世界地圖，encounter（戰鬤中）鎖在 battleZone 範圍——這是「鎖定
+   * 移動區域」的實際實作點。 */
+  getMovementBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    if (this.exploreWorld) {
+      if (this.exploreState === 'encounter') {
+        const z = this.exploreWorld.battleZone
+        const pad = 50
+        return { minX: z.x - pad, maxX: z.x + z.width + pad, minY: z.y - pad, maxY: z.y + z.height + pad }
+      }
+      const w = this.exploreWorld.world
+      return { minX: ARENA_MARGIN, maxX: w.width - ARENA_MARGIN, minY: ARENA_MARGIN, maxY: w.height - ARENA_MARGIN }
+    }
+    const { width, height } = this.app!.screen
+    return { minX: ARENA_MARGIN, maxX: width - ARENA_MARGIN, minY: ARENA_TOP_MARGIN, maxY: height - ARENA_MARGIN }
   }
 
   updateEnemies(dt: number) {
@@ -1901,7 +2132,7 @@ export class ArenaGame {
       this.drawProjectileVisual(gfx, this.cfg.heroId, angle)
       gfx.x = this.player.x
       gfx.y = this.player.y
-      if (!gfx.parent) this.app.stage.addChild(gfx)
+      if (!gfx.parent) this.worldLayer!.addChild(gfx)
       this.projectiles.push({
         gfx,
         x: this.player.x,
@@ -2796,7 +3027,7 @@ export class ArenaGame {
     if (!this.app) return
     const gfx = this.telegraphPool.acquire()
     gfx.x = x; gfx.y = y
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.telegraphs.push({
       gfx, type, timer: 0, maxTimer, x, y,
       radius: opts.radius, angle: opts.angle, width: opts.width,
@@ -2853,7 +3084,7 @@ export class ArenaGame {
     const gfx = this.enemyProjectilePool.acquire()
     gfx.circle(0, 0, Math.max(radius, 5)).fill({ color: 0xff6a3c })
     gfx.x = from.x; gfx.y = from.y
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.enemyProjectiles.push({
       gfx, x: from.x, y: from.y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
@@ -2897,7 +3128,7 @@ export class ArenaGame {
     const c = HAZARD_COLORS[kind]
     gfx.circle(0, 0, radius).fill({ color: c.fill, alpha: 0.28 }).stroke({ color: c.stroke, width: 2, alpha: 0.6 })
     gfx.x = x; gfx.y = y
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.hazards.push({ gfx, x, y, radius, dps, timer: 0, duration, tickTimer: 0, kind, slowMult, rootSec, playerInside: false })
   }
 
@@ -3242,7 +3473,7 @@ export class ArenaGame {
     gfx.circle(0, 0, GEM_RADIUS).fill({ color: 0x4ade80 })
     gfx.x = x
     gfx.y = y
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.gems.push({ gfx, x, y, value, alive: true })
   }
 
@@ -3332,7 +3563,7 @@ export class ArenaGame {
     obj.anchor.set(0.5)
     obj.x = x
     obj.y = y
-    if (!obj.parent) this.app.stage.addChild(obj)
+    if (!obj.parent) this.worldLayer!.addChild(obj)
     this.floatingTexts.push({ obj, vy: -30, life: 0, maxLife: 1.6, alive: true })
   }
 
@@ -3360,7 +3591,7 @@ export class ArenaGame {
     gfx.x = x
     gfx.y = y
     gfx.scale.set(0.4)
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.glows.push({ gfx, life: 0, maxLife: 0.5, alive: true })
   }
 
@@ -3376,7 +3607,7 @@ export class ArenaGame {
     gfx.x = x
     gfx.y = y
     gfx.scale.set(0.5)
-    if (!gfx.parent) this.app.stage.addChild(gfx)
+    if (!gfx.parent) this.worldLayer!.addChild(gfx)
     this.glows.push({ gfx, life: 0, maxLife: 0.28, alive: true })
   }
 
