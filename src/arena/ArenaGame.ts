@@ -729,10 +729,14 @@ export class ArenaGame {
     // enemyFrames 時仍然用真正的 id 當 key，遊戲邏輯完全不受影響，只影響
     // 貼圖來源）。
     this.campaignStage = this.cfg.campaignStageId ? getCampaignStage(this.cfg.campaignStageId) ?? null : null
+    // 森林遺跡 1-1~1-5：探索世界資料要在算背景/出生點之前就決定好。
+    this.exploreWorld = this.campaignStage ? getExploreWorld(this.campaignStage.id) ?? null : null
     const allEnemyTypes = this.campaignStage
       ? this.getCampaignStageEnemyTypes(this.campaignStage)
       : [...getCampaignEnemyPool(this.campaign), getCampaignBoss(this.campaign)]
-    const bgPaths = this.campaignStage
+    const bgPaths = this.exploreWorld
+      ? [this.exploreWorld.backgroundAsset]
+      : this.campaignStage
       ? [getCampaignStageBgPath(this.campaignStage.bgTheme)]
       : Array.from({ length: BG_VARIANTS_PER_THEME }, (_, i) => `/assets/backgrounds/${CAMPAIGN_BG_THEME[this.campaign] ?? 'forest'}_${i + 1}.jpg`)
     const heroStars = Math.min(3, Math.max(0, this.cfg.stars ?? 0))
@@ -754,12 +758,19 @@ export class ArenaGame {
     this.bgTextures = bgTexList
     this.portraitTextureCache.set(this.cfg.heroId, portraitTex)
 
-    // 森林遺跡 1-1~1-5：探索世界資料要在算玩家出生點之前就決定好，出生點
-    // 用世界座標（地圖下方），不是螢幕中心。
-    this.exploreWorld = this.campaignStage ? getExploreWorld(this.campaignStage.id) ?? null : null
+    // 探索模式的手繪地圖是橫向構圖（fit-width 貼在世界最上方，見
+    // exploreWorlds.ts 檔頭說明），圖片涵蓋不到的下半部世界要先鋪一層純色
+    // 打底，不然那段會露出畫布底色。這層必須在 bgSprite 之前 addChild，
+    // 才會被蓋在背景圖底下而不是疊在上面。
+    if (this.exploreWorld) {
+      const ground = new Graphics()
+      ground.rect(0, 0, this.exploreWorld.world.width, this.exploreWorld.world.height)
+        .fill({ color: this.exploreWorld.groundColor })
+      this.worldLayer!.addChild(ground)
+    }
 
     const bgSprite = new Sprite(this.bgTextures[0])
-    bgSprite.anchor.set(0.5)
+    bgSprite.anchor.set(this.exploreWorld ? 0 : 0.5)
     this.worldLayer!.addChild(bgSprite)
     this.bgSprite = bgSprite
     this.layoutBackground()
@@ -987,17 +998,19 @@ export class ArenaGame {
   }
 
   /** 背景圖鋪滿整個畫面（等同 CSS background-size:cover），置中裁切多餘部分。
-   * 森林遺跡探索模式鋪的是整張世界地圖（1440×2560），不是螢幕大小——鏡頭
-   * 移動時 worldLayer 平移，背景自然跟著露出不同區域，不用另外處理捲動。 */
+   * 森林遺跡探索模式不是這樣——使用者提供的手繪地圖是橫向構圖，內容集中在
+   * 畫面中段，cover-fit 會把左右兩側裁光。改成 fit-width：寬度完全對齊
+   * 世界寬度（不裁切），貼在世界最上方（anchor 0,0），下面涵蓋不到的部分
+   * 由 init() 先鋪好的純色 ground 負責，見那邊的說明。 */
   layoutBackground() {
     if (!this.app || !this.bgSprite) return
     const tex = this.bgSprite.texture
     if (this.exploreWorld) {
-      const { width, height } = this.exploreWorld.world
-      const scale = Math.max(width / tex.width, height / tex.height)
+      const { width } = this.exploreWorld.world
+      const scale = width / tex.width
       this.bgSprite.scale.set(scale)
-      this.bgSprite.x = width / 2
-      this.bgSprite.y = height / 2
+      this.bgSprite.x = 0
+      this.bgSprite.y = 0
       return
     }
     const { width, height } = this.app.screen
@@ -2150,7 +2163,12 @@ export class ArenaGame {
 
   updateProjectiles(dt: number) {
     if (!this.app) return
-    const { width, height } = this.app.screen
+    // 探索模式下玩家/敵人是世界座標（可以遠大於螢幕像素），彈道出界判定
+    // 一定要用同一套可站立範圍（getMovementBounds），不能直接拿螢幕大小比
+    // ——不然彈道一飛出螢幕尺寸的數字就被判定「出界」秒殺，攻擊動畫有播
+    // 但傷害永遠沒有結算到（2026-08-18 真機回報：攻擊有動畫但敵人不損血，
+    // 根源就是這裡跟下面幾個同款 this.app.screen 判斷）。
+    const bounds = this.getMovementBounds()
     for (const p of this.projectiles) {
       if (!p.alive) continue
       p.x += p.vx * dt
@@ -2158,7 +2176,7 @@ export class ArenaGame {
       p.gfx.x = p.x
       p.gfx.y = p.y
 
-      if (p.x < -20 || p.x > width + 20 || p.y < -20 || p.y > height + 20) {
+      if (p.x < bounds.minX - 20 || p.x > bounds.maxX + 20 || p.y < bounds.minY - 20 || p.y > bounds.maxY + 20) {
         this.killProjectile(p)
         continue
       }
@@ -2384,9 +2402,9 @@ export class ArenaGame {
   /** 把敵人座標夾回場地可站範圍內，跟玩家自己的移動夾同一塊區域共用同一組邊界常數。 */
   clampEnemyToArena(e: EnemyInstance) {
     if (!this.app) return
-    const { width, height } = this.app.screen
-    e.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, e.x))
-    e.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, e.y))
+    const b = this.getMovementBounds()
+    e.x = Math.max(b.minX, Math.min(b.maxX, e.x))
+    e.y = Math.max(b.minY, Math.min(b.maxY, e.y))
   }
 
   /**
@@ -2410,9 +2428,9 @@ export class ArenaGame {
     let moveY = (dy / dist) * step
 
     if (this.app) {
-      const { width, height } = this.app.screen
-      const minX = ARENA_MARGIN, maxX = width - ARENA_MARGIN
-      const minY = ARENA_TOP_MARGIN, maxY = height - ARENA_MARGIN
+      const b = this.getMovementBounds()
+      const minX = b.minX, maxX = b.maxX
+      const minY = b.minY, maxY = b.maxY
       const prevX = e.x, prevY = e.y
       let nextX = Math.max(minX, Math.min(maxX, e.x + moveX))
       let nextY = Math.max(minY, Math.min(maxY, e.y + moveY))
@@ -2432,8 +2450,8 @@ export class ArenaGame {
 
   isOutOfArenaBounds(x: number, y: number): boolean {
     if (!this.app) return true
-    const { width, height } = this.app.screen
-    return x < -30 || x > width + 30 || y < -30 || y > height + 30
+    const b = this.getMovementBounds()
+    return x < b.minX - 30 || x > b.maxX + 30 || y < b.minY - 30 || y > b.maxY + 30
   }
 
   // ── Chase：goblin/skeleton/mimic。靠近到攻擊距離才停下蓄力揮砍 ──────────
@@ -2730,9 +2748,9 @@ export class ArenaGame {
         e.targetX = e.x + Math.cos(angle) * SKIRMISHER_CONFIG.repositionDistance
         e.targetY = e.y + Math.sin(angle) * SKIRMISHER_CONFIG.repositionDistance
         if (this.app) {
-          const { width, height } = this.app.screen
-          e.targetX = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, e.targetX))
-          e.targetY = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, e.targetY))
+          const b = this.getMovementBounds()
+          e.targetX = Math.max(b.minX, Math.min(b.maxX, e.targetX))
+          e.targetY = Math.max(b.minY, Math.min(b.maxY, e.targetY))
         }
       }
       return
@@ -2813,9 +2831,9 @@ export class ArenaGame {
             // 完全沿用 circle_aoe 既有邏輯，只是多把玩家往外推開。
             if (skill.pushback && this.app) {
               const angle = Math.atan2(this.player.y - e.targetY, this.player.x - e.targetX)
-              const { width, height } = this.app.screen
-              this.player.x = Math.max(ARENA_MARGIN, Math.min(width - ARENA_MARGIN, this.player.x + Math.cos(angle) * skill.pushback))
-              this.player.y = Math.max(ARENA_TOP_MARGIN, Math.min(height - ARENA_MARGIN, this.player.y + Math.sin(angle) * skill.pushback))
+              const b = this.getMovementBounds()
+              this.player.x = Math.max(b.minX, Math.min(b.maxX, this.player.x + Math.cos(angle) * skill.pushback))
+              this.player.y = Math.max(b.minY, Math.min(b.maxY, this.player.y + Math.sin(angle) * skill.pushback))
               if (this.playerSprite) { this.playerSprite.x = this.player.x; this.playerSprite.y = this.player.y }
             }
           }
@@ -3094,13 +3112,13 @@ export class ArenaGame {
 
   updateEnemyProjectiles(dt: number) {
     if (!this.app) return
-    const { width, height } = this.app.screen
+    const bounds = this.getMovementBounds()
     for (const p of this.enemyProjectiles) {
       if (!p.alive) continue
       p.x += p.vx * dt; p.y += p.vy * dt
       p.gfx.x = p.x; p.gfx.y = p.y
       p.lifetime -= dt
-      if (p.lifetime <= 0 || p.x < -20 || p.x > width + 20 || p.y < -20 || p.y > height + 20) {
+      if (p.lifetime <= 0 || p.x < bounds.minX - 20 || p.x > bounds.maxX + 20 || p.y < bounds.minY - 20 || p.y > bounds.maxY + 20) {
         this.killEnemyProjectile(p); continue
       }
       const dist = Math.hypot(this.player.x - p.x, this.player.y - p.y)
