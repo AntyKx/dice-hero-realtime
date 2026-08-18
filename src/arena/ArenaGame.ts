@@ -480,12 +480,14 @@ const HIT_SQUASH_DURATION = 0.1
 const HIT_WHITE_FLASH_DURATION = 0.05
 
 // 攻擊觸發幀（0-indexed，攻擊播到這一格才真的開火，見 updatePlayerAnim()）：
-// 預設抓中間那格；火焰法師 2026-08-18 重做版的 info/sprite-info.json 明確
-// 標了 impactFrame（1-indexed 幀 16 → attack 第 4 格，0-indexed index 3），
-// 跟預設的「取中間」（5 格是 index 2）不一樣，這裡照美術給的資料覆寫，
-// 之後其他角色如果也有自己的 impactFrame 資料，一樣加一筆進來就好。
+// 預設抓中間那格；火焰法師／死亡騎士 2026-08-18 重做版的 info/sprite-info.json
+// 都明確標了 impactFrame（1-indexed 幀 16 → attack 第 4 格，0-indexed
+// index 3），跟預設的「取中間」（5 格是 index 2）不一樣，這裡照美術給的
+// 資料覆寫，之後其他角色如果也有自己的 impactFrame 資料，一樣加一筆進來
+// 就好。
 const ATTACK_TRIGGER_FRAME_OVERRIDE: Partial<Record<string, number>> = {
   mage: 3,
+  death_knight: 3,
 }
 
 // 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→持續前傾→前衝出招→回收），依
