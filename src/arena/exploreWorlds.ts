@@ -138,8 +138,12 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
       { kind: 'boss', x: 713, y: 130, label: '狂暴獸人隊長' },
     ],
     colliders: [
-      { x: 608, y: 614, width: 80, height: 140 }, // 拱門左柱
-      { x: 738, y: 614, width: 80, height: 140 }, // 拱門右柱
+      // 拱門柱之間淨空要留超過玩家碰撞直徑（EXPLORE_PLAYER_COLLIDE_RADIUS
+      // ×2=60），不然出生點附近的位移一開始就判定卡住，哪個方向都走不掉
+      // （2026-08-18 真機回報：一進場英雄完全上不去，根源就是這裡淨空只有
+      // 50px，比玩家碰撞直徑還窄）。
+      { x: 578, y: 614, width: 80, height: 140 }, // 拱門左柱
+      { x: 768, y: 614, width: 80, height: 140 }, // 拱門右柱
     ],
     exit: { x: 713, y: 60, radius: 150 },
   },
