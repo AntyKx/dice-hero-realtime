@@ -17,18 +17,22 @@ interface SagaCardMeta {
 
 // 篇選擇畫面（2026-08-16 補上）：CampaignChapterSelectScreen.tsx 原本直接
 // 攤平列出九個章節，現在改成先選「篇」（灰燼王國篇/裂隙前兆篇/深海遺城篇，
-// 見 campaignTypes.ts 的 CAMPAIGN_SAGAS），再進去選篇底下的 3 個章節——
-// 封面借每篇第一個章節的地圖圖，跟 CampaignChapterSelectScreen 的卡片
-// 視覺語彙保持一致。
+// 見 campaignTypes.ts 的 CAMPAIGN_SAGAS），再進去選篇底下的 3 個章節。
+//
+// 2026-08-18：封面原本借用每篇第一個章節的地圖圖（跟 CampaignChapterSelectScreen
+// 裡面那個章節卡片用的是同一張圖），外層（篇）跟內層（章）視覺完全重複，
+// 玩家分不出兩層差在哪。改用專門畫的篇級跨章節全景圖（涵蓋該篇全部
+// 3 個章節的場景元素，例如灰燼王國篇一張圖橫跨森林→雪原→魔王城），
+// 只用在這個外層畫面，內層章節卡片維持原本各自的單一地圖封面不變。
 const SAGA_CARD_META: Record<string, SagaCardMeta> = {
   ash_kingdom_saga: {
-    iconName: 'chapter-castle', cover: '/assets/campaign/forest_ruins_map_full.jpg', color: '#d8a24a',
+    iconName: 'chapter-castle', cover: '/assets/campaign/ash_kingdom_saga_cover.jpg', color: '#d8a24a',
   },
   rift_omen_saga: {
-    iconName: 'chapter-rift', cover: '/assets/campaign/rift_omen_broken_sky_map_full.jpg', color: '#8a7fe0',
+    iconName: 'chapter-rift', cover: '/assets/campaign/rift_omen_saga_cover.jpg', color: '#8a7fe0',
   },
   deep_sea_saga: {
-    iconName: 'chapter-deep-sea', cover: '/assets/campaign/deep_sea_coral_shallows_map_full.jpg', color: '#4fb3c9',
+    iconName: 'chapter-deep-sea', cover: '/assets/campaign/deep_sea_saga_cover.jpg', color: '#4fb3c9',
   },
 }
 
