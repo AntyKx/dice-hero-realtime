@@ -122,7 +122,7 @@
   "death_knight": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/death_knight.png",
-    "frameWidth": 296,
+    "frameWidth": 280,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [
