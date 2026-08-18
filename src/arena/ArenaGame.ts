@@ -215,7 +215,7 @@ export interface EnemyInstance {
   animFrame: number
   animTimer: number
   hitTimer: number      // >0 時播放受擊震動/染色，見 updateEnemyVisual()
-  hitSquashTimer: number // Phase 1（動畫建議.txt）：>0 時疊加受擊縮放脈衝，見 updateEnemyVisual()；只有 JUICE_PHASE1_HERO_ID 的攻擊會設值，其他英雄永遠是 0
+  hitSquashTimer: number // 戰鬤動畫手感（動畫建議.txt）：>0 時疊加受擊縮放脈衝+閃白，見 updateEnemyVisual()，玩家攻擊命中就會設值（見 onPlayerAttackLanded）
   bobSeed: number        // 走路程式化 bob 的隨機相位，避免多隻敵人同步抖動
   // ── Enemy AI / Attack State（2026-08 重做，見 enemyAI.ts/bossSkills.ts/eliteModifiers.ts）──
   aiType: EnemyAiType
@@ -423,44 +423,47 @@ const WALK_BOB_SPEED = 10        // rad/秒
 const WALK_BOB_HEIGHT = 2.4      // px
 
 // ══════════════════════════════════════════════════════════════════
-// 戰鬥動畫手感 Phase 1（2026-08-18，見「動畫建議.txt」）：只在火焰法師
-// 身上做滿一整套（不等速逐格時間/蓄力+前衝/Hit Stop/Camera Shake/受擊
-// 縮放+閃白/彈道命中特效），驗證手感跟效能沒問題後才推廣到其他英雄——
-// 所有新效果都用 heroId==='mage' 或這份表本身有沒有資料來把關，其他英雄
-// 現在的手感完全不變（表裡沒有 key 就 fallback 回原本的 STATE_FPS 邏輯）。
+// 戰鬤動畫手感（2026-08-18，見「動畫建議.txt」）：Phase 1 先在火焰法師
+// 身上驗證過一整套（不等速逐格時間/蓄力+前衝/Hit Stop/Camera Shake/受擊
+// 縮放+閃白/彈道命中特效），確認手感沒問題後這裡（Phase 2）推廣到全部
+// 英雄——所有效果現在都不看 heroId，改用「這個狀態的真實幀數符不符合
+// 預期」把關（DEFAULT_FRAME_DURATIONS_MS/ATTACK_FRAME_VISUAL 都是照
+// 20 格規格的張數設計：idle/walk 6 格、attack 5 格、skill 3 格）。目前
+// 只有火焰法師四組動畫都是真的幀圖，其他英雄大多數狀態仍 fallback 回
+// idle（張數對不上，帶不到這些效果），等美術陸續補上其他英雄的
+// walk/attack/skill 幀圖，會自動套用同一套效果，不用再改程式碼。Hit
+// Stop／Camera Shake／受擊縮放＋閃白／遠程命中特效這幾個不依賴幀數（不
+// 需要真的逐幀圖也能生效），現在對所有英雄一律生效。
 // ══════════════════════════════════════════════════════════════════
 
-/** 不等速逐格時間（毫秒），只有列在這裡的英雄會套用；沒列到的維持原本
- * 統一 STATE_FPS 換算出的等速播放。之後要推廣新英雄，只要在這裡加一筆
- * 資料，不用改任何播放邏輯。 */
-const HERO_FRAME_DURATIONS_MS: Partial<Record<string, Partial<Record<AnimState, number[]>>>> = {
-  mage: {
-    idle: [170, 160, 150, 170, 160, 150],
-    walk: [90, 80, 85, 90, 80, 85],
-    attack: [120, 70, 45, 65, 160],
-    skill: [160, 90, 260],
-  },
+/** 不等速逐格時間（毫秒），依「這個狀態實際幀數是否等於這裡設計的張數」
+ * 決定要不要套用（不再是 heroId 白名單）——張數對不上（例如還在用 idle
+ * fallback）就維持原本統一 STATE_FPS 換算出的等速播放。 */
+const DEFAULT_FRAME_DURATIONS_MS: Partial<Record<AnimState, number[]>> = {
+  idle: [170, 160, 150, 170, 160, 150],
+  walk: [90, 80, 85, 90, 80, 85],
+  attack: [120, 70, 45, 65, 160],
+  skill: [160, 90, 260],
 }
 
-function getFrameDurationSec(heroId: string, state: AnimState, frameIndex: number): number {
-  const arr = HERO_FRAME_DURATIONS_MS[heroId]?.[state]
-  const ms = arr?.[frameIndex]
+function getFrameDurationSec(state: AnimState, frameIndex: number, frameCount: number): number {
+  const arr = DEFAULT_FRAME_DURATIONS_MS[state]
+  const ms = arr && arr.length === frameCount ? arr[frameIndex] : undefined
   return ms !== undefined ? ms / 1000 : 1 / STATE_FPS[state]
 }
 
 /** 播完整組動畫（例如 attackTimer/skillTimer 這種「整段還要播多久」的
- * 倒數計時）要用的總時長——非等速的英雄要把每一格的自訂時間加總，不能
- * 直接拿 frameCount/STATE_FPS 算，不然狀態會在最後一格真的播完之前提早
- * 切回 idle。 */
-function getStateTotalDurationSec(heroId: string, state: AnimState, frameCount: number): number {
-  const arr = HERO_FRAME_DURATIONS_MS[heroId]?.[state]
-  if (arr) return arr.slice(0, frameCount).reduce((sum, ms) => sum + ms, 0) / 1000
+ * 倒數計時）要用的總時長——非等速時要把每一格的自訂時間加總，不能直接拿
+ * frameCount/STATE_FPS 算，不然狀態會在最後一格真的播完之前提早切回 idle。 */
+function getStateTotalDurationSec(state: AnimState, frameCount: number): number {
+  const arr = DEFAULT_FRAME_DURATIONS_MS[state]
+  if (arr && arr.length === frameCount) return arr.reduce((sum, ms) => sum + ms, 0) / 1000
   return frameCount / STATE_FPS[state]
 }
 
 // Hit Stop：一般命中/爆擊兩級，秒為單位。跟必殺技 Cut-in 的 freeze 子階段
 // 共用同一套「battlePaused 時跳過戰鬤模擬」機制（見 update()），不是另開
-// 一條暫停路徑。
+// 一條暫停路徑。對所有英雄一律生效，不依賴逐幀圖。
 const HIT_STOP_NORMAL_SEC = 0.06
 const HIT_STOP_CRIT_SEC = 0.08
 // Camera Shake：震動幅度（px）與時長（秒），每幀用「剩餘時間/總時長」的
@@ -476,12 +479,10 @@ const HIT_SQUASH_DURATION = 0.1
 // 染色之前（HIT_SHAKE_DURATION/HIT_FLASH_DURATION 那段維持不變）。
 const HIT_WHITE_FLASH_DURATION = 0.05
 
-/** Phase 1 手感只套在這個英雄身上，其餘角色（含日後新英雄/怪物）不受影響。 */
-const JUICE_PHASE1_HERO_ID = 'mage'
-
-// 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→前衝出招→回收→收招中立），只用在
-// JUICE_PHASE1_HERO_ID 的 attack 狀態；lungePx 沿 this.facing 方向位移。
-// 其他英雄/幀數不對的情況（frames.length !== 5）不套用，維持原樣。
+// 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→前衝出招→回收→收招中立），依
+// 「攻擊狀態真實幀數是否剛好 5」把關（frames.length === ATTACK_FRAME_VISUAL.length），
+// 跟 heroId 無關；lungePx 沿 this.facing 方向位移。還在用 idle fallback
+// （張數對不上）的英雄不套用，維持原樣。
 const ATTACK_FRAME_VISUAL: { scaleX: number; scaleY: number; lungePx: number }[] = [
   { scaleX: 0.96, scaleY: 1.04, lungePx: -3 }, // 0：蓄力後縮
   { scaleX: 0.99, scaleY: 1.01, lungePx: 1 },  // 1：前傾
@@ -572,7 +573,7 @@ export class ArenaGame {
   moveDir = { x: 0, y: 0 } // -1~1 連續值，類比搖桿輸入，取代舊的拖曳移動
   facing = { x: 0, y: 1 }  // 最後移動方向，先只記錄，鋪路給之後的方向性走路動畫
   facingRight = true       // 素材統一朝右繪製，moveDir.x<0 時水平翻轉；純上下移動/靜止時保留上次面向
-  // ── Phase 1 戰鬤手感（見上方 JUICE_PHASE1_HERO_ID 章節）──
+  // ── 戰鬤動畫手感（見上方 DEFAULT_FRAME_DURATIONS_MS 章節）──
   /** >0 時跟必殺技 Cut-in 的 freeze 子階段共用同一個 battlePaused/hitstopFreeze
    * 判斷（見 update()），不是另開一條暫停路徑。用真實時間遞減，不受自己
    * 暫停戰鬤的影響（不然永遠減不完）。 */
@@ -999,8 +1000,8 @@ export class ArenaGame {
     if (hasReal) {
       anim.timer += dt
       const prevFrame = anim.frame
-      while (anim.timer >= getFrameDurationSec(this.cfg.heroId, nextState, anim.frame)) {
-        anim.timer -= getFrameDurationSec(this.cfg.heroId, nextState, anim.frame)
+      while (anim.timer >= getFrameDurationSec(nextState, anim.frame, frames.length)) {
+        anim.timer -= getFrameDurationSec(nextState, anim.frame, frames.length)
         anim.frame = (anim.frame + 1) % frames.length
       }
 
@@ -1017,9 +1018,9 @@ export class ArenaGame {
         }
       }
 
-      // Phase 1（動畫建議.txt）：蓄力後縮＋出招前衝，只在指定英雄、剛好 5 格
-      // 攻擊時套用逐格視覺表；其餘情況維持原樣（scale=1、無位移）。
-      if (nextState === 'attack' && this.cfg.heroId === JUICE_PHASE1_HERO_ID && frames.length === ATTACK_FRAME_VISUAL.length) {
+      // 蓄力後縮＋出招前衝，只在攻擊真實幀數剛好 5 格（跟 heroId 無關）時
+      // 套用逐格視覺表；其餘情況維持原樣（scale=1、無位移）。
+      if (nextState === 'attack' && frames.length === ATTACK_FRAME_VISUAL.length) {
         const v = ATTACK_FRAME_VISUAL[anim.frame]
         scaleMult = v.scaleX
         scaleYMult = v.scaleY
@@ -1081,10 +1082,9 @@ export class ArenaGame {
       offsetY += (Math.random() - 0.5) * HIT_SHAKE_PX
     }
 
-    // Phase 1（動畫建議.txt）：受擊縮放脈衝（Squash & Stretch），疊在上面
-    // 既有的縮放/位移之上，命中瞬間最強、線性回到 1——只有 hitSquashTimer
-    // 有值（只有 JUICE_PHASE1_HERO_ID 的攻擊會設值）才會有效果，其他英雄
-    // 的敵人視覺完全不變。
+    // 受擊縮放脈衝（Squash & Stretch，動畫建議.txt），疊在上面既有的縮放/
+    // 位移之上，命中瞬間最強、線性回到 1——hitSquashTimer 沒被設值（例如
+    // DoT 之類非玩家攻擊造成的傷害）就完全沒有效果。
     let scaleYMult = scaleMult
     if (e.hitSquashTimer > 0) {
       const pct = e.hitSquashTimer / HIT_SQUASH_DURATION
@@ -1094,9 +1094,8 @@ export class ArenaGame {
 
     const tex = stateFrames[Math.min(e.animFrame, stateFrames.length - 1)]
     this.applyAnimVisual(e.sprite, tex, e.spriteHeight, e.x, e.y, scaleMult, offsetX, offsetY, false, scaleYMult)
-    // 受擊閃白只在 hitSquashTimer 剛設值的極短窗口內出現（同樣只有
-    // JUICE_PHASE1_HERO_ID 的攻擊會觸發），比既有的染紅震動更早、更短，
-    // 白閃結束後接回原本的染紅邏輯，不影響其他英雄。
+    // 受擊閃白只在 hitSquashTimer 剛設值的極短窗口內出現，比既有的染紅
+    // 震動更早、更短，白閃結束後接回原本的染紅邏輯。
     const whiteFlash = e.hitSquashTimer > HIT_SQUASH_DURATION - HIT_WHITE_FLASH_DURATION
     e.sprite.tint = whiteFlash ? 0xffffff : e.hitTimer > HIT_SHAKE_DURATION - HIT_FLASH_DURATION ? 0xff5050 : e.baseTint
   }
@@ -2331,7 +2330,7 @@ export class ArenaGame {
     // 的英雄維持原本「決定攻擊就立刻開火」，不改變手感。
     const attackFrames = this.heroFrames?.attack ?? []
     const hasRealAttack = attackFrames.length > 1
-    this.playerAnim.attackTimer = hasRealAttack ? getStateTotalDurationSec(this.cfg.heroId, 'attack', attackFrames.length) : ATTACK_ANIM_DURATION
+    this.playerAnim.attackTimer = hasRealAttack ? getStateTotalDurationSec('attack', attackFrames.length) : ATTACK_ANIM_DURATION
     if (hasRealAttack) {
       this.pendingAttackTarget = target
       this.attackFired = false
@@ -2492,11 +2491,9 @@ export class ArenaGame {
           if (this.lifestealPct > 0) {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + p.damage * this.lifestealPct)
           }
-          // Phase 1：遠程彈道命中補一個小型落點特效（近戰那邊已經有整段揮擊
-          // 的 spawnGlowBurst，不用再疊一個；遠程原本命中完全沒有視覺回饋）。
-          if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
-            this.spawnGlowBurst(e.x, e.y, HERO_ATTACK_COLOR[this.cfg.heroId] ?? 0xffaa33, 40)
-          }
+          // 遠程彈道命中補一個小型落點特效（近戰那邊已經有整段揮擊的
+          // spawnGlowBurst，不用再疊一個；遠程原本命中完全沒有視覺回饋）。
+          this.spawnGlowBurst(e.x, e.y, HERO_ATTACK_COLOR[this.cfg.heroId] ?? 0xffaa33, 40)
           p.hit.add(e)
           if (p.pierceLeft > 0) { p.pierceLeft-- } else { this.killProjectile(p) }
           break
@@ -2553,13 +2550,11 @@ export class ArenaGame {
     if (this.critChancePct > 0 && Math.random() < this.critChancePct) {
       amount *= CRIT_DAMAGE_MULT
       this.spawnFloatingText('暴擊！', e.x, e.y - e.spriteHeight * 0.6)
-      // Phase 1：爆擊升級成更強的 Hit Stop／Camera Shake，取代
-      // onPlayerAttackLanded() 已經設好的一般命中檔位（這裡才真的知道是不
-      // 是爆擊，所以升級判定放在這裡而不是 onPlayerAttackLanded）。
-      if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
-        this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_CRIT_SEC)
-        this.triggerCameraShake(CAMERA_SHAKE_CRIT_PX, CAMERA_SHAKE_CRIT_SEC)
-      }
+      // 爆擊升級成更強的 Hit Stop／Camera Shake，取代 onPlayerAttackLanded()
+      // 已經設好的一般命中檔位（這裡才真的知道是不是爆擊，所以升級判定放
+      // 在這裡而不是 onPlayerAttackLanded）。
+      this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_CRIT_SEC)
+      this.triggerCameraShake(CAMERA_SHAKE_CRIT_PX, CAMERA_SHAKE_CRIT_SEC)
     }
     if (this.burnChancePct > 0 && Math.random() < this.burnChancePct) {
       e.burnStacks = Math.min(5, e.burnStacks + BURN_ON_HIT_STACKS)
@@ -3521,18 +3516,16 @@ export class ArenaGame {
    * 因為這些是「命中就觸發」，不是「造成傷害才觸發」。
    */
   /** 玩家普通攻擊（近戰命中判定／遠程彈道命中）真的打中敵人的統一入口，
-   * 取代原本兩處各自重複的「hitTimer 設值＋onAttackHit」，順便掛上 Phase 1
-   * 的 Hit Stop／Camera Shake／受擊縮放（只在 JUICE_PHASE1_HERO_ID 身上
-   * 啟用，其他英雄行為完全不變）。爆擊要不要升級成更強的 Hit Stop／Shake
-   * 在 damageEnemy() 的爆擊判定那裡另外處理——這裡還不知道會不會爆擊。 */
+   * 取代原本兩處各自重複的「hitTimer 設值＋onAttackHit」，順便掛上 Hit
+   * Stop／Camera Shake／受擊縮放，對所有英雄一律生效。爆擊要不要升級成
+   * 更強的 Hit Stop／Shake 在 damageEnemy() 的爆擊判定那裡另外處理——
+   * 這裡還不知道會不會爆擊。 */
   onPlayerAttackLanded(e: EnemyInstance) {
     e.hitTimer = HIT_SHAKE_DURATION
     this.onAttackHit(e)
-    if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
-      this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_NORMAL_SEC)
-      this.triggerCameraShake(CAMERA_SHAKE_NORMAL_PX, CAMERA_SHAKE_NORMAL_SEC)
-      e.hitSquashTimer = HIT_SQUASH_DURATION
-    }
+    this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_NORMAL_SEC)
+    this.triggerCameraShake(CAMERA_SHAKE_NORMAL_PX, CAMERA_SHAKE_NORMAL_SEC)
+    e.hitSquashTimer = HIT_SQUASH_DURATION
   }
 
   onAttackHit(e: EnemyInstance) {
@@ -3721,7 +3714,7 @@ export class ArenaGame {
     // 不會被 battlePaused 擋掉，見 update() 的 hitstopFreeze 判斷）。
     const skillFrames = this.heroFrames?.skill ?? []
     const hasRealSkill = skillFrames.length > 1
-    this.playerAnim.skillTimer = hasRealSkill ? getStateTotalDurationSec(this.cfg.heroId, 'skill', skillFrames.length) : SKILL_ANIM_DURATION
+    this.playerAnim.skillTimer = hasRealSkill ? getStateTotalDurationSec('skill', skillFrames.length) : SKILL_ANIM_DURATION
 
     p.active = true
     p.phase = 'freeze'
