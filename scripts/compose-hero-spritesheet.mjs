@@ -78,6 +78,13 @@ const HEROES = {
     // 都用尺寸相近的 idle/attack 幀頂替，格子縮到 291x184，idle 填滿 95%。
     frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'idle_2', 'idle_3'],
   },
+  engineer: {
+    heroId: 'engineer',
+    // 2026-08-18 新增：機關技師 20 格逐幀圖裡 skill_0/skill_1（260/255 高）
+    // 明顯比 idle（~208-212 高）高很多，skill_2（206 高）最接近；沒有真的
+    // hurt 幀，跟 death_knight 一樣用尺寸相近的 idle 幀頂替。
+    frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'skill_2', 'idle_2'],
+  },
 }
 
 const OUT_DIR = 'public/assets/spritesheets/heroes'
