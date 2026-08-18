@@ -69,10 +69,12 @@ const CHAPTER_MAP_CONFIG: Record<string, ChapterMapConfig> = {
     title: '第三航道 · 魔王城',
     chapterLabel: '魔王城',
     iconName: 'chapter-castle',
-    mapImage: '/assets/campaign/demon_castle_map_full.jpg',
+    // 2026-08-18 換成使用者提供的「連續插畫版」地圖（941x1672 WebP），節點
+    // 座標一併換成套件附的量測值，落在新圖的道路上；其餘八張地圖/座標不動。
+    mapImage: '/assets/campaign/demon_castle_map_continuous_v2.webp',
     nodePositions: {
-      1: { x: 50, y: 92 }, 2: { x: 50, y: 82 }, 3: { x: 27, y: 72 }, 4: { x: 77, y: 70 }, 5: { x: 47, y: 64 },
-      6: { x: 18, y: 54 }, 7: { x: 23, y: 32 }, 8: { x: 18, y: 20 }, 9: { x: 52, y: 26 }, 10: { x: 72, y: 12 },
+      1: { x: 23, y: 92 }, 2: { x: 54, y: 84 }, 3: { x: 73, y: 74 }, 4: { x: 39, y: 65 }, 5: { x: 65, y: 55 },
+      6: { x: 38, y: 46 }, 7: { x: 65, y: 37 }, 8: { x: 35, y: 27 }, 9: { x: 57, y: 19 }, 10: { x: 70, y: 8 },
     },
   },
   // 裂隙前兆／深海遺城：各自 3 個子章節，每個子章節都是獨立 campaignId +
