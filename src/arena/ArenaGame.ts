@@ -215,6 +215,7 @@ export interface EnemyInstance {
   animFrame: number
   animTimer: number
   hitTimer: number      // >0 時播放受擊震動/染色，見 updateEnemyVisual()
+  hitSquashTimer: number // Phase 1（動畫建議.txt）：>0 時疊加受擊縮放脈衝，見 updateEnemyVisual()；只有 JUICE_PHASE1_HERO_ID 的攻擊會設值，其他英雄永遠是 0
   bobSeed: number        // 走路程式化 bob 的隨機相位，避免多隻敵人同步抖動
   // ── Enemy AI / Attack State（2026-08 重做，見 enemyAI.ts/bossSkills.ts/eliteModifiers.ts）──
   aiType: EnemyAiType
@@ -421,6 +422,74 @@ const DEATH_FX_DURATION = 0.4    // 秒，死亡淡出/縮小（或真的死亡�
 const WALK_BOB_SPEED = 10        // rad/秒
 const WALK_BOB_HEIGHT = 2.4      // px
 
+// ══════════════════════════════════════════════════════════════════
+// 戰鬥動畫手感 Phase 1（2026-08-18，見「動畫建議.txt」）：只在火焰法師
+// 身上做滿一整套（不等速逐格時間/蓄力+前衝/Hit Stop/Camera Shake/受擊
+// 縮放+閃白/彈道命中特效），驗證手感跟效能沒問題後才推廣到其他英雄——
+// 所有新效果都用 heroId==='mage' 或這份表本身有沒有資料來把關，其他英雄
+// 現在的手感完全不變（表裡沒有 key 就 fallback 回原本的 STATE_FPS 邏輯）。
+// ══════════════════════════════════════════════════════════════════
+
+/** 不等速逐格時間（毫秒），只有列在這裡的英雄會套用；沒列到的維持原本
+ * 統一 STATE_FPS 換算出的等速播放。之後要推廣新英雄，只要在這裡加一筆
+ * 資料，不用改任何播放邏輯。 */
+const HERO_FRAME_DURATIONS_MS: Partial<Record<string, Partial<Record<AnimState, number[]>>>> = {
+  mage: {
+    idle: [170, 160, 150, 170, 160, 150],
+    walk: [90, 80, 85, 90, 80, 85],
+    attack: [120, 70, 45, 65, 160],
+    skill: [160, 90, 260],
+  },
+}
+
+function getFrameDurationSec(heroId: string, state: AnimState, frameIndex: number): number {
+  const arr = HERO_FRAME_DURATIONS_MS[heroId]?.[state]
+  const ms = arr?.[frameIndex]
+  return ms !== undefined ? ms / 1000 : 1 / STATE_FPS[state]
+}
+
+/** 播完整組動畫（例如 attackTimer/skillTimer 這種「整段還要播多久」的
+ * 倒數計時）要用的總時長——非等速的英雄要把每一格的自訂時間加總，不能
+ * 直接拿 frameCount/STATE_FPS 算，不然狀態會在最後一格真的播完之前提早
+ * 切回 idle。 */
+function getStateTotalDurationSec(heroId: string, state: AnimState, frameCount: number): number {
+  const arr = HERO_FRAME_DURATIONS_MS[heroId]?.[state]
+  if (arr) return arr.slice(0, frameCount).reduce((sum, ms) => sum + ms, 0) / 1000
+  return frameCount / STATE_FPS[state]
+}
+
+// Hit Stop：一般命中/爆擊兩級，秒為單位。跟必殺技 Cut-in 的 freeze 子階段
+// 共用同一套「battlePaused 時跳過戰鬤模擬」機制（見 update()），不是另開
+// 一條暫停路徑。
+const HIT_STOP_NORMAL_SEC = 0.06
+const HIT_STOP_CRIT_SEC = 0.08
+// Camera Shake：震動幅度（px）與時長（秒），每幀用「剩餘時間/總時長」的
+// 比例線性衰減震幅，結束時精準回到 0（見 updateCameraShake()）。
+const CAMERA_SHAKE_NORMAL_PX = 4
+const CAMERA_SHAKE_NORMAL_SEC = 0.08
+const CAMERA_SHAKE_CRIT_PX = 6
+const CAMERA_SHAKE_CRIT_SEC = 0.1
+// 受擊縮放（Squash & Stretch）：命中瞬間敵人 sprite 短暫壓扁，見
+// EnemyInstance.hitSquashTimer/updateEnemyVisual()。
+const HIT_SQUASH_DURATION = 0.1
+// 受擊閃白：比原本的染紅震動更早、更短的一段純白閃光，疊在既有紅色
+// 染色之前（HIT_SHAKE_DURATION/HIT_FLASH_DURATION 那段維持不變）。
+const HIT_WHITE_FLASH_DURATION = 0.05
+
+/** Phase 1 手感只套在這個英雄身上，其餘角色（含日後新英雄/怪物）不受影響。 */
+const JUICE_PHASE1_HERO_ID = 'mage'
+
+// 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→前衝出招→回收→收招中立），只用在
+// JUICE_PHASE1_HERO_ID 的 attack 狀態；lungePx 沿 this.facing 方向位移。
+// 其他英雄/幀數不對的情況（frames.length !== 5）不套用，維持原樣。
+const ATTACK_FRAME_VISUAL: { scaleX: number; scaleY: number; lungePx: number }[] = [
+  { scaleX: 0.96, scaleY: 1.04, lungePx: -3 }, // 0：蓄力後縮
+  { scaleX: 0.99, scaleY: 1.01, lungePx: 1 },  // 1：前傾
+  { scaleX: 1.05, scaleY: 0.95, lungePx: 7 },  // 2：出招/觸發幀，前衝到最遠
+  { scaleX: 1.0, scaleY: 1.0, lungePx: 3 },    // 3：回收
+  { scaleX: 1.0, scaleY: 1.0, lungePx: 0 },    // 4：收招中立
+]
+
 // 戰鬥節奏（2026-08）：避免「邊移動邊自動攻擊」讓戰鬥變成純繞圈輸出，把
 // 「走位」跟「輸出」拆成兩個明確互斥的階段。三個數字集中在這裡，之後要
 // 調手感只改這裡就好，不用去搜散落在各處的魔法數字。
@@ -503,6 +572,13 @@ export class ArenaGame {
   moveDir = { x: 0, y: 0 } // -1~1 連續值，類比搖桿輸入，取代舊的拖曳移動
   facing = { x: 0, y: 1 }  // 最後移動方向，先只記錄，鋪路給之後的方向性走路動畫
   facingRight = true       // 素材統一朝右繪製，moveDir.x<0 時水平翻轉；純上下移動/靜止時保留上次面向
+  // ── Phase 1 戰鬤手感（見上方 JUICE_PHASE1_HERO_ID 章節）──
+  /** >0 時跟必殺技 Cut-in 的 freeze 子階段共用同一個 battlePaused/hitstopFreeze
+   * 判斷（見 update()），不是另開一條暫停路徑。用真實時間遞減，不受自己
+   * 暫停戰鬤的影響（不然永遠減不完）。 */
+  hitStopTimer = 0
+  /** 震動幅度隨時間線性衰減到 0，見 updateCameraShake()。 */
+  cameraShake = { timer: 0, duration: 0, magnitude: 0 }
 
   // ── 走位/輸出節奏（2026-08）：見 MOVE_DEAD_ZONE/ATTACK_READY_DELAY/
   // ATTACK_MOVE_LOCK 常數說明 ────────────────────────────────────────
@@ -874,11 +950,11 @@ export class ArenaGame {
   applyAnimVisual(
     sprite: Sprite, tex: Texture, targetHeight: number,
     worldX: number, worldY: number, scaleMult: number, offsetX: number, offsetY: number,
-    flipX = false,
+    flipX = false, scaleYMult = scaleMult,
   ) {
     if (sprite.texture !== tex) sprite.texture = tex
     const base = targetHeight / sprite.texture.height
-    sprite.scale.set(base * scaleMult * (flipX ? -1 : 1), base * scaleMult)
+    sprite.scale.set(base * scaleMult * (flipX ? -1 : 1), base * scaleYMult)
     sprite.x = worldX + offsetX
     sprite.y = worldY + offsetY
   }
@@ -916,13 +992,17 @@ export class ArenaGame {
     const frames = this.heroFrames[nextState]
     const hasReal = frames.length > 1
     let scaleMult = 1
+    let scaleYMult = 1
+    let offsetX = 0
     let offsetY = 0
 
     if (hasReal) {
       anim.timer += dt
-      const frameDur = 1 / STATE_FPS[nextState]
       const prevFrame = anim.frame
-      while (anim.timer >= frameDur) { anim.timer -= frameDur; anim.frame = (anim.frame + 1) % frames.length }
+      while (anim.timer >= getFrameDurationSec(this.cfg.heroId, nextState, anim.frame)) {
+        anim.timer -= getFrameDurationSec(this.cfg.heroId, nextState, anim.frame)
+        anim.frame = (anim.frame + 1) % frames.length
+      }
 
       // Attack 播到觸發幀（取中間那格）才真的結算，跟動畫演出對齊，不用
       // setTimeout 猜時間。同一次演出只能觸發一次。Skill 幀的播放本身還是
@@ -935,6 +1015,16 @@ export class ArenaGame {
           if (this.pendingAttackTarget.alive) this.fireNormalAttack(this.pendingAttackTarget)
           this.pendingAttackTarget = null
         }
+      }
+
+      // Phase 1（動畫建議.txt）：蓄力後縮＋出招前衝，只在指定英雄、剛好 5 格
+      // 攻擊時套用逐格視覺表；其餘情況維持原樣（scale=1、無位移）。
+      if (nextState === 'attack' && this.cfg.heroId === JUICE_PHASE1_HERO_ID && frames.length === ATTACK_FRAME_VISUAL.length) {
+        const v = ATTACK_FRAME_VISUAL[anim.frame]
+        scaleMult = v.scaleX
+        scaleYMult = v.scaleY
+        offsetX = this.facing.x * v.lungePx
+        offsetY = this.facing.y * v.lungePx
       }
     } else if (nextState === 'attack') {
       const t = Math.min(1, Math.max(0, 1 - anim.attackTimer / ATTACK_ANIM_DURATION))
@@ -950,7 +1040,7 @@ export class ArenaGame {
     const tex = frames[Math.min(anim.frame, frames.length - 1)]
     this.applyAnimVisual(
       this.playerSprite, tex, HERO_RENDER_HEIGHT, this.player.x, this.player.y,
-      scaleMult, 0, offsetY, !this.facingRight,
+      scaleMult, offsetX, offsetY, !this.facingRight, scaleYMult,
     )
 
     if (this.playerHitTimer > 0) {
@@ -964,6 +1054,7 @@ export class ArenaGame {
   /** 敵人的 idle/walk/hit 狀態機（受擊優先於走路），死亡動畫走另一條 deathFx 路徑。 */
   updateEnemyVisual(e: EnemyInstance, dt: number) {
     if (e.hitTimer > 0) e.hitTimer = Math.max(0, e.hitTimer - dt)
+    if (e.hitSquashTimer > 0) e.hitSquashTimer = Math.max(0, e.hitSquashTimer - dt)
 
     const nextState: AnimState = e.hitTimer > 0 ? 'hit' : e.frozenTimer > 0 ? 'idle' : 'walk'
     if (nextState !== e.animState) { e.animState = nextState; e.animFrame = 0; e.animTimer = 0 }
@@ -990,9 +1081,24 @@ export class ArenaGame {
       offsetY += (Math.random() - 0.5) * HIT_SHAKE_PX
     }
 
+    // Phase 1（動畫建議.txt）：受擊縮放脈衝（Squash & Stretch），疊在上面
+    // 既有的縮放/位移之上，命中瞬間最強、線性回到 1——只有 hitSquashTimer
+    // 有值（只有 JUICE_PHASE1_HERO_ID 的攻擊會設值）才會有效果，其他英雄
+    // 的敵人視覺完全不變。
+    let scaleYMult = scaleMult
+    if (e.hitSquashTimer > 0) {
+      const pct = e.hitSquashTimer / HIT_SQUASH_DURATION
+      scaleMult *= 1 + 0.06 * pct
+      scaleYMult *= 1 - 0.06 * pct
+    }
+
     const tex = stateFrames[Math.min(e.animFrame, stateFrames.length - 1)]
-    this.applyAnimVisual(e.sprite, tex, e.spriteHeight, e.x, e.y, scaleMult, offsetX, offsetY)
-    e.sprite.tint = e.hitTimer > HIT_SHAKE_DURATION - HIT_FLASH_DURATION ? 0xff5050 : e.baseTint
+    this.applyAnimVisual(e.sprite, tex, e.spriteHeight, e.x, e.y, scaleMult, offsetX, offsetY, false, scaleYMult)
+    // 受擊閃白只在 hitSquashTimer 剛設值的極短窗口內出現（同樣只有
+    // JUICE_PHASE1_HERO_ID 的攻擊會觸發），比既有的染紅震動更早、更短，
+    // 白閃結束後接回原本的染紅邏輯，不影響其他英雄。
+    const whiteFlash = e.hitSquashTimer > HIT_SQUASH_DURATION - HIT_WHITE_FLASH_DURATION
+    e.sprite.tint = whiteFlash ? 0xffffff : e.hitTimer > HIT_SHAKE_DURATION - HIT_FLASH_DURATION ? 0xff5050 : e.baseTint
   }
 
   /** 敵人死亡：把 sprite 移交給 deathFx 播完淡出/縮小（或真的死亡幀圖）才真正釋放回物件池。 */
@@ -1402,7 +1508,35 @@ export class ArenaGame {
     const camY = Math.max(0, Math.min(Math.max(0, world.height - height), targetY - height / 2))
     this.camera.x += (camX - this.camera.x) * 0.12
     this.camera.y += (camY - this.camera.y) * 0.12
-    this.worldLayer.position.set(-this.camera.x, -this.camera.y)
+    // 這裡不再自己 set worldLayer.position——Camera Shake（見
+    // updateCameraShake()）要疊加在最終位置上，兩邊各自 set 會互相蓋掉，
+    // 改成 updateCameraShake() 統一收尾，每幀都會在 update() 裡被呼叫到。
+  }
+
+  /** Camera Shake：統一收尾 worldLayer 最終位置（camera 邏輯座標 + 震動
+   * 偏移），每幀無條件呼叫（不分探索/一般關卡）——一般關卡 camera 永遠是
+   * {0,0}，沒有 shake 時這裡算出來就是 (0,0)，等同完全沒有這層轉換，跟
+   * 改動前行為一致。震幅依「剩餘時間/總時長」線性衰減，結束時 timer 歸 0
+   * 精準回到無偏移狀態，不會有殘留漂移。 */
+  updateCameraShake(dt: number) {
+    if (!this.worldLayer) return
+    let shakeX = 0
+    let shakeY = 0
+    if (this.cameraShake.timer > 0) {
+      this.cameraShake.timer = Math.max(0, this.cameraShake.timer - dt)
+      const pct = this.cameraShake.duration > 0 ? this.cameraShake.timer / this.cameraShake.duration : 0
+      const mag = this.cameraShake.magnitude * pct
+      shakeX = (Math.random() * 2 - 1) * mag
+      shakeY = (Math.random() * 2 - 1) * mag
+    }
+    this.worldLayer.position.set(-this.camera.x + shakeX, -this.camera.y + shakeY)
+  }
+
+  /** 觸發一次 Camera Shake，直接覆蓋目前的震動狀態——命中很密集時「這次
+   * 命中的手感」比「疊加上一次還沒震完的尾巴」更重要，不做疊加或取大小值
+   * 判斷，避免「剩餘震幅」跟「新震動的初始震幅」比較錯邊的問題。 */
+  triggerCameraShake(magnitudePx: number, durationSec: number) {
+    this.cameraShake = { timer: durationSec, duration: durationSec, magnitude: magnitudePx }
   }
 
   spawnExploreLandmark(landmark: ExploreLandmark) {
@@ -1779,6 +1913,7 @@ export class ArenaGame {
       animFrame: 0,
       animTimer: 0,
       hitTimer: 0,
+      hitSquashTimer: 0,
       bobSeed: Math.random() * 10,
       aiType: type.aiType,
       state: 'seek',
@@ -1820,8 +1955,13 @@ export class ArenaGame {
     // 動畫，做出真正的定格 hitstop），cutin 子階段只暫停「戰鬥」相關系統，
     // 玩家的技能揮出動畫繼續播，跟 Cut-in 演出同步。
     this.updateUltimatePresentation(dt)
-    const battlePaused = !!this.presentation?.active
-    const hitstopFreeze = battlePaused && this.presentation!.phase === 'freeze'
+    // 一般攻擊 Hit Stop（Phase 1，見 onPlayerAttackLanded()/damageEnemy() 的
+    // 爆擊升級）：用真實時間遞減，不受自己造成的暫停影響，跟必殺技 Cut-in
+    // 的 freeze 子階段共用同一組 battlePaused/hitstopFreeze 判斷，不是另開
+    // 一條暫停路徑——下面那一長串 if(!battlePaused) 自動就會連帶被擋住。
+    if (this.hitStopTimer > 0) this.hitStopTimer = Math.max(0, this.hitStopTimer - dt)
+    const battlePaused = !!this.presentation?.active || this.hitStopTimer > 0
+    const hitstopFreeze = (battlePaused && this.presentation?.phase === 'freeze') || this.hitStopTimer > 0
 
     if (!battlePaused) this.updatePassives(dt)
     if (!battlePaused) this.updateKeystone(dt)
@@ -1845,6 +1985,10 @@ export class ArenaGame {
       this.updateObjective(dt)
       if (this.exploreWorld) this.updateExploreWorld(dt)
     }
+    // 一定要在 updateExploreWorld()（裡面會呼叫 updateExploreCamera() 更新
+    // this.camera 的 lerp 目標）之後才收尾 worldLayer 最終位置，不然這一幀
+    // 疊的 Shake 會用到上一幀的舊 camera 值，鏡頭跟隨會慢半拍。
+    this.updateCameraShake(dt)
     this.updateFloatingTexts(dt)
     this.updateGlows(dt)
 
@@ -2187,7 +2331,7 @@ export class ArenaGame {
     // 的英雄維持原本「決定攻擊就立刻開火」，不改變手感。
     const attackFrames = this.heroFrames?.attack ?? []
     const hasRealAttack = attackFrames.length > 1
-    this.playerAnim.attackTimer = hasRealAttack ? attackFrames.length / STATE_FPS.attack : ATTACK_ANIM_DURATION
+    this.playerAnim.attackTimer = hasRealAttack ? getStateTotalDurationSec(this.cfg.heroId, 'attack', attackFrames.length) : ATTACK_ANIM_DURATION
     if (hasRealAttack) {
       this.pendingAttackTarget = target
       this.attackFired = false
@@ -2253,8 +2397,7 @@ export class ArenaGame {
     let lifesteal = this.lifestealPct
     if (this.cfg.heroId === 'death_knight') lifesteal += deathKnightFrenzyLifesteal(this) + deathKnightDomainLifesteal(this)
     for (const e of inRange) {
-      e.hitTimer = HIT_SHAKE_DURATION
-      this.onAttackHit(e)
+      this.onPlayerAttackLanded(e)
       this.damageEnemy(e, damage)
       if (lifesteal > 0) {
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + damage * lifesteal)
@@ -2344,11 +2487,15 @@ export class ArenaGame {
         const hitRadius = (e.isBoss ? ENEMY_CONTACT_RADIUS * 1.8 : ENEMY_CONTACT_RADIUS) * 0.6
         const dist = Math.hypot(e.x - p.x, e.y - p.y)
         if (dist < hitRadius) {
-          e.hitTimer = HIT_SHAKE_DURATION
-          this.onAttackHit(e)
+          this.onPlayerAttackLanded(e)
           this.damageEnemy(e, p.damage, p.firedAtElapsed)
           if (this.lifestealPct > 0) {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + p.damage * this.lifestealPct)
+          }
+          // Phase 1：遠程彈道命中補一個小型落點特效（近戰那邊已經有整段揮擊
+          // 的 spawnGlowBurst，不用再疊一個；遠程原本命中完全沒有視覺回饋）。
+          if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
+            this.spawnGlowBurst(e.x, e.y, HERO_ATTACK_COLOR[this.cfg.heroId] ?? 0xffaa33, 40)
           }
           p.hit.add(e)
           if (p.pierceLeft > 0) { p.pierceLeft-- } else { this.killProjectile(p) }
@@ -2406,6 +2553,13 @@ export class ArenaGame {
     if (this.critChancePct > 0 && Math.random() < this.critChancePct) {
       amount *= CRIT_DAMAGE_MULT
       this.spawnFloatingText('暴擊！', e.x, e.y - e.spriteHeight * 0.6)
+      // Phase 1：爆擊升級成更強的 Hit Stop／Camera Shake，取代
+      // onPlayerAttackLanded() 已經設好的一般命中檔位（這裡才真的知道是不
+      // 是爆擊，所以升級判定放在這裡而不是 onPlayerAttackLanded）。
+      if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
+        this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_CRIT_SEC)
+        this.triggerCameraShake(CAMERA_SHAKE_CRIT_PX, CAMERA_SHAKE_CRIT_SEC)
+      }
     }
     if (this.burnChancePct > 0 && Math.random() < this.burnChancePct) {
       e.burnStacks = Math.min(5, e.burnStacks + BURN_ON_HIT_STACKS)
@@ -3366,6 +3520,21 @@ export class ArenaGame {
    * 矮人戰士破甲、吟遊詩人命中回血。跟傷害本身（damageEnemy）分開，
    * 因為這些是「命中就觸發」，不是「造成傷害才觸發」。
    */
+  /** 玩家普通攻擊（近戰命中判定／遠程彈道命中）真的打中敵人的統一入口，
+   * 取代原本兩處各自重複的「hitTimer 設值＋onAttackHit」，順便掛上 Phase 1
+   * 的 Hit Stop／Camera Shake／受擊縮放（只在 JUICE_PHASE1_HERO_ID 身上
+   * 啟用，其他英雄行為完全不變）。爆擊要不要升級成更強的 Hit Stop／Shake
+   * 在 damageEnemy() 的爆擊判定那裡另外處理——這裡還不知道會不會爆擊。 */
+  onPlayerAttackLanded(e: EnemyInstance) {
+    e.hitTimer = HIT_SHAKE_DURATION
+    this.onAttackHit(e)
+    if (this.cfg.heroId === JUICE_PHASE1_HERO_ID) {
+      this.hitStopTimer = Math.max(this.hitStopTimer, HIT_STOP_NORMAL_SEC)
+      this.triggerCameraShake(CAMERA_SHAKE_NORMAL_PX, CAMERA_SHAKE_NORMAL_SEC)
+      e.hitSquashTimer = HIT_SQUASH_DURATION
+    }
+  }
+
   onAttackHit(e: EnemyInstance) {
     // 天賦系統 v2（2026-08）：每個英雄可能同時有好幾個大型技能都是「命中觸發」
     // （Lv20起始機制+Lv40既有Keystone+Lv60進階機制常常疊在同一個觸發點），
@@ -3552,7 +3721,7 @@ export class ArenaGame {
     // 不會被 battlePaused 擋掉，見 update() 的 hitstopFreeze 判斷）。
     const skillFrames = this.heroFrames?.skill ?? []
     const hasRealSkill = skillFrames.length > 1
-    this.playerAnim.skillTimer = hasRealSkill ? skillFrames.length / STATE_FPS.skill : SKILL_ANIM_DURATION
+    this.playerAnim.skillTimer = hasRealSkill ? getStateTotalDurationSec(this.cfg.heroId, 'skill', skillFrames.length) : SKILL_ANIM_DURATION
 
     p.active = true
     p.phase = 'freeze'
