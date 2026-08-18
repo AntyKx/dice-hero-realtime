@@ -54,7 +54,13 @@ export default function SpriteAnimator({ sprite, state, scale = 1.8, flip = fals
           style={{
             width: scaledW,
             height: scaledH,
-            backgroundImage: `url(${sprite.sheet}?v=27)`,
+            // Cloudflare 對 /assets/ 底下的靜態檔案套用長天期 edge cache，只認
+            // URL 有沒有命中過，跟部署版本無關——sheet 檔名在角色動畫模組重做
+            // 時不會變但內容會變，一定要帶版號 query string 才能確保拿到新內容
+            // （之前這裡是手動維護的固定數字 27，不會隨部署自動更新，換成
+            // __APP_VERSION__ 每次改版號就自動失效，見 arena/frameLoader.ts
+            // 的 versioned() 同款修法）。
+            backgroundImage: `url(${sprite.sheet}?v=${__APP_VERSION__})`,
             backgroundRepeat: 'no-repeat',
             backgroundSize: `${scaledW * actualFrameCount}px ${scaledH * totalRows}px`,
             backgroundPosition: `${-frame * scaledW}px ${-frameRow * scaledH}px`,

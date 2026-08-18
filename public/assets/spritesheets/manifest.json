@@ -17,7 +17,7 @@
   "mage": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/mage.png",
-    "frameWidth": 323,
+    "frameWidth": 236,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [
@@ -122,7 +122,7 @@
   "death_knight": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/death_knight.png",
-    "frameWidth": 418,
+    "frameWidth": 245,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [
@@ -167,7 +167,7 @@
   "engineer": {
     "group": "heroes",
     "sheet": "/assets/spritesheets/heroes/engineer.png",
-    "frameWidth": 471,
+    "frameWidth": 279,
     "frameHeight": 184,
     "frameCount": 6,
     "frames": [

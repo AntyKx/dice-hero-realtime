@@ -31,6 +31,7 @@ const HEROES = {
   fire_mage: {
     heroId: 'mage',
     frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'skill_2', 'idle_4'],
+    rawSource: { srcDir: 'D:/CLAUDE專案/三選一/英雄圖/火焰法師/火焰法師/individual', srcPrefix: 'fire_mage' },
   },
   knight: {
     heroId: 'knight',
@@ -77,6 +78,7 @@ const HEROES = {
     // 都跟 idle 差太多（263~332 高），沒有一個夠接近，改成 skill/hurt 兩格
     // 都用尺寸相近的 idle/attack 幀頂替，格子縮到 291x184，idle 填滿 95%。
     frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'idle_2', 'idle_3'],
+    rawSource: { srcDir: 'D:/CLAUDE專案/三選一/英雄圖/死亡騎士/死亡騎士/individual', srcPrefix: 'death_knight' },
   },
   engineer: {
     heroId: 'engineer',
@@ -84,6 +86,7 @@ const HEROES = {
     // 明顯比 idle（~208-212 高）高很多，skill_2（206 高）最接近；沒有真的
     // hurt 幀，跟 death_knight 一樣用尺寸相近的 idle 幀頂替。
     frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'skill_2', 'idle_2'],
+    rawSource: { srcDir: 'D:/CLAUDE專案/三選一/英雄圖/機關技師/機關技師/individual', srcPrefix: 'mechanic_engineer' },
   },
 }
 
@@ -93,6 +96,66 @@ const CELL_PADDING = 16
 
 function loadPngs(srcDir, names) {
   return names.map(name => PNG.sync.read(readFileSync(join(srcDir, `${name}.png`))))
+}
+
+// 逐幀資料夾用的輸出狀態名 -> 原始素材檔名用的狀態名（只有 walk/move 不同）。
+const OUT_TO_SRC_STATE = { idle: 'idle', walk: 'move', attack: 'attack', skill: 'skill' }
+
+function contentBounds(png) {
+  const { width, height, data } = png
+  let minX = width, minY = height, maxX = -1, maxY = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > 10) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  return maxX < 0 ? null : { minX, minY, maxX, maxY }
+}
+
+/**
+ * 2026-08-18 新增：不是每次都直接讀 Arena 已經處理過的 s0 逐幀圖，而是重新
+ * 從原始素材裁切這 6 張——Arena 那邊為了同一個「狀態」內部（例如全部 5 張
+ * attack）不會忽大忽小，會把同狀態全部幀裁成同一個共用框（見
+ * import-hero-redo-v2.mjs），但那個框是照「這個狀態最誇張的那一幀」（通常
+ * 是攻擊特效/法術爆發最大的那張）撐大的；回合制這裡只挑其中 1-2 張出來用
+ * （不是整個狀態），如果直接沿用 Arena 那個被撐大的框，格子會被拉得比舊版
+ * 寬很多（死亡騎士實測攻擊格從 291 寬跳到 513 寬），大廳/戰鬥畫面固定尺寸
+ * 的預覽格因此爆版。這裡改成只針對「回合制真的要用到的這 6 張」自己算一次
+ * 聯集裁切框，跟 Arena 那個狀態級的裁切框各自獨立，回合制格子才會維持合理
+ * 大小。
+ */
+function loadTightRawFrames(rawSource, frameSources) {
+  const files = frameSources.map(name => {
+    const [outState, idxStr] = name.split('_')
+    const srcState = OUT_TO_SRC_STATE[outState]
+    const idx = Number(idxStr) + 1
+    return join(rawSource.srcDir, `${rawSource.srcPrefix}_${srcState}_${String(idx).padStart(2, '0')}.png`)
+  })
+  const pngs = files.map(f => PNG.sync.read(readFileSync(f)))
+  let uMinX = Infinity, uMinY = Infinity, uMaxX = -Infinity, uMaxY = -Infinity
+  for (const png of pngs) {
+    const b = contentBounds(png)
+    uMinX = Math.min(uMinX, b.minX); uMinY = Math.min(uMinY, b.minY)
+    uMaxX = Math.max(uMaxX, b.maxX); uMaxY = Math.max(uMaxY, b.maxY)
+  }
+  const PAD = 4
+  const { width: canvasW, height: canvasH } = pngs[0]
+  const cropMinX = Math.max(0, uMinX - PAD)
+  const cropMinY = Math.max(0, uMinY - PAD)
+  const cropMaxX = Math.min(canvasW - 1, uMaxX + PAD)
+  const cropMaxY = Math.min(canvasH - 1, uMaxY + PAD)
+  const cropW = cropMaxX - cropMinX + 1
+  const cropH = cropMaxY - cropMinY + 1
+  return pngs.map(png => {
+    const out = new PNG({ width: cropW, height: cropH })
+    PNG.bitblt(png, out, cropMinX, cropMinY, cropW, cropH, 0, 0)
+    return out
+  })
 }
 
 function composeSheet(frames) {
@@ -131,10 +194,11 @@ if (!hero) {
   process.exit(1)
 }
 
-const srcDir = `public/assets/frames/heroes/${hero.heroId}/s0`
 mkdirSync(OUT_DIR, { recursive: true })
 
-const frames = loadPngs(srcDir, hero.frameSources)
+const frames = hero.rawSource
+  ? loadTightRawFrames(hero.rawSource, hero.frameSources)
+  : loadPngs(`public/assets/frames/heroes/${hero.heroId}/s0`, hero.frameSources)
 const { sheet, cellW, cellH } = composeSheet(frames)
 
 const starNames = ['s0', 's1', 's2', 's3'].map(s => `${hero.heroId}_${s}`)

@@ -57,12 +57,26 @@ function fetchManifest(basePath: string): Promise<FrameManifest | null> {
   return p
 }
 
+/**
+ * 逐幀 PNG 本身的請求一定要帶版號 query string，跟 manifest.json 同一招——
+ * Cloudflare 對 /assets/ 底下的靜態檔案套用長天期 edge cache，只認「這個
+ * URL 有沒有命中過」，換掉圖片內容但沿用同一個檔名（角色動畫模組重做時
+ * 就是這樣）不會讓這層快取失效。2026-08-18 真的踩到：重新裁切死亡騎士的
+ * idle_0.png 部署後，正式站量到的還是舊尺寸，直接用部署別名網址（跳過
+ * apex 網域這層快取）量到的才是新尺寸，兩者唯一差異就是有沒有經過這層
+ * edge cache。之前只有 manifest.json 加了版號，沒有想到單張逐幀圖本身也
+ * 一樣會被這層快取咬住。
+ */
+function versioned(url: string): string {
+  return `${url}?v=${__APP_VERSION__}`
+}
+
 async function loadStateFramesByCount(basePath: string, state: AnimState, count: number): Promise<Texture[]> {
   if (count <= 0) return []
   const frames: Texture[] = []
   for (let i = 0; i < count; i++) {
     try {
-      frames.push(await Assets.load<Texture>(`${basePath}/${state}_${i}.png`))
+      frames.push(await Assets.load<Texture>(versioned(`${basePath}/${state}_${i}.png`)))
     } catch {
       break
     }
@@ -79,7 +93,7 @@ async function loadStateFramesByCount(basePath: string, state: AnimState, count:
 function checkExists(url: string): Promise<boolean> {
   let p = existsCache.get(url)
   if (!p) {
-    p = fetch(url, { method: 'HEAD' })
+    p = fetch(versioned(url), { method: 'HEAD' })
       .then(r => r.ok && (r.headers.get('content-type') ?? '').startsWith('image/'))
       .catch(() => false)
     existsCache.set(url, p)
@@ -88,7 +102,7 @@ function checkExists(url: string): Promise<boolean> {
 }
 
 /**
- * 探測 {basePath}/{state}_0.png、_1.png... 找出「從 0 開始連續存在」的幀數，
+ * 探測 {basePath}/{state}_0.png、_1.png... 找出「從 0 開始存在」的幀數，
  * 中間斷掉就在那裡截止（不會跳格拼接），一張都沒有就回傳空陣列。
  */
 async function probeStateFrames(basePath: string, state: AnimState): Promise<Texture[]> {
@@ -103,7 +117,7 @@ async function probeStateFrames(basePath: string, state: AnimState): Promise<Tex
   const frames: Texture[] = []
   for (const url of urls.slice(0, count)) {
     try {
-      frames.push(await Assets.load<Texture>(url))
+      frames.push(await Assets.load<Texture>(versioned(url)))
     } catch {
       break
     }
@@ -132,10 +146,10 @@ export async function loadCharacterFrames(basePath: string): Promise<Record<Anim
       loadStateFramesByCount(basePath, 'death', manifest.death ?? 0),
       loadStateFramesByCount(basePath, 'skill', manifest.skill ?? 0),
     ])
-    if (idle.length === 0) idle = [await Assets.load<Texture>(`${basePath}/idle_0.png`)]
+    if (idle.length === 0) idle = [await Assets.load<Texture>(versioned(`${basePath}/idle_0.png`))]
   } else {
     idle = await probeStateFrames(basePath, 'idle')
-    if (idle.length === 0) idle = [await Assets.load<Texture>(`${basePath}/idle_0.png`)]
+    if (idle.length === 0) idle = [await Assets.load<Texture>(versioned(`${basePath}/idle_0.png`))]
     ;[walk, attack, hit, death, skill] = await Promise.all([
       probeStateFrames(basePath, 'walk'),
       probeStateFrames(basePath, 'attack'),
