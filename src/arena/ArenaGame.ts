@@ -413,6 +413,18 @@ const HIDDEN_GOLD_MAX = 120
 // （攻擊頓感/走路 bob/受擊震動染色/死亡淡出縮小），畫好對應狀態的幀圖後
 // updatePlayerAnim()/updateEnemyVisual() 會自動改播真的逐幀動畫。
 const HERO_RENDER_HEIGHT = 60    // 火焰法師動畫模組要求：英雄顯示高度統一 60px（原本 76px 偏大）
+// 2026-08-18：火焰法師/死亡騎士/機關技師改成「整個角色共用一個裁切框」
+// （見 import-hero-redo-v2.mjs）修掉移動忽大忽小之後，這三位英雄的裁切
+// 畫布比之前（只在同一狀態內共用）明顯更高（要遷就 skill 特效的最大範圍），
+// 用同一個 HERO_RENDER_HEIGHT 縮放，角色在畫面上反而變小了。這裡針對這
+// 三位個別放大，倍率是「新裁切框高度 ÷ 舊裁切框（同狀態內共用版）高度」
+// 換算回來的，等於把角色實際大小拉回跟移動不忽大忽小的那版差不多、不再
+// 因為換了裁切策略而縮水。其他還沒重做動畫的英雄不受影響。
+const HERO_RENDER_HEIGHT_OVERRIDE: Partial<Record<string, number>> = {
+  mage: 80,
+  death_knight: 87,
+  engineer: 72,
+}
 const ATTACK_ANIM_DURATION = 0.2 // 秒，沒有真的攻擊幀圖時的程式化頓感時長
 const SKILL_ANIM_DURATION = 0.3  // 秒，沒有真的技能幀圖時的程式化演出時長
 const HIT_SHAKE_DURATION = 0.18  // 秒，受擊震動+染色總時長
@@ -915,7 +927,7 @@ export class ArenaGame {
     // 時角色腳底還是釘在同一個位置；還沒有動畫美術的英雄維持原本正中心錨點，
     // 視覺位置不變，不影響其他英雄。
     playerSprite.anchor.set(0.5, heroFrames.idle.length > 1 ? 1 : 0.5)
-    this.setSpriteHeight(playerSprite, HERO_RENDER_HEIGHT)
+    this.setSpriteHeight(playerSprite, HERO_RENDER_HEIGHT_OVERRIDE[this.cfg.heroId] ?? HERO_RENDER_HEIGHT)
     playerSprite.x = this.player.x
     playerSprite.y = this.player.y
     this.worldLayer!.addChild(playerSprite)
@@ -1057,7 +1069,7 @@ export class ArenaGame {
 
     const tex = frames[Math.min(anim.frame, frames.length - 1)]
     this.applyAnimVisual(
-      this.playerSprite, tex, HERO_RENDER_HEIGHT, this.player.x, this.player.y,
+      this.playerSprite, tex, HERO_RENDER_HEIGHT_OVERRIDE[this.cfg.heroId] ?? HERO_RENDER_HEIGHT, this.player.x, this.player.y,
       scaleMult, offsetX, offsetY, !this.facingRight, scaleYMult,
     )
 
