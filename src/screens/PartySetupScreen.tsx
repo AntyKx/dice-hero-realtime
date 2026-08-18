@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { HEROES, getHeroSprite, type Hero } from '../data'
+import { HEROES, getHeroSprite, versionedAsset, type Hero } from '../data'
 import SpriteAnimator from '../components/SpriteAnimator'
 import AsterVowIcon from '../components/AsterVowIcon'
 import { getHeroStarTitle, computeTalentBonus } from '../talents'
@@ -69,7 +69,7 @@ export default function PartySetupScreen({ meta, editingSlot, onMetaUpdate, onBa
           <>
             <div className="pss-preview-art">
               {activeHero.portrait
-                ? <img src={activeHero.portrait} alt={activeHero.name} />
+                ? <img src={versionedAsset(activeHero.portrait)} alt={activeHero.name} />
                 : (() => {
                     const previewSprite = getHeroSprite(activeHero, stars)
                     return <SpriteAnimator sprite={previewSprite} state="idle" scale={64 / previewSprite.frameHeight} />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { HEROES } from '../data'
+import { HEROES, versionedAsset } from '../data'
 import type { MetaState } from '../types'
 import {
   type ArenaEquipment, type ArenaLoadoutSlot,
@@ -152,7 +152,7 @@ export default function ArenaEquipmentScreen({ meta, heroId, onMetaUpdate }: Pro
       <div
         className="aeq-showcase"
         style={hero.portrait ? {
-          backgroundImage: `url(${hero.portrait})`,
+          backgroundImage: `url(${versionedAsset(hero.portrait)})`,
           backgroundPosition: PORTRAIT_POSITION[hero.id] ?? 'center 18%',
         } : undefined}
       >

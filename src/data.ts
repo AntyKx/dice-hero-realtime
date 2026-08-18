@@ -42,6 +42,16 @@ export function getHeroSprite(hero: Hero, stars: number): SpriteMeta {
   return hero.sprite
 }
 
+/** 幫 portrait/avatar 這類「檔名不變但內容會換」的靜態圖檔請求帶上版號
+ * query string——Cloudflare 對 /assets/ 底下的靜態檔案套用長天期 edge
+ * cache，只認 URL 有沒有命中過，跟部署版本無關，換立繪/頭像圖但沿用同一個
+ * 檔名（英雄立繪重畫時就是這樣）不會讓這層快取失效，正式站可能繼續回傳舊
+ * 圖（2026-08-18 在逐幀動畫圖上實測confirmed，見 arena/frameLoader.ts 的
+ * versioned()／SpriteAnimator.tsx 同款修法）。 */
+export function versionedAsset(url: string): string {
+  return `${url}?v=${__APP_VERSION__}`
+}
+
 // Arena 即時制普通攻擊分類（2026-08）：role 本來就是每個英雄的武器/流派主題，
 // 剛好完全對應近戰/遠程，不用再另外加一個欄位重複描述。
 const MELEE_ROLES = new Set<Hero['role']>(['slash', 'shadow', 'hammer', 'beast', 'fighter', 'death'])

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Hero } from '../data'
+import { Hero, versionedAsset } from '../data'
 import { HeroProgress, Equipment } from '../types'
 import { getHeroStarTitle } from '../talents'
 import AsterVowIcon from './AsterVowIcon'
@@ -50,7 +50,7 @@ export default function HeroPortraitModal({ hero, roleMeta, prog, eqBonus, talBo
 
         <div className="portrait-layout">
           <div className="portrait-img-wrap">
-            <img src={hero.portrait} alt={hero.name} className="portrait-img" />
+            <img src={hero.portrait ? versionedAsset(hero.portrait) : undefined} alt={hero.name} className="portrait-img" />
             <div className="portrait-img-glow" style={{ background: `radial-gradient(ellipse at center, ${roleMeta.color}44 0%, transparent 70%)` }} />
             <div className="portrait-img-scrim" />
             <div className="portrait-img-caption">

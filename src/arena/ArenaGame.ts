@@ -884,7 +884,9 @@ export class ArenaGame {
       // Cut-in 圖快取好，第一次放技能不會有載入延遲。載入失敗（例如還沒有
       // 專屬 Cut-in 圖的英雄）就存 null，startUltimatePresentation() 會
       // fallback 成放大版 hero sprite。
-      Assets.load<Texture>(`/assets/cutin/${this.cfg.heroId}.png`).catch(() => null),
+      // ?v= 版號：跟 frameLoader.ts 的 versioned() 同一個理由，Cutin 圖檔名
+      // 重複使用時 Cloudflare edge cache 可能繼續回傳舊圖，見該處註解。
+      Assets.load<Texture>(`/assets/cutin/${this.cfg.heroId}.png?v=${__APP_VERSION__}`).catch(() => null),
     ])
     if (this.destroyed) return
     this.heroFrames = heroFrames

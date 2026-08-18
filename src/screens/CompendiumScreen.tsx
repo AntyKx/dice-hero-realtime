@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { HEROES, getHeroSprite, type Hero } from '../data'
+import { HEROES, getHeroSprite, versionedAsset, type Hero } from '../data'
 import { ALL_BUFF_CARDS } from '../buffCards'
 import { ALL_POTIONS } from '../potions'
 import { ARENA_RELICS, ARENA_WEAPON_RELICS, type ArenaRelic } from '../arena/relics'
@@ -159,7 +159,7 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
     summary: hero.desc,
     icon: ROLE_ICON[hero.role] ?? 'nav-heroes',
     accent: roleColor(hero.role),
-    image: hero.avatar ?? hero.portrait,
+    image: (hero.avatar ?? hero.portrait) ? versionedAsset((hero.avatar ?? hero.portrait)!) : undefined,
     badges: [
       { label: roleName(hero.role), color: roleColor(hero.role) },
       { label: hero.school === 'magic' ? '星術學派' : '武技學派' },
@@ -555,7 +555,7 @@ export default function CompendiumScreen({ meta, onClose, onViewTalent, onViewEq
                 </button>
                 <button className="astral-codex-detail-close" onClick={() => setActiveHero(null)} aria-label="關閉檔案">✕</button>
                 <div className="astral-codex-hero-detail-art">
-                  {activeHero.portrait && <img src={activeHero.portrait} alt="" />}
+                  {activeHero.portrait && <img src={versionedAsset(activeHero.portrait)} alt="" />}
                   <div className="astral-codex-hero-detail-art-scrim" />
                   <div className="astral-codex-hero-detail-art-caption">
                     <div className="astral-codex-hero-detail-level">
