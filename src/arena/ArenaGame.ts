@@ -108,6 +108,9 @@ export interface ArenaHudState {
     stars: 0 | 1 | 2 | 3
     starConditionsMet: [boolean, boolean, boolean]
     objectiveLabel: string
+    /** 探索模式撿到的 chest 額外強化石（見 exploreBonusEnhanceStones），
+     * 只有森林遺跡 1-1~1-5 且真的開過寶箱才會有值。 */
+    bonusEnhanceStones?: number
   }
 }
 
@@ -375,6 +378,18 @@ const HUD_EMIT_INTERVAL = 150 // ms，HUD 不用每 frame 更新
 // 用的圓形半徑，跟 ENEMY_CONTACT_RADIUS 同一量級，讓「撞到東西」的手感跟
 // 「撞到敵人」一致。
 const EXPLORE_PLAYER_COLLIDE_RADIUS = 30
+// supply/chest 地標的互動觸發半徑（走近就自動觸發，不用另外按按鈕，跟
+// battleZone/exit 的「走進去就觸發」是同一套操作邏輯，手機上不用多一個
+// 觸控目標）。
+const EXPLORE_INTERACT_RADIUS = 70
+// chest 給的強化石數量，量級比照 equipment.ts SALVAGE_TABLE 分解 rare 裝備
+// 的數量（12），沒有另外發明一套經濟數值。
+const EXPLORE_CHEST_ENHANCE_STONES = 12
+// 開發用碰撞除錯框開關：URL 帶 ?collision=1 才會畫，正式玩家不會意外看到
+// （這個環境的 claude-in-chrome rAF 幾乎不會動，沒辦法活測碰撞位置對不對，
+// 這個開關讓使用者自己在手機上開一下就能直接肉眼確認，比截圖猜座標準）。
+const EXPLORE_COLLISION_DEBUG = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('collision') === '1'
 
 const ELITE_HP_MULT = 2.2
 const ELITE_DAMAGE_MULT = 1.6
@@ -468,9 +483,20 @@ export class ArenaGame {
   camera = { x: 0, y: 0 }
   exploreWorld: ExploreWorld | null = null
   exploreState: 'roam' | 'encounter' | 'cleared' = 'roam'
-  exploreLandmarkSprites: { landmark: ExploreLandmark; gfx: Graphics; text: Text }[] = []
+  exploreLandmarkSprites: { landmark: ExploreLandmark; gfx: Graphics; text: Text; claimed: boolean }[] = []
   exploreExitGfx: Graphics | null = null
   exploreBossTriggered = false
+  // ── 2026-08-18 第二輪：真的有狀態的互動物件＋敵人-地標綁定（見檔頭
+  // ArenaGame.ts 該章節與 exploreWorlds.ts 的說明）──
+  /** 已經互動過的 supply/chest 地標 id，防止同一個重複領取。 */
+  exploreInteracted = new Set<string>()
+  /** 這局探索額外賺到的強化石（chest 給的），結算時併入 campaignResult，
+   * 由外層（App.tsx）跟關卡固定掉落一起發放，不另開一條發獎路徑。 */
+  exploreBonusEnhanceStones = 0
+  /** linkedEnemyId 對應的敵人生成時綁定到這裡，死亡時反查回地標讓它變灰
+   * （見 spawnCampaignWave/damageEnemy）。key 是敵人物件參照本身，不需要
+   * 額外的敵人 id 欄位。 */
+  exploreEnemyLandmarks = new Map<EnemyInstance, { landmark: ExploreLandmark; gfx: Graphics; text: Text; claimed: boolean }>()
 
   player = { x: 0, y: 0, hp: 0, maxHp: 0, atkTimer: 0, moveSpeedDebuffMult: 1, moveSpeedDebuffTimer: 0 }
   playerHitTimer = 0 // >0 時玩家 sprite 染紅閃爍，見 damagePlayer()/updatePlayerAnim()
@@ -1124,19 +1150,49 @@ export class ArenaGame {
   /** 依 EnemyWave 資料生成固定敵人（不是加權隨機），供開場立即波次跟 updateCampaignWaves() 共用。
    * nearZone 有值時（森林遺跡探索模式）改成從這個矩形邊緣冒出來，而不是
    * spawnEnemyOfType() 預設的「整個畫面邊緣」（那個邏輯是螢幕座標，探索
-   * 模式下鏡頭會偏移，直接沿用會生到不合理的世界座標位置）。 */
+   * 模式下鏡頭會偏移，直接沿用會生到不合理的世界座標位置）。
+   *
+   * 探索模式下，敵人 typeId 如果對應到一個還沒被領走的 linkedEnemyId 地標
+   * （見 exploreWorlds.ts），會直接生在那個地標座標上並綁定它，取代
+   * pickZoneEdgeSpawn 的隨機邊緣落點——不是新內容，只是這一隻既有敵人生
+   * 在哪裡改了，數量/時機/波次結構完全沒動。 */
   spawnCampaignWave(wave: EnemyWave, nearZone?: { x: number; y: number; width: number; height: number }) {
     for (const [id, count] of Object.entries(wave.enemies)) {
       const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
-      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined)
+      for (let i = 0; i < count; i++) {
+        const bound = this.exploreWorld ? this.claimExploreLandmarkForEnemy(id) : null
+        const pos = bound ? { x: bound.landmark.x, y: bound.landmark.y } : (nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined)
+        const enemy = this.spawnEnemyOfType(type, pos)
+        if (bound && enemy) this.exploreEnemyLandmarks.set(enemy, bound)
+      }
     }
     for (const [id, count] of Object.entries(wave.eliteEnemies ?? {})) {
       const type = ALL_CAMPAIGN_STAGE_ENEMIES[id]
       if (!type) continue
-      const pos = nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined
-      for (let i = 0; i < count; i++) this.spawnEnemyOfType(type, { ...pos, isElite: true })
+      for (let i = 0; i < count; i++) {
+        const bound = this.exploreWorld ? this.claimExploreLandmarkForEnemy(id) : null
+        const pos = bound ? { x: bound.landmark.x, y: bound.landmark.y } : (nearZone ? this.pickZoneEdgeSpawn(nearZone) : undefined)
+        const enemy = this.spawnEnemyOfType(type, { ...pos, isElite: true })
+        if (bound && enemy) this.exploreEnemyLandmarks.set(enemy, bound)
+      }
     }
+  }
+
+  /** 找一個還沒被領走、linkedEnemyId 對得上這個敵人 typeId 的地標，領走並
+   * 回傳（一個地標只會被一隻敵人綁定一次）。 */
+  claimExploreLandmarkForEnemy(typeId: string): { landmark: ExploreLandmark; gfx: Graphics; text: Text; claimed: boolean } | null {
+    const entry = this.exploreLandmarkSprites.find(e => e.landmark.linkedEnemyId === typeId && !e.claimed)
+    if (!entry) return null
+    entry.claimed = true
+    return entry
+  }
+
+  /** linkedEnemyId 綁定的敵人死亡時呼叫：地標變灰、文字加註「已清除」，
+   * 讓玩家看到「這個地標對應的敵人真的死了」而不是純裝飾。 */
+  markExploreLandmarkCleared(entry: { landmark: ExploreLandmark; gfx: Graphics; text: Text }) {
+    entry.gfx.alpha = 0.28
+    entry.text.text = `${entry.landmark.label}（已清除）`
   }
 
   /** 依 StageHazardConfig 資料生成一團固定 Hazard（隨機落點，避開螢幕最邊緣）。 */
@@ -1189,6 +1245,7 @@ export class ArenaGame {
     }
     for (const landmark of world.landmarks) this.spawnExploreLandmark(landmark)
     this.exploreExitGfx = this.spawnExploreExitMarker(world.exit)
+    if (EXPLORE_COLLISION_DEBUG) this.spawnExploreCollisionDebug(world)
 
     // 鏡頭直接對準出生點，不要從世界左上角慢慢漂過去。
     const vw = this.app?.screen.width ?? 390
@@ -1200,6 +1257,25 @@ export class ArenaGame {
     this.worldLayer?.position.set(-this.camera.x, -this.camera.y)
   }
 
+  /** 開發用：URL 帶 ?collision=1 時把 colliders/battleZone 畫成半透明外框，
+   * 只在這個旗標開啟時呼叫，正式玩家看不到（見 EXPLORE_COLLISION_DEBUG）。
+   * 純疊加在 worldLayer 最上層，不影響任何碰撞判定本身。 */
+  spawnExploreCollisionDebug(world: ExploreWorld) {
+    if (!this.worldLayer) return
+    for (const rect of world.colliders) {
+      const gfx = new Graphics()
+      gfx.rect(rect.x, rect.y, rect.width, rect.height).fill({ color: 0xff3050, alpha: 0.18 }).stroke({ color: 0xff3050, width: 3, alpha: 0.9 })
+      this.worldLayer.addChild(gfx)
+    }
+    const z = world.battleZone
+    const zoneGfx = new Graphics()
+    zoneGfx.rect(z.x, z.y, z.width, z.height).stroke({ color: 0x30c0ff, width: 3, alpha: 0.8 })
+    this.worldLayer.addChild(zoneGfx)
+    const spawnGfx = new Graphics()
+    spawnGfx.circle(world.spawn.x, world.spawn.y, EXPLORE_PLAYER_COLLIDE_RADIUS).stroke({ color: 0x30ff80, width: 3, alpha: 0.9 })
+    this.worldLayer.addChild(spawnGfx)
+  }
+
   /** 每幀推進：鏡頭跟隨、走到 battleZone 觸發既有戰鬤資料、戰鬤清空後解鎖
    * 出口、走到出口完成整關。不呼叫 isObjectiveWon() 自動判定（見
    * updateObjective 的 exploreWorld 分支），完成時機完全由這裡手動決定。 */
@@ -1207,6 +1283,7 @@ export class ArenaGame {
     if (!this.exploreWorld || !this.campaignStage) return
     const world = this.exploreWorld
     this.updateExploreCamera()
+    this.updateExploreInteractables()
 
     if (this.exploreState === 'roam') {
       const z = world.battleZone
@@ -1222,6 +1299,39 @@ export class ArenaGame {
     } else if (this.exploreState === 'cleared') {
       const dist = Math.hypot(this.player.x - world.exit.x, this.player.y - world.exit.y)
       if (dist <= world.exit.radius) this.finishCampaignStage(true)
+    }
+  }
+
+  /** supply/chest 地標真的有狀態：走近自動觸發（跟 battleZone/exit 同一套
+   * 「走進去就觸發」，不用另外按鈕），每個地標只能觸發一次（exploreInteracted
+   * 記錄 id）。supply 直接回血；chest 累加 exploreBonusEnhanceStones，等
+   * finishCampaignStage() 結算時併入 campaignResult，由外層（App.tsx）
+   * 跟關卡固定掉落一起發放——不開一條新的「戰鬤中直接寫存檔」路徑，避免
+   * 玩家中途放棄也能偷到獎勵。totem/altar/boss 地標不在這裡處理，它們是
+   * 綁定敵人的死亡狀態（見 claimExploreLandmarkForEnemy/markExploreLandmarkCleared），
+   * 本身不是可以「走過去」觸發的東西。 */
+  updateExploreInteractables() {
+    if (!this.exploreWorld) return
+    for (const entry of this.exploreLandmarkSprites) {
+      const { landmark } = entry
+      if (landmark.kind !== 'supply' && landmark.kind !== 'chest') continue
+      if (this.exploreInteracted.has(landmark.id)) continue
+      const dist = Math.hypot(this.player.x - landmark.x, this.player.y - landmark.y)
+      if (dist > EXPLORE_INTERACT_RADIUS) continue
+      this.exploreInteracted.add(landmark.id)
+      entry.gfx.alpha = 0.3
+      if (landmark.kind === 'supply') {
+        const heal = this.player.maxHp * ALTAR_HEAL_PCT
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal)
+        this.spawnFloatingText(`+${Math.round(heal)} HP`, landmark.x, landmark.y - 40)
+        this.spawnGlowBurst(landmark.x, landmark.y, 0x6adf9a, 70)
+        entry.text.text = `${landmark.label}（已使用）`
+      } else {
+        this.exploreBonusEnhanceStones += EXPLORE_CHEST_ENHANCE_STONES
+        this.spawnFloatingText(`強化石 +${EXPLORE_CHEST_ENHANCE_STONES}`, landmark.x, landmark.y - 40)
+        this.spawnGlowBurst(landmark.x, landmark.y, 0xffd94a, 70)
+        entry.text.text = `${landmark.label}（已開啟）`
+      }
     }
   }
 
@@ -1242,10 +1352,20 @@ export class ArenaGame {
         const count = stage.boss.count ?? 1
         const hpOpt = count > 1 ? { hpMultOverride: 0.6 } : undefined
         const z = world.battleZone
+        // 有 boss 地標的話直接生在地標座標上（跟地標視覺完全對齊，地標
+        // 本身已經在上面那個迴圈隱藏了），沒有地標才 fallback 回原本的
+        // zone 相對公式。
+        const bossLandmark = world.landmarks.find(l => l.kind === 'boss')
+        const bossLandmarkEntry = bossLandmark ? this.exploreLandmarkSprites.find(e => e.landmark === bossLandmark) : undefined
         for (let i = 0; i < count; i++) {
-          const x = count > 1 ? z.x + z.width * (0.35 + i * 0.3) : z.x + z.width / 2
-          const y = z.y + z.height * 0.22
-          this.spawnEnemyOfType(bossType, { ...hpOpt, x, y })
+          const x = bossLandmark ? bossLandmark.x + (count > 1 ? (i - (count - 1) / 2) * 90 : 0)
+            : (count > 1 ? z.x + z.width * (0.35 + i * 0.3) : z.x + z.width / 2)
+          const y = bossLandmark ? bossLandmark.y : z.y + z.height * 0.22
+          const enemy = this.spawnEnemyOfType(bossType, { ...hpOpt, x, y })
+          // boss 地標本身已經隱藏了（上面那個迴圈），這裡綁定純粹是讓
+          // exploreEnemyLandmarks 語意一致（linkedEnemyId 真的有對應到綁定），
+          // 不會有額外的視覺效果。
+          if (bossLandmarkEntry && enemy) this.exploreEnemyLandmarks.set(enemy, bossLandmarkEntry)
         }
       }
       return
@@ -1298,7 +1418,7 @@ export class ArenaGame {
     text.anchor.set(0.5)
     text.x = landmark.x; text.y = landmark.y + 42
     this.worldLayer.addChild(text)
-    this.exploreLandmarkSprites.push({ landmark, gfx, text })
+    this.exploreLandmarkSprites.push({ landmark, gfx, text, claimed: false })
   }
 
   spawnExploreExitMarker(exit: { x: number; y: number; radius: number }): Graphics | null {
@@ -1393,6 +1513,7 @@ export class ArenaGame {
     this.campaignResult = {
       won, stars, starConditionsMet,
       objectiveLabel: this.campaignStage.starConditions[0]?.description ?? this.campaignStage.name,
+      bonusEnhanceStones: won && this.exploreBonusEnhanceStones > 0 ? this.exploreBonusEnhanceStones : undefined,
     }
     this.emitHud()
     this.app?.ticker.stop()
@@ -1677,6 +1798,7 @@ export class ArenaGame {
     }
     this.enemies.push(enemy)
     if (opts?.summonedBy) opts.summonedBy.summonedCount++
+    return enemy
   }
 
   update(deltaMS: number) {
@@ -2299,6 +2421,8 @@ export class ArenaGame {
     e.hp -= amount
     if (e.hp <= 0) {
       e.alive = false
+      const boundLandmark = this.exploreEnemyLandmarks.get(e)
+      if (boundLandmark) { this.markExploreLandmarkCleared(boundLandmark); this.exploreEnemyLandmarks.delete(e) }
       this.startDeathFx(e)
       this.killCount++
       this.ultimateCharge = Math.min(ULTIMATE_MAX, this.ultimateCharge +

@@ -237,6 +237,9 @@ export default function ArenaScreen({ config, onExit, onRunEnd, onCampaignStageE
             <div className="arena-gameover-row"><span>存活時間</span><strong>{formatTime(hud.elapsed)}</strong></div>
             <div className="arena-gameover-row"><span>等級</span><strong>Lv.{hud.level}</strong></div>
             <div className="arena-gameover-row"><span>擊殺數</span><strong>{hud.killCount}</strong></div>
+            {!!hud.campaignResult.bonusEnhanceStones && (
+              <div className="arena-gameover-row"><span>探索額外強化石</span><strong>+{hud.campaignResult.bonusEnhanceStones}</strong></div>
+            )}
           </div>
           {hud.campaignResult.won && campaignStage && (
             <div className="arena-campaign-result-conditions">

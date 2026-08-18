@@ -1483,7 +1483,7 @@ export default function App() {
             // 稀有度裝備——特殊裝備留給抽獎系統，關卡掉落故意壓在最低稀有度。
             if (result.won) {
               const drop = generateRandomDrop(hero.id, [['normal', 100]])
-              const stones = 3 + Math.floor(Math.random() * 4)
+              const stones = 3 + Math.floor(Math.random() * 4) + (result.bonusEnhanceStones ?? 0)
               next = { ...next, arenaInventory: [...(next.arenaInventory ?? []), drop], enhanceStoneCount: next.enhanceStoneCount + stones }
             }
             if (result.won && !wasFirstClearClaimed) {

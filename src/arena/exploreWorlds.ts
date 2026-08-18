@@ -22,15 +22,33 @@
  * 冒出來，不是從整個世界邊緣冒出來。totem/altar/shaman/chest 這些地標是
  * 純視覺（探索感用），不是各自獨立的遭遇戰——1-3 的 3 個圖騰在真實資料裡
  * 其實是 battleZone 那一波敵人（forest_totem 類型）的一部分。
+ *
+ * 2026-08-18 第二輪（審過一份外部「map-native battle」移植包後挑出來做的
+ * 4 個點子，見 ArenaGame.ts 對應章節註解）：
+ * 1. supply/chest 地標變成真的有狀態的互動物件（回血/發正式強化石），不再
+ *    只是裝飾——見 landmark.id + ArenaGame.ts 的 updateExploreInteractables()。
+ * 2. 沒有新增任何遭遇戰或改動 waves 資料，而是讓 linkedEnemyId 對應的敵人
+ *    （totem/shaman）直接生在它的地標座標上（不是隨機 zone 邊緣），死亡時
+ *    連動地標變灰——玩家因此會「看到」西側圖騰倒下時西側地標真的消失，
+ *    而不是玩家憑空猜哪個地標對應哪個場上單位。這不是新內容，純粹是既有
+ *    敵人的生成座標改用地標座標，波次/數量/時機完全沒動。
  */
 
 export type LandmarkKind = 'totem' | 'altar' | 'shaman' | 'chest' | 'supply' | 'boss'
 
 export interface ExploreLandmark {
+  /** 站內唯一即可（同一個 ArenaGame 實例一次只跑一關），互動一次性判定/
+   * 敵人-地標綁定都靠這個 id 對照。 */
+  id: string
   kind: LandmarkKind
   x: number
   y: number
   label: string
+  /** 有值時，這個地標對應「這一關真實 waves/boss 資料裡的某個敵人 typeId」
+   * ——那個敵人生成時會直接站在這個地標座標上（取代原本的隨機 zone 邊緣
+   * 落點），死亡時這個地標會變灰。不會改變波次/數量/觸發時機，純粹是同一
+   * 隻既有敵人的落點跟「地標→實際戰鬥進度」的視覺連動。 */
+  linkedEnemyId?: string
 }
 
 /** 通用矩形——battleZone 跟 colliders 共用同一個形狀（左上角 x/y + 寬高）。 */
@@ -72,7 +90,7 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
     stageId: 'forest_1_1', world: { width: W, height: H }, spawn: { x: 720, y: 790 },
     backgroundAsset: '/assets/campaign/explore/forest_1_1.jpg', groundColor: 0x455b2d,
     battleZone: { x: 260, y: 180, width: 920, height: 520 },
-    landmarks: [{ kind: 'supply', x: 195, y: 410, label: '哨戒塔' }],
+    landmarks: [{ id: 's11', kind: 'supply', x: 195, y: 410, label: '哨戒塔' }],
     colliders: [
       { x: 60, y: 300, width: 270, height: 220 }, // 瞭望塔＋柵欄
       { x: 585, y: 15, width: 60, height: 110 },  // 大門左柱
@@ -86,7 +104,7 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
     stageId: 'forest_1_2', world: { width: W, height: H }, spawn: { x: 110, y: 780 },
     backgroundAsset: '/assets/campaign/explore/forest_1_2.jpg', groundColor: 0x383e21,
     battleZone: { x: 280, y: 180, width: 800, height: 430 },
-    landmarks: [{ kind: 'chest', x: 338, y: 374, label: '荊棘密藏' }],
+    landmarks: [{ id: 'c12', kind: 'chest', x: 338, y: 374, label: '荊棘密藏' }],
     colliders: [
       { x: 270, y: 250, width: 180, height: 220 },  // 斷裂石柱群
       { x: 1050, y: 100, width: 390, height: 550 }, // 右側荊棘叢
@@ -100,9 +118,10 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
     backgroundAsset: '/assets/campaign/explore/forest_1_3.jpg', groundColor: 0x4a5f2c,
     battleZone: { x: 200, y: 120, width: 1040, height: 460 },
     landmarks: [
-      { kind: 'totem', x: 713, y: 187, label: '北側圖騰' },
-      { kind: 'totem', x: 310, y: 403, label: '西側圖騰' },
-      { kind: 'totem', x: 1159, y: 403, label: '東側圖騰' },
+      { id: 't13n', kind: 'totem', x: 713, y: 187, label: '北側圖騰', linkedEnemyId: 'forest_totem' },
+      { id: 't13w', kind: 'totem', x: 310, y: 403, label: '西側圖騰', linkedEnemyId: 'forest_totem' },
+      { id: 't13e', kind: 'totem', x: 1159, y: 403, label: '東側圖騰', linkedEnemyId: 'forest_totem' },
+      { id: 's13', kind: 'supply', x: 450, y: 650, label: '營地補給' },
     ],
     colliders: [
       { x: 658, y: 132, width: 110, height: 110 }, // 北側圖騰基座
@@ -118,7 +137,10 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
     stageId: 'forest_1_4', world: { width: W, height: H }, spawn: { x: 742, y: 720 },
     backgroundAsset: '/assets/campaign/explore/forest_1_4.jpg', groundColor: 0x516321,
     battleZone: { x: 260, y: 180, width: 920, height: 430 },
-    landmarks: [{ kind: 'altar', x: 713, y: 150, label: '薩滿祭壇' }],
+    landmarks: [
+      { id: 't14', kind: 'altar', x: 713, y: 150, label: '薩滿祭壇', linkedEnemyId: 'forest_shaman' },
+      { id: 's14', kind: 'supply', x: 300, y: 480, label: '祭壇補給' },
+    ],
     colliders: [
       { x: 540, y: 605, width: 115, height: 158 }, // 左側大門塔
       { x: 828, y: 605, width: 115, height: 158 }, // 右側大門塔
@@ -134,8 +156,8 @@ export const EXPLORE_WORLDS: ExploreWorld[] = [
     backgroundAsset: '/assets/campaign/explore/forest_1_5.jpg', groundColor: 0x3d5219,
     battleZone: { x: 180, y: 144, width: 1080, height: 504 },
     landmarks: [
-      { kind: 'supply', x: 360, y: 500, label: 'Boss 前補給' },
-      { kind: 'boss', x: 713, y: 130, label: '狂暴獸人隊長' },
+      { id: 's15', kind: 'supply', x: 360, y: 500, label: 'Boss 前補給' },
+      { id: 'b15', kind: 'boss', x: 713, y: 130, label: '狂暴獸人隊長', linkedEnemyId: 'orc_chieftain' },
     ],
     colliders: [
       // 拱門柱之間淨空要留超過玩家碰撞直徑（EXPLORE_PLAYER_COLLIDE_RADIUS
