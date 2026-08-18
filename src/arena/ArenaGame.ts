@@ -488,6 +488,7 @@ const HIT_WHITE_FLASH_DURATION = 0.05
 const ATTACK_TRIGGER_FRAME_OVERRIDE: Partial<Record<string, number>> = {
   mage: 3,
   death_knight: 3,
+  engineer: 3,
 }
 
 // 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→持續前傾→前衝出招→回收），依
