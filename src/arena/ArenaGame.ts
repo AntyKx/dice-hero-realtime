@@ -479,16 +479,28 @@ const HIT_SQUASH_DURATION = 0.1
 // 染色之前（HIT_SHAKE_DURATION/HIT_FLASH_DURATION 那段維持不變）。
 const HIT_WHITE_FLASH_DURATION = 0.05
 
-// 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→前衝出招→回收→收招中立），依
+// 攻擊觸發幀（0-indexed，攻擊播到這一格才真的開火，見 updatePlayerAnim()）：
+// 預設抓中間那格；火焰法師 2026-08-18 重做版的 info/sprite-info.json 明確
+// 標了 impactFrame（1-indexed 幀 16 → attack 第 4 格，0-indexed index 3），
+// 跟預設的「取中間」（5 格是 index 2）不一樣，這裡照美術給的資料覆寫，
+// 之後其他角色如果也有自己的 impactFrame 資料，一樣加一筆進來就好。
+const ATTACK_TRIGGER_FRAME_OVERRIDE: Partial<Record<string, number>> = {
+  mage: 3,
+}
+
+// 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→持續前傾→前衝出招→回收），依
 // 「攻擊狀態真實幀數是否剛好 5」把關（frames.length === ATTACK_FRAME_VISUAL.length），
-// 跟 heroId 無關；lungePx 沿 this.facing 方向位移。還在用 idle fallback
+// 跟 heroId 無關；lungePx 沿 this.facing 方向位移。前衝峰值刻意對齊在
+// index 3——目前唯一真的有 5 格攻擊幀圖的火焰法師，觸發幀（見上面
+// ATTACK_TRIGGER_FRAME_OVERRIDE）就是 index 3，兩者要同步，不然角色會在
+// 前衝動作做完之後才真的發射，視覺跟判定會對不上。還在用 idle fallback
 // （張數對不上）的英雄不套用，維持原樣。
 const ATTACK_FRAME_VISUAL: { scaleX: number; scaleY: number; lungePx: number }[] = [
   { scaleX: 0.96, scaleY: 1.04, lungePx: -3 }, // 0：蓄力後縮
-  { scaleX: 0.99, scaleY: 1.01, lungePx: 1 },  // 1：前傾
-  { scaleX: 1.05, scaleY: 0.95, lungePx: 7 },  // 2：出招/觸發幀，前衝到最遠
-  { scaleX: 1.0, scaleY: 1.0, lungePx: 3 },    // 3：回收
-  { scaleX: 1.0, scaleY: 1.0, lungePx: 0 },    // 4：收招中立
+  { scaleX: 0.98, scaleY: 1.02, lungePx: 0 },  // 1：前傾
+  { scaleX: 1.0, scaleY: 1.0, lungePx: 2 },    // 2：持續前傾/揚起
+  { scaleX: 1.05, scaleY: 0.95, lungePx: 7 },  // 3：出招/觸發幀，前衝到最遠
+  { scaleX: 1.0, scaleY: 1.0, lungePx: 2 },    // 4：回收/收招
 ]
 
 // 戰鬥節奏（2026-08）：避免「邊移動邊自動攻擊」讓戰鬥變成純繞圈輸出，把
@@ -1005,12 +1017,14 @@ export class ArenaGame {
         anim.frame = (anim.frame + 1) % frames.length
       }
 
-      // Attack 播到觸發幀（取中間那格）才真的結算，跟動畫演出對齊，不用
-      // setTimeout 猜時間。同一次演出只能觸發一次。Skill 幀的播放本身還是
-      // 照常跑（下面的 while 迴圈已經在推進），但傷害結算已經改由 Cut-in
-      // 演出的 finishUltimatePresentation() 統一觸發，這裡不再重複判斷。
+      // Attack 播到觸發幀才真的結算，跟動畫演出對齊，不用 setTimeout 猜
+      // 時間。預設取中間那格，有 ATTACK_TRIGGER_FRAME_OVERRIDE 資料的角色
+      // 照美術給的 impactFrame 覆寫。同一次演出只能觸發一次。Skill 幀的
+      // 播放本身還是照常跑（下面的 while 迴圈已經在推進），但傷害結算已經
+      // 改由 Cut-in 演出的 finishUltimatePresentation() 統一觸發，這裡不再
+      // 重複判斷。
       if (nextState === 'attack' && anim.frame !== prevFrame) {
-        const triggerFrame = Math.floor(frames.length / 2)
+        const triggerFrame = ATTACK_TRIGGER_FRAME_OVERRIDE[this.cfg.heroId] ?? Math.floor(frames.length / 2)
         if (anim.frame === triggerFrame && !this.attackFired && this.pendingAttackTarget) {
           this.attackFired = true
           if (this.pendingAttackTarget.alive) this.fireNormalAttack(this.pendingAttackTarget)
