@@ -77,7 +77,12 @@ const HEROES = {
     // 用到 skill 那格，卻讓角色顯示比其他英雄明顯小一圈。三個 skill 幀全部
     // 都跟 idle 差太多（263~332 高），沒有一個夠接近，改成 skill/hurt 兩格
     // 都用尺寸相近的 idle/attack 幀頂替，格子縮到 291x184，idle 填滿 95%。
-    frameSources: ['idle_0', 'idle_1', 'attack_0', 'attack_4', 'idle_2', 'idle_3'],
+    // 2026-08-18 重做版素材：idle_0（第 1 張）跟 idle_5（第 6 張）頭髮甩得
+    // 特別開，內容框高度 216，比其他 idle 幀（166）高快 30%——原本
+    // frameSources 選到 idle_0 這張離群值，把整組共用格子的高度拉大，角色
+    // 本體占比被稀釋，顯示比其他英雄明顯小一圈（使用者實測回報）。改選
+    // idle_1~idle_4（頭髮沒有誇張甩開的那 4 張）取代，格子回到合理高度。
+    frameSources: ['idle_1', 'idle_2', 'attack_0', 'attack_4', 'idle_3', 'idle_4'],
     rawSource: { srcDir: 'D:/CLAUDE專案/三選一/英雄圖/死亡騎士/死亡騎士/individual', srcPrefix: 'death_knight' },
   },
   engineer: {

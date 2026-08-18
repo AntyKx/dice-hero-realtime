@@ -144,10 +144,10 @@ export const HEROES: Hero[] = [
   // 死亡騎士（2026-08 取代訓獸師，見設計文件 Migration 方案）：真實素材已處理
   // （process-transparent-frames.mjs + compose-hero-spritesheet.mjs），尺寸來自
   // 實際輸出的 sprite sheet。
-  { id: 'death_knight', name: '死亡騎士', title: '嗜血搏命', hp: 145, atk: 27, def: 10, role: 'death', school: 'physical', skill: '噬魂斬', desc: '血量越低傷害越高，攻擊疊血印進入血腥狀態獲得吸血與增傷。', sprite: H('death_knight', 245, 184), portrait: '/assets/portraits/death_knight.png', avatar: '/assets/avatars/death_knight.jpg',
+  { id: 'death_knight', name: '死亡騎士', title: '嗜血搏命', hp: 145, atk: 27, def: 10, role: 'death', school: 'physical', skill: '噬魂斬', desc: '血量越低傷害越高，攻擊疊血印進入血腥狀態獲得吸血與增傷。', sprite: H('death_knight', 296, 184), portrait: '/assets/portraits/death_knight.png', avatar: '/assets/avatars/death_knight.jpg',
     story: '曾是某個王國最忠誠的騎士，直到那個王國在一夜之間被自己人出賣、屠盡。他在屍山中甦醒，帶著半死不活的身軀與再也止不住的憤怒，從此不再守護誰，只憑一口尚未熄滅的恨意向前廝殺——血流得越多，他反而站得越穩。',
     heightCm: 190, weightKg: 88, age: '?', race: '不死者', element: '暗',
-    starSprites: [H('death_knight_s0', 319, 240), H('death_knight_s1', 319, 240), H('death_knight_s2', 319, 240), H('death_knight_s3', 319, 240)] },
+    starSprites: [H('death_knight_s0', 309, 192), H('death_knight_s1', 309, 192), H('death_knight_s2', 309, 192), H('death_knight_s3', 309, 192)] },
   { id: 'engineer', name: '機關技師', title: '機械火力', hp: 120, atk: 23, def: 8, role: 'gear', school: 'physical', skill: '蒸氣砲擊', desc: '兩對以上時機關炮追加固定傷害。', sprite: H('engineer', 279, 184), portrait: '/assets/portraits/engineer.png', avatar: '/assets/avatars/engineer.jpg',
     story: '自幼在廢棄兵工廠裡長大，靠拆解與重組舊時代的兵器維生，久而久之，比起活人，她似乎更擅長和齒輪、蒸氣管線對話。她從不相信天賦這種東西，只相信只要拆得夠多、修得夠久，任何一台廢鐵都能重新開火——包括她自己。',
     heightCm: 156, weightKg: 45, age: '21', race: '人類', element: '機械',
