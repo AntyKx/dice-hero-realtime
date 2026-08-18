@@ -185,6 +185,7 @@ interface Gem {
   y: number
   value: number
   alive: boolean
+  bobSeed: number // 靜置飄浮動畫的隨機相位，避免多顆同步跳動，見 updateGems()
 }
 
 export interface EnemyInstance {
@@ -366,9 +367,41 @@ const ENEMY_BASE_SPEED = 90
 const PLAYER_HIT_FLASH_DURATION = 0.15 // 秒，玩家受傷時的染紅閃爍
 const PICKUP_RANGE = 90
 const MAGNET_SPEED = 380
-const GEM_RADIUS = 7
+const GEM_RADIUS = 7 // 拾取判定用的半徑，跟實際繪製大小（見 drawGemGraphic）分開
 const GEM_XP_VALUE = 10
 const BOSS_GEM_XP_VALUE = GEM_XP_VALUE * 8
+const GEM_BOB_SPEED = 3.2 // rad/秒，靜置時的上下飄浮速度
+const GEM_BOB_HEIGHT = 2.4 // px
+
+/** 擊殺掉落的經驗寶石外觀（2026-08）：原本只是一顆純色實心圓，改成六角
+ * 切面寶石造型——外層柔光暈＋主體切面輪廓＋左上角亮部切面＋一點高光，
+ * 跟 spawnGlowBurst() 那套「多層疊圖」畫法同一個語彙。Boss 掉落的大寶石
+ * 用金色系＋放大，一般寶石維持綠色系，玩家一眼就能分辨值不值得特地繞過去
+ * 撿。純視覺，跟 GEM_XP_VALUE/BOSS_GEM_XP_VALUE 的實際數值無關。 */
+function drawGemGraphic(gfx: Graphics, isBoss: boolean) {
+  const scale = isBoss ? 1.5 : 1
+  const baseColor = isBoss ? 0xe8901c : 0x22a55e
+  const highlightColor = isBoss ? 0xffe680 : 0x8dffb8
+  const outlineColor = isBoss ? 0xfff3c4 : 0xbdffd9
+  const glowColor = isBoss ? 0xffb020 : 0x4ade80
+
+  gfx.circle(0, 0, 13 * scale).fill({ color: glowColor, alpha: 0.22 })
+  gfx.poly([
+    0, -9 * scale,
+    5.5 * scale, -3 * scale,
+    4 * scale, 6 * scale,
+    0, 9 * scale,
+    -4 * scale, 6 * scale,
+    -5.5 * scale, -3 * scale,
+  ]).fill({ color: baseColor }).stroke({ color: outlineColor, width: 1.2 * scale, alpha: 0.9 })
+  gfx.poly([
+    0, -9 * scale,
+    5.5 * scale, -3 * scale,
+    0, -1 * scale,
+    -5.5 * scale, -3 * scale,
+  ]).fill({ color: highlightColor, alpha: 0.55 })
+  gfx.circle(-2 * scale, -4 * scale, 1.4 * scale).fill({ color: 0xffffff, alpha: 0.9 })
+}
 const ARENA_MARGIN = 40
 // 上緣要留給左上角的返回鍵+關卡徽章疊層（HUD 佔到約 y:14~72px），
 // 不能跟其他三邊共用同一個 margin，不然角色/門會滑到 HUD 底下看不見
@@ -2607,7 +2640,7 @@ export class ArenaGame {
       this.killCount++
       this.ultimateCharge = Math.min(ULTIMATE_MAX, this.ultimateCharge +
         (e.isBoss ? ULTIMATE_CHARGE_BOSS : e.isElite ? ULTIMATE_CHARGE_ELITE : ULTIMATE_CHARGE_NORMAL))
-      this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE)
+      this.spawnGem(e.x, e.y, e.isBoss ? BOSS_GEM_XP_VALUE : GEM_XP_VALUE, e.isBoss)
       // 武鬥家天賦技能：擊殺疊氣勢，滿5層下次攻擊 200% 傷害
       if (this.cfg.heroId === 'fighter' && this.unlockedMajorSkillIds.has('fighter_lv40')) {
         this.keystoneStacks++
@@ -3839,14 +3872,14 @@ export class ArenaGame {
     this.applyUltimateDamage()
   }
 
-  spawnGem(x: number, y: number, value: number) {
+  spawnGem(x: number, y: number, value: number, isBoss = false) {
     if (!this.app) return
     const gfx = this.gemPool.acquire()
-    gfx.circle(0, 0, GEM_RADIUS).fill({ color: 0x4ade80 })
+    drawGemGraphic(gfx, isBoss)
     gfx.x = x
     gfx.y = y
     if (!gfx.parent) this.worldLayer!.addChild(gfx)
-    this.gems.push({ gfx, x, y, value, alive: true })
+    this.gems.push({ gfx, x, y, value, alive: true, bobSeed: Math.random() * Math.PI * 2 })
   }
 
   updateGems(dt: number) {
@@ -3855,6 +3888,13 @@ export class ArenaGame {
       const dx = this.player.x - g.x
       const dy = this.player.y - g.y
       const dist = Math.hypot(dx, dy)
+      // 還沒被磁吸的靜置寶石：輕輕上下飄浮，不是死板的定格圖案。磁吸飛向
+      // 玩家時飄浮就沒意義了，直接貼實際座標，避免跟吸取路徑打架。
+      if (dist >= PICKUP_RANGE * this.pickupRangeMult) {
+        g.bobSeed += dt * GEM_BOB_SPEED
+        g.gfx.x = g.x
+        g.gfx.y = g.y + Math.sin(g.bobSeed) * GEM_BOB_HEIGHT
+      }
       if (dist < PICKUP_RANGE * this.pickupRangeMult) {
         const step = Math.min(dist, MAGNET_SPEED * dt)
         if (dist > 1) { g.x += (dx / dist) * step; g.y += (dy / dist) * step }
