@@ -196,7 +196,7 @@ export default function ArenaScreen({ config, onExit, onRunEnd, onCampaignStageE
         <div className="arena-ultimate-cluster">
           <div className="arena-ultimate-info">
             <div className="arena-portrait-wrap">
-              <img className="arena-portrait" src={`/assets/frames/heroes/${config.heroId}/idle_0.png`} alt={config.heroName} />
+              <img className="arena-portrait" src={`/assets/avatars/${config.heroId}.jpg`} alt={config.heroName} />
               <div className="arena-level-badge">Lv.{hud.level}</div>
             </div>
             <div className="arena-ultimate-bars">
