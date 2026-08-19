@@ -81,7 +81,9 @@ import { recordStageResult, claimFirstClearReward, getStageProgress } from './ca
 import PartySetupScreen from './screens/PartySetupScreen'
 import AstralShopScreen from './screens/AstralShopScreen'
 import WarehouseScreen from './screens/WarehouseScreen'
-import { sanitizeParty, computePartyBonus } from './party'
+import { sanitizeParty, computePartyBonus, getPartyHeroIds } from './party'
+import AdventureStageScreen from './adventure/AdventureStageScreen'
+import { isAdventureStageId } from './adventure/stages'
 
 const APP_VERSION = __APP_BUILD__
 
@@ -1505,6 +1507,67 @@ export default function App() {
     )
   }
 
+  // Adventure Stage 探索關卡（2026-08-19，見 src/adventure/）：跟
+  // renderCampaignArena 平行的另一個渲染 helper，heroAtk/maxHp 沿用完全
+  // 相同的計算公式（天賦/裝備/隊伍加成），只是餵給 AdventureGame 而不是
+  // ArenaGame——保持兩邊戰力數字一致，不會出現「同一個英雄在 Adventure
+  // 裡比在 Arena 裡弱」的落差。
+  const renderAdventureStage = (heroId: string, stageId: string, onExit: () => void) => {
+    const hero = HEROES.find(h => h.id === heroId) ?? HEROES[0]
+    const heroProgress = meta.heroProgress[hero.id] ?? defaultHeroProgress()
+    const talentBonus = computeArenaTalentBonus(hero.id, heroProgress.allocatedTalentIds)
+    const { hpBonus: equipHpBonus } = getActiveArenaEquipConfig(hero.id)
+    const party = sanitizeParty(meta.party, HEROES.map(h => h.id), hero.id)
+    const partyBonus = computePartyBonus(party)
+    return (
+      <AdventureStageScreen
+        config={{
+          heroId: hero.id,
+          stars: heroProgress.stars,
+          maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus + Math.round(hero.hp * partyBonus.hpBonusPct),
+          heroAtk: Math.round((Math.round(hero.atk * 0.6) + talentBonus.flatDamage) * (1 + partyBonus.dmgBonusPct)),
+          partyHeroIds: getPartyHeroIds(party),
+          stageId,
+        }}
+        onExit={onExit}
+        onAdventureStageEnd={result => {
+          updateMeta(m => {
+            const wasFirstClearClaimed = getStageProgress(m, stageId).firstClearClaimed
+            let next: MetaState = {
+              ...m,
+              lastPlayedStageId: stageId,
+              adventureStageProgress: { ...m.adventureStageProgress, [stageId]: result.progress },
+            }
+            next = recordStageResult(next, stageId, result.won ? result.stars : 0)
+            if (result.pendingGold > 0) next = { ...next, gold: next.gold + result.pendingGold }
+            if (result.pendingEnhanceStones > 0) next = { ...next, enhanceStoneCount: next.enhanceStoneCount + result.pendingEnhanceStones }
+            if (result.pendingHeroExp > 0) {
+              const prevHp = next.heroProgress[hero.id] ?? defaultHeroProgress()
+              next = { ...next, heroProgress: { ...next.heroProgress, [hero.id]: addHeroExp(prevHp, result.pendingHeroExp) } }
+            }
+            if (result.won) {
+              const drop = generateRandomDrop(hero.id, [['normal', 100]])
+              next = { ...next, arenaInventory: [...(next.arenaInventory ?? []), drop] }
+            }
+            if (result.won && !wasFirstClearClaimed) {
+              const stage = getCampaignStage(stageId)
+              if (stage) {
+                const prevHp = next.heroProgress[hero.id] ?? defaultHeroProgress()
+                next = {
+                  ...next,
+                  gold: next.gold + stage.firstClearReward.gold,
+                  heroProgress: { ...next.heroProgress, [hero.id]: addHeroExp(prevHp, stage.firstClearReward.heroExp) },
+                }
+              }
+              next = claimFirstClearReward(next, stageId)
+            }
+            return next
+          })
+        }}
+      />
+    )
+  }
+
   // ── 森林遺跡固定式主線關卡（2026-08，見 src/campaign/）：跟上面 arena_run
   // （Roguelite）完全分開的「第三種模式」，各自獨立的 GamePhase 分支，不共用
   // campaign 欄位語意，也不會互相干擾對方的存檔/進度。
@@ -1515,10 +1578,24 @@ export default function App() {
           meta={meta}
           heroId={phase.heroId}
           campaignId={phase.campaignId}
-          onSelectStage={stageId => setPhase({ type: 'campaign_stage', heroId: phase.heroId, stageId })}
+          onSelectStage={stageId => setPhase(
+            isAdventureStageId(stageId)
+              ? { type: 'adventure_stage', heroId: phase.heroId, stageId }
+              : { type: 'campaign_stage', heroId: phase.heroId, stageId },
+          )}
           onBack={() => setPhase({ type: 'campaign_chapter_select', heroId: phase.heroId, sagaId: getSagaIdForCampaign(phase.campaignId) })}
         />
       </div>
+    )
+  }
+
+  // forest_1_1 專屬：其餘 89 關繼續走下面的 campaign_stage/renderCampaignArena。
+  if (phase.type === 'adventure_stage') {
+    const stageId = phase.stageId
+    const stageCampaignId = getCampaignStage(stageId)?.campaignId ?? CAMPAIGN_ID_FOREST_RUINS
+    return renderAdventureStage(
+      phase.heroId, stageId,
+      () => setPhase({ type: 'campaign_map', heroId: phase.heroId, campaignId: stageCampaignId }),
     )
   }
 
@@ -1603,7 +1680,9 @@ export default function App() {
           onMetaUpdate={updateMeta}
           onBack={() => setPhase({ type: 'main_menu' })}
           onOpenCampaignMap={heroId => setPhase({ type: 'campaign_saga_select', heroId })}
-          onStartCampaignStage={(heroId, stageId) => setPhase({ type: 'campaign_stage', heroId, stageId })}
+          onStartCampaignStage={(heroId, stageId) => setPhase(
+            isAdventureStageId(stageId) ? { type: 'adventure_stage', heroId, stageId } : { type: 'campaign_stage', heroId, stageId },
+          )}
           onOpenEquipment={() => setPhase({ type: 'equipment_manage' })}
           onOpenWarehouse={() => setPhase({ type: 'warehouse' })}
           onOpenPartySetup={slot => setPhase({ type: 'party_setup', editingSlot: slot })}

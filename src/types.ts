@@ -796,6 +796,10 @@ export type MetaState = {
    * 舊存檔沒有時視同 0，不需要 migration。 */
   enhanceStoneCount: number
   synthesisMaterialCount: number
+  /** Adventure Stage 探索關卡進度（2026-08-19，見 src/adventure/adventureTypes.ts
+   * 的 AdventureStageProgress）：key 是 stageId（目前只有 'forest_1_1'）。純新增
+   * 選填欄位，舊存檔沒有時視同 {}，不需要 migration。 */
+  adventureStageProgress?: Record<string, import('./adventure/adventureTypes').AdventureStageProgress>
 }
 
 export type EnemyAffixId = 'thorns' | 'regen' | 'armor' | 'berserk' | 'poison_sting' | 'immune'
@@ -880,3 +884,10 @@ export type GamePhase =
   // 倉庫（2026-08，取代大廳底部導覽的「英雄」）：裝備／遺物／道具三分頁的
   // 全頁畫面，見 WarehouseScreen.tsx。
   | { type: 'warehouse' }
+  // Adventure Stage 探索關卡（2026-08-19，見 src/adventure/）：跟上面
+  // campaign_stage／ArenaGame.ts 的 exploreWorld 系統完全獨立的全新引擎——
+  // forest_1_1 從「跟其餘 85 關共用 campaign_stage/ArenaScreen」改成專屬
+  // 這個 phase，走 AdventureStageScreen.tsx/AdventureGame.ts；其餘 89 關
+  // （含森林遺跡 1-2~1-5）不受影響，繼續走 campaign_stage。是否要走這個
+  // phase 由 isAdventureStageId(stageId) 判斷（見 App.tsx）。
+  | { type: 'adventure_stage'; heroId: string; stageId: string }

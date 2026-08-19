@@ -20,8 +20,15 @@ function stage(n: number, partial: Omit<CampaignStage, 'id' | 'campaignId' | 'ch
 }
 
 export const FOREST_RUINS_STAGES: CampaignStage[] = [
+  // 2026-08-19：1-1 從「3 波哥布林清怪」換成 Adventure Stage 探索關卡
+  // 「迷途的林間入口」（見 src/adventure/stages/forestRuins01.ts）。這裡的
+  // waves/objective/hazards 保留不刪（App.tsx 依 isAdventureStageId() 分流，
+  // 這幾個欄位不會再被讀到，是安全的死欄位），id/campaignId/chapter/
+  // stageNumber/bgTheme/firstClearReward 仍是 CampaignMapScreen 地圖節點與
+  // 底部關卡資訊面板要讀的真實資料，不能動。starConditions 換成新規則的
+  // 描述文字，真正的判定邏輯在 AdventureGame.ts，不是 evaluateCampaignStars()。
   stage(1, {
-    name: '森林入口',
+    name: '迷途的林間入口',
     objective: { type: 'elimination' },
     waves: [
       { trigger: { type: 'stage_start' }, enemies: { goblin_warrior: 4 } },
@@ -29,11 +36,11 @@ export const FOREST_RUINS_STAGES: CampaignStage[] = [
       { trigger: { type: 'previous_wave_cleared', delaySec: 1 }, enemies: { goblin_warrior: 6 } },
     ],
     starConditions: [
-      { type: 'clear', description: '擊敗所有敵人' },
-      { type: 'hp_above', value: 60, description: 'HP ≥ 60% 通關' },
-      { type: 'time_under', value: 90, description: '90 秒內通關' },
+      { type: 'clear', description: '通關' },
+      { type: 'purple_coin_count', value: 15, description: '收集 ≥ 15 / 20 紫幣' },
+      { type: 'star_piece_found', value: 1, description: '找到 ≥ 1 個星星碎片' },
     ],
-    estimatedDurationSec: [60, 90],
+    estimatedDurationSec: [180, 360],
     firstClearReward: { gold: 40, heroExp: 30 },
     bgTheme: 'forest_entrance',
   }),

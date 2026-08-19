@@ -75,6 +75,10 @@ const FOREST_TREANT: EnemyTypeDef  = { id: 'forest_treant', name: '森林樹精'
 const THORN_WOLF: EnemyTypeDef     = { id: 'thorn_wolf', name: '荊棘狼', hpMult: 1.1, speedMult: 1.3, damageMult: 1.2, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'charge', anchorRatio: { x: 0.526, y: 0.694 } }
 // 1-4 哥布林營地的破壞目標：完全靜止、無攻擊（updateTotemAI 是 no-op），純粹讓玩家找到並打掉。不在 12 隻真圖名單內，維持佔位圖。
 const FOREST_TOTEM: EnemyTypeDef   = { id: 'forest_totem', name: '哥布林圖騰', hpMult: 0.9, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
+// Adventure Stage（2026-08-19，森林遺跡 1「迷途的林間入口」）石橋戰用的
+// 小型雜兵：12 隻森林遺跡真圖名單裡沒有史萊姆，借用 slimeking 的真圖但
+// 數值大幅調降（原本是 Roguelite 中期強度），做出「小史萊姆」的份量感。
+const FOREST_SLIME: EnemyTypeDef   = { id: 'forest_slime', name: '森林史萊姆', hpMult: 0.4, speedMult: 0.9, damageMult: 0.5, spriteHeight: 44, weight: 0, minMinute: 0, aiType: 'chase', placeholderSpriteId: 'slimeking' }
 
 // Boss 血量（2026-08-12 V2 重新調校）：舊數值是沿用 Roguelite 那套「靠持續
 // 刷怪撐時間」的量級，實測森林巨龍在一般輸出下 46 秒就會被打死，離文件要
@@ -103,6 +107,7 @@ export const FOREST_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
   forest_treant: FOREST_TREANT,
   thorn_wolf: THORN_WOLF,
   forest_totem: FOREST_TOTEM,
+  forest_slime: FOREST_SLIME,
   orc_chieftain: ORC_CHIEFTAIN,
   ancient_treant_guardian: ANCIENT_TREANT_GUARDIAN,
   dark_knight_vanguard: DARK_KNIGHT_VANGUARD,

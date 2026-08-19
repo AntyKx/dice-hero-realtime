@@ -14,6 +14,11 @@ import { pickRelicChoices, ARENA_RELICS, type ArenaRelic, type ArenaRelicEffect 
 import { generateArenaDungeon, type ArenaZoneNode, type ArenaZoneType } from './dungeonZones'
 import { loadCharacterFrames, STATE_FPS, type AnimState } from './frameLoader'
 import {
+  HERO_RENDER_HEIGHT, HERO_RENDER_HEIGHT_OVERRIDE, ATTACK_TRIGGER_FRAME_OVERRIDE,
+  DEFAULT_FRAME_DURATIONS_MS, getFrameDurationSec, getStateTotalDurationSec,
+  setSpriteHeight as setSpriteHeightRig,
+} from './heroSpriteRig'
+import {
   CHASE_CONFIG, CHARGE_CONFIG, RANGED_CONFIG, AOE_CONFIG, SUMMONER_CONFIG, HEAVY_CONFIG,
   SUPPORT_CONFIG, SKIRMISHER_CONFIG,
   type EnemyAiType,
@@ -445,19 +450,10 @@ const HIDDEN_GOLD_MAX = 120
 // 逐幀動畫（見 frameLoader.ts）：真的幀圖到位前，用這些程式化參數頂手感
 // （攻擊頓感/走路 bob/受擊震動染色/死亡淡出縮小），畫好對應狀態的幀圖後
 // updatePlayerAnim()/updateEnemyVisual() 會自動改播真的逐幀動畫。
-const HERO_RENDER_HEIGHT = 60    // 火焰法師動畫模組要求：英雄顯示高度統一 60px（原本 76px 偏大）
-// 2026-08-18：火焰法師/死亡騎士/機關技師改成「整個角色共用一個裁切框」
-// （見 import-hero-redo-v2.mjs）修掉移動忽大忽小之後，這三位英雄的裁切
-// 畫布比之前（只在同一狀態內共用）明顯更高（要遷就 skill 特效的最大範圍），
-// 用同一個 HERO_RENDER_HEIGHT 縮放，角色在畫面上反而變小了。這裡針對這
-// 三位個別放大，倍率是「新裁切框高度 ÷ 舊裁切框（同狀態內共用版）高度」
-// 換算回來的，等於把角色實際大小拉回跟移動不忽大忽小的那版差不多、不再
-// 因為換了裁切策略而縮水。其他還沒重做動畫的英雄不受影響。
-const HERO_RENDER_HEIGHT_OVERRIDE: Partial<Record<string, number>> = {
-  mage: 80,
-  death_knight: 87,
-  engineer: 72,
-}
+// HERO_RENDER_HEIGHT/HERO_RENDER_HEIGHT_OVERRIDE/ATTACK_TRIGGER_FRAME_OVERRIDE/
+// DEFAULT_FRAME_DURATIONS_MS/getFrameDurationSec/getStateTotalDurationSec 這批
+// 2026-08-19 抽到 heroSpriteRig.ts（AdventureGame.ts 需要共用同一份調校表，
+// 不要重新踩一次已經調好的坑），這裡改用檔案開頭的 import。
 const ATTACK_ANIM_DURATION = 0.2 // 秒，沒有真的攻擊幀圖時的程式化頓感時長
 const SKILL_ANIM_DURATION = 0.3  // 秒，沒有真的技能幀圖時的程式化演出時長
 const HIT_SHAKE_DURATION = 0.18  // 秒，受擊震動+染色總時長
@@ -481,31 +477,6 @@ const WALK_BOB_HEIGHT = 2.4      // px
 // 需要真的逐幀圖也能生效），現在對所有英雄一律生效。
 // ══════════════════════════════════════════════════════════════════
 
-/** 不等速逐格時間（毫秒），依「這個狀態實際幀數是否等於這裡設計的張數」
- * 決定要不要套用（不再是 heroId 白名單）——張數對不上（例如還在用 idle
- * fallback）就維持原本統一 STATE_FPS 換算出的等速播放。 */
-const DEFAULT_FRAME_DURATIONS_MS: Partial<Record<AnimState, number[]>> = {
-  idle: [170, 160, 150, 170, 160, 150],
-  walk: [90, 80, 85, 90, 80, 85],
-  attack: [120, 70, 45, 65, 160],
-  skill: [160, 90, 260],
-}
-
-function getFrameDurationSec(state: AnimState, frameIndex: number, frameCount: number): number {
-  const arr = DEFAULT_FRAME_DURATIONS_MS[state]
-  const ms = arr && arr.length === frameCount ? arr[frameIndex] : undefined
-  return ms !== undefined ? ms / 1000 : 1 / STATE_FPS[state]
-}
-
-/** 播完整組動畫（例如 attackTimer/skillTimer 這種「整段還要播多久」的
- * 倒數計時）要用的總時長——非等速時要把每一格的自訂時間加總，不能直接拿
- * frameCount/STATE_FPS 算，不然狀態會在最後一格真的播完之前提早切回 idle。 */
-function getStateTotalDurationSec(state: AnimState, frameCount: number): number {
-  const arr = DEFAULT_FRAME_DURATIONS_MS[state]
-  if (arr && arr.length === frameCount) return arr.reduce((sum, ms) => sum + ms, 0) / 1000
-  return frameCount / STATE_FPS[state]
-}
-
 // Hit Stop：一般命中/爆擊兩級，秒為單位。跟必殺技 Cut-in 的 freeze 子階段
 // 共用同一套「battlePaused 時跳過戰鬤模擬」機制（見 update()），不是另開
 // 一條暫停路徑。對所有英雄一律生效，不依賴逐幀圖。
@@ -523,18 +494,6 @@ const HIT_SQUASH_DURATION = 0.1
 // 受擊閃白：比原本的染紅震動更早、更短的一段純白閃光，疊在既有紅色
 // 染色之前（HIT_SHAKE_DURATION/HIT_FLASH_DURATION 那段維持不變）。
 const HIT_WHITE_FLASH_DURATION = 0.05
-
-// 攻擊觸發幀（0-indexed，攻擊播到這一格才真的開火，見 updatePlayerAnim()）：
-// 預設抓中間那格；火焰法師／死亡騎士 2026-08-18 重做版的 info/sprite-info.json
-// 都明確標了 impactFrame（1-indexed 幀 16 → attack 第 4 格，0-indexed
-// index 3），跟預設的「取中間」（5 格是 index 2）不一樣，這裡照美術給的
-// 資料覆寫，之後其他角色如果也有自己的 impactFrame 資料，一樣加一筆進來
-// 就好。
-const ATTACK_TRIGGER_FRAME_OVERRIDE: Partial<Record<string, number>> = {
-  mage: 3,
-  death_knight: 3,
-  engineer: 3,
-}
 
 // 攻擊 5 格逐格視覺效果（蓄力後縮→前傾→持續前傾→前衝出招→回收），依
 // 「攻擊狀態真實幀數是否剛好 5」把關（frames.length === ATTACK_FRAME_VISUAL.length），
@@ -1000,8 +959,7 @@ export class ArenaGame {
   }
 
   setSpriteHeight(sprite: Sprite, targetHeight: number) {
-    const scale = targetHeight / sprite.texture.height
-    sprite.scale.set(scale)
+    setSpriteHeightRig(sprite, targetHeight)
   }
 
   /**
@@ -1761,6 +1719,13 @@ export class ArenaGame {
           return !this.campaignStats.diedDuringStage
         case 'custom':
           return this.evaluateCustomStar(stage)
+        case 'purple_coin_count':
+        case 'star_piece_found':
+          // Adventure Stage 專用（目前只有 forest_1_1 用），判定邏輯在
+          // AdventureGame.ts，App.tsx 依 isAdventureStageId() 分流後這個
+          // switch 不會真的被這兩個 case 呼叫到——留這兩個 case 純粹是為了
+          // 讓 switch 對 StarConditionType 保持窮盡（exhaustive），不是死路。
+          return false
       }
     }
     return [evalOne(stage.starConditions[0]), evalOne(stage.starConditions[1]), evalOne(stage.starConditions[2])]

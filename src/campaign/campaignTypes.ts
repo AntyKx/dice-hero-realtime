@@ -92,6 +92,11 @@ export type StarConditionType =
   | 'counter_trigger_under'  // Boss 反擊觸發次數 <= value（1-15 專用，第三星是 0）
   | 'no_death'               // 過程中沒有觸發過死亡結算（1-19 三波連續戰用）
   | 'custom'                 // 特殊情境（目前只有 1-9「優先擊敗 Shaman」用，靠 objective.progress.customFlag 判斷）
+  // Adventure Stage 專用（2026-08-19）：判定邏輯不在 ArenaGame.ts 的
+  // evaluateCampaignStars()，改由 AdventureGame.ts 在 Exit 時自己算，這兩個
+  // 成員純粹給 UI（CampaignMapScreen 底部關卡資訊面板）顯示描述文字用。
+  | 'purple_coin_count'      // 收集的紫幣數 >= value
+  | 'star_piece_found'       // 找到的星星碎片數 >= value
 
 export interface StarCondition {
   type: StarConditionType
