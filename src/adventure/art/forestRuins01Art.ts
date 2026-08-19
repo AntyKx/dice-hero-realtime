@@ -15,8 +15,12 @@
 
 const BASE = '/assets/adventure/forest_1_1'
 
-export const FOREST01_GROUND = `${BASE}/ground/forest_1_1_ground.webp`
-export const FOREST01_FOREGROUND = `${BASE}/foreground/forest_1_1_foreground.webp`
+// 2026-08-19 Art V2：原本這兩張只有 1024x1536，AdventureGame.buildScene()
+// 又把它們 runtime 拉到 2400x3600（2.34x）造成模糊。V2 改成 build 階段
+// （scripts/build-forest01-art-v2.mjs）就先做好 2400x3600 的 master，
+// AdventureGame 不再做任何 runtime 拉伸，見該檔案 buildScene() 的說明。
+export const FOREST01_GROUND = `${BASE}/v2/ground/forest_1_1_ground_v2.webp`
+export const FOREST01_FOREGROUND = `${BASE}/v2/foreground/forest_1_1_foreground_v2.webp`
 
 export const FOREST01_NPC_ART = {
   idle: `${BASE}/entities/entities_01.webp`,

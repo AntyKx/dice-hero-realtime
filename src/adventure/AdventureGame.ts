@@ -1,6 +1,6 @@
 import { Application, Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js'
 import { loadCharacterFrames, type AnimState } from '../arena/frameLoader'
-import { getHeroRenderHeight, setSpriteHeight } from '../arena/heroSpriteRig'
+import { setSpriteHeight } from '../arena/heroSpriteRig'
 import { ALL_CAMPAIGN_STAGE_ENEMIES, type EnemyTypeDef } from '../arena/enemies'
 import type {
   AdventureStageDef, AdventureGameState, AdventureHudState, AdventureStageProgress,
@@ -25,6 +25,9 @@ import {
   FOREST01_GROUND, FOREST01_FOREGROUND, FOREST01_NPC_ART, FOREST01_COLLECTIBLE_ART,
   FOREST01_ENEMY_STATIC_ART, FOREST01_INTERACTIVE_ART, FOREST01_PROPS_ART, FOREST01_DISPLAY_HEIGHT,
 } from './art/forestRuins01Art'
+import {
+  FOREST01_V2_ART, FOREST01_ADVENTURE_DISPLAY, getAdventureHeroRenderHeight,
+} from './art/forestRuins01VisualTuning'
 
 export interface AdventureConfig {
   heroId: string
@@ -56,7 +59,7 @@ const COLOR_COLLECTIBLE_DEBUG = 0x50e070
 // 關卡若也做正式美術，這裡要改成依 stageId 動態決定要載入哪一包
 // art manifest，不是繼續往同一份清單塞。
 function collectForest01ArtPaths(): string[] {
-  const paths: string[] = [FOREST01_GROUND, FOREST01_FOREGROUND]
+  const paths: string[] = [FOREST01_GROUND, FOREST01_FOREGROUND, FOREST01_V2_ART.contactShadow]
   paths.push(...Object.values(FOREST01_NPC_ART))
   paths.push(...Object.values(FOREST01_COLLECTIBLE_ART))
   paths.push(...Object.values(FOREST01_ENEMY_STATIC_ART).filter((v): v is string => !!v))
@@ -113,6 +116,7 @@ export class AdventureGame {
 
   player = { x: 0, y: 0, hp: 0, maxHp: 0, radius: PLAYER_RADIUS }
   playerSprite: Sprite | null = null
+  private shadowSprite: Sprite | null = null
   moveDir = { x: 0, y: 0 }
   facing: 'left' | 'right' = 'right'
   camera = { x: 0, y: 0 }
@@ -257,9 +261,22 @@ export class AdventureGame {
     this.player.x = this.stage.spawn.x
     this.player.y = this.stage.spawn.y
 
+    // 探索畫面的英雄顯示尺寸跟 Arena 戰鬤特寫（60px）分開算，見
+    // forestRuins01VisualTuning.ts 開頭註解——不要改回 getHeroRenderHeight()。
+    const shadow = new Sprite(this.tex(FOREST01_V2_ART.contactShadow))
+    shadow.anchor.set(0.5)
+    shadow.width = FOREST01_ADVENTURE_DISPLAY.contactShadowWidth
+    shadow.height = FOREST01_ADVENTURE_DISPLAY.contactShadowHeight
+    shadow.alpha = FOREST01_ADVENTURE_DISPLAY.contactShadowAlpha
+    shadow.x = this.player.x
+    shadow.y = this.player.y + FOREST01_ADVENTURE_DISPLAY.contactShadowOffsetY
+    shadow.zIndex = this.player.y - 1
+    this.worldLayer.addChild(shadow)
+    this.shadowSprite = shadow
+
     const playerSprite = new Sprite(heroFrames.idle[0])
     playerSprite.anchor.set(0.5, heroFrames.idle.length > 1 ? 1 : 0.5)
-    setSpriteHeight(playerSprite, getHeroRenderHeight(this.heroId))
+    setSpriteHeight(playerSprite, getAdventureHeroRenderHeight(this.heroId))
     playerSprite.x = this.player.x
     playerSprite.y = this.player.y
     playerSprite.zIndex = this.player.y
@@ -308,24 +325,33 @@ export class AdventureGame {
     const { world } = this.stage
     const H = FOREST01_DISPLAY_HEIGHT
 
-    // Ground：鋪滿整個 world，zIndex 維持預設（0），Y-sort 時永遠墊底。
-    const ground = new Sprite(this.tex(FOREST01_GROUND))
-    ground.width = world.width
-    ground.height = world.height
+    // Ground：V2 素材在 build 階段（scripts/build-forest01-art-v2.mjs）就
+    // 已經做成跟 world 同尺寸的 2400x3600 master，這裡不再 runtime 拉伸
+    // （之前 1024x1536 硬拉 2.34x 是模糊感主因）。尺寸不符時只 warn，不靜默拉伸。
+    const groundTex = this.tex(FOREST01_GROUND)
+    if (import.meta.env.DEV && (groundTex.width !== world.width || groundTex.height !== world.height)) {
+      console.warn(`[AdventureGame] Ground 材質尺寸(${groundTex.width}x${groundTex.height})跟 world(${world.width}x${world.height})不符，可能又混入沒有跑過 build-forest01-art-v2.mjs 的舊圖。`)
+    }
+    const ground = new Sprite(groundTex)
+    ground.position.set(0, 0)
     this.worldLayer.addChild(ground)
 
     this.buildDecorationProps()
     this.buildInteractiveObjects(H)
-    for (const npc of this.stage.npcs) this.buildNpcSprite(npc, H.npc)
+    for (const npc of this.stage.npcs) this.buildNpcSprite(npc, FOREST01_ADVENTURE_DISPLAY.npcHeight)
     for (const c of this.stage.collectibles) this.buildCollectibleSprite(c, H)
 
-    // Foreground：整張拉伸鋪滿 world，跟地表同一張圖是分開生成的素材，只做
-    // 外圈植被的裝飾邊框效果（doc 說明：不能假設每一像素對齊，這裡當一次性
-    // 邊界裝飾用，不做「玩家走到樹冠下被局部遮擋」——那需要散佈式素材，
-    // 目前這包只有邊框構圖，見任務回報的已知限制）。
-    const foreground = new Sprite(this.tex(FOREST01_FOREGROUND))
-    foreground.width = world.width
-    foreground.height = world.height
+    // Foreground：跟 Ground 同樣是 build 階段就做好 2400x3600，不做 runtime
+    // 拉伸；alpha 固定 0.96（不是 1）讓邊框跟底圖融合感更自然，先不做「玩家
+    // 走到樹冠下淡出」的局部遮蔽（目前素材只有邊框構圖，做了也沒意義，見
+    // 任務回報的已知限制）。
+    const foregroundTex = this.tex(FOREST01_FOREGROUND)
+    if (import.meta.env.DEV && (foregroundTex.width !== world.width || foregroundTex.height !== world.height)) {
+      console.warn(`[AdventureGame] Foreground 材質尺寸(${foregroundTex.width}x${foregroundTex.height})跟 world(${world.width}x${world.height})不符。`)
+    }
+    const foreground = new Sprite(foregroundTex)
+    foreground.position.set(0, 0)
+    foreground.alpha = FOREST01_ADVENTURE_DISPLAY.foregroundNormalAlpha
     foreground.zIndex = FOREGROUND_Z
     foreground.eventMode = 'none'
     this.worldLayer.addChild(foreground)
@@ -553,6 +579,11 @@ export class AdventureGame {
         this.playerSprite.y = this.player.y
         this.playerSprite.zIndex = this.player.y
         this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x) * (this.facing === 'left' ? -1 : 1)
+      }
+      if (this.shadowSprite) {
+        this.shadowSprite.x = this.player.x
+        this.shadowSprite.y = this.player.y + FOREST01_ADVENTURE_DISPLAY.contactShadowOffsetY
+        this.shadowSprite.zIndex = this.player.y - 1
       }
       this.trigger.update()
       this.collectible.update()
