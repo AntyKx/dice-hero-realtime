@@ -30,6 +30,15 @@ export class NpcController {
         dialogueId = quest.inProgressDialogueId // completed 之後沿用同一句閒聊台詞
       }
     }
-    g.dialogue.start(dialogueId, onDone)
+
+    // NPC 立繪狀態：對話中切 talking，對話結束（不論是否有 onDone 邏輯要跑）
+    // 都要切回 idle 或（任務剛好完成）happy——包住原本的 onDone 一起執行。
+    g.setNpcTalking(npcId)
+    const baseOnDone = onDone
+    const wrappedOnDone = () => {
+      baseOnDone?.()
+      g.restoreNpcIdleState(npcId)
+    }
+    g.dialogue.start(dialogueId, wrappedOnDone)
   }
 }

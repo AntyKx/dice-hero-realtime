@@ -14,6 +14,15 @@ export class PuzzleSystem {
     return this.lit.get(puzzleId)?.has(brazierId) ?? false
   }
 
+  /** 重玩已完成謎題時呼叫：把這個謎題底下全部火盆標記成已點燃，讓
+   * InteractionSystem 不再顯示「點燃火盆」提示。實際的 lit sprite 視覺跟
+   * 藤蔓門 collider 由 AdventureGame 場景建置時另外處理，這裡只管狀態。 */
+  markPuzzleAlreadyComplete(puzzleId: string) {
+    const puzzle = this.game.stage.puzzles.find(p => p.id === puzzleId)
+    if (!puzzle) return
+    this.lit.set(puzzleId, new Set(puzzle.braziers.map(b => b.id)))
+  }
+
   hitBrazier(puzzleId: string, brazierId: string) {
     const g = this.game
     const puzzle = g.stage.puzzles.find(p => p.id === puzzleId)

@@ -16,6 +16,12 @@ export class QuestSystem {
     return this.state.get(questId) ?? 'not_started'
   }
 
+  /** 重玩已完成任務時呼叫，讓 NpcController 直接顯示完成後的閒聊台詞，
+   * 不會又跳出接受/交任務的對話。 */
+  markAlreadyCompleted(questId: string) {
+    this.state.set(questId, 'completed')
+  }
+
   accept(questId: string) {
     if (this.getState(questId) !== 'not_started') return
     this.state.set(questId, 'accepted')

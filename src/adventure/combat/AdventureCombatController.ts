@@ -99,13 +99,17 @@ export class AdventureCombatController {
     const g = this.game
     const type = g.enemyTypeDefs[enemyId]
     if (!type) return
+    // 花圃小怪這類有正式靜態立繪的敵人優先用那張圖（單張插畫，沒有逐幀
+    // 動畫）；其餘敵人維持原本的 frameLoader 逐幀動畫。
+    const staticTex = g.getEnemyStaticTexture(type.id)
     const frames = g.enemyFrames[type.placeholderSpriteId ?? type.id]
-    const tex = frames?.idle[0]
+    const tex = staticTex ?? frames?.idle[0]
     const sprite = tex ? new Sprite(tex) : new Sprite()
     sprite.anchor.set(0.5, 1)
-    if (tex) setSpriteHeight(sprite, type.spriteHeight)
+    if (tex) setSpriteHeight(sprite, staticTex ? Math.round(type.spriteHeight * 0.6) : type.spriteHeight)
     sprite.x = x
     sprite.y = y
+    sprite.zIndex = y
     g.worldLayer.addChild(sprite)
 
     const hpBarBg = new Graphics().rect(-16, -type.spriteHeight - 10, 32, 4).fill({ color: 0x1a1a1a, alpha: 0.8 })
@@ -141,9 +145,9 @@ export class AdventureCombatController {
           g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1)))
         }
       }
-      e.sprite.x = e.x; e.sprite.y = e.y
-      e.hpBarBg.x = e.x; e.hpBarBg.y = e.y
-      e.hpBarFill.x = e.x; e.hpBarFill.y = e.y
+      e.sprite.x = e.x; e.sprite.y = e.y; e.sprite.zIndex = e.y
+      e.hpBarBg.x = e.x; e.hpBarBg.y = e.y; e.hpBarBg.zIndex = e.y
+      e.hpBarFill.x = e.x; e.hpBarFill.y = e.y; e.hpBarFill.zIndex = e.y + 0.1
       const pct = Math.max(0, e.hp / e.maxHp)
       e.hpBarFill.scale.x = pct
     }

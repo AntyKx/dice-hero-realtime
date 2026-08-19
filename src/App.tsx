@@ -1528,6 +1528,7 @@ export default function App() {
           heroAtk: Math.round((Math.round(hero.atk * 0.6) + talentBonus.flatDamage) * (1 + partyBonus.dmgBonusPct)),
           partyHeroIds: getPartyHeroIds(party),
           stageId,
+          initialProgress: meta.adventureStageProgress?.[stageId],
         }}
         onExit={onExit}
         onAdventureStageEnd={result => {

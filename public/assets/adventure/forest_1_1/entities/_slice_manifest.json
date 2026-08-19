@@ -1,0 +1,82 @@
+[
+  {
+    "file": "entities_01.webp",
+    "x": 122,
+    "y": 37,
+    "width": 258,
+    "height": 397,
+    "area": 61582
+  },
+  {
+    "file": "entities_02.webp",
+    "x": 974,
+    "y": 37,
+    "width": 355,
+    "height": 395,
+    "area": 68253
+  },
+  {
+    "file": "entities_03.webp",
+    "x": 526,
+    "y": 38,
+    "width": 288,
+    "height": 397,
+    "area": 63413
+  },
+  {
+    "file": "entities_04.webp",
+    "x": 136,
+    "y": 467,
+    "width": 228,
+    "height": 297,
+    "area": 41526
+  },
+  {
+    "file": "entities_05.webp",
+    "x": 846,
+    "y": 515,
+    "width": 207,
+    "height": 218,
+    "area": 23133
+  },
+  {
+    "file": "entities_06.webp",
+    "x": 1133,
+    "y": 517,
+    "width": 203,
+    "height": 228,
+    "area": 17772
+  },
+  {
+    "file": "entities_07.webp",
+    "x": 537,
+    "y": 521,
+    "width": 203,
+    "height": 210,
+    "area": 29296
+  },
+  {
+    "file": "entities_08.webp",
+    "x": 589,
+    "y": 790,
+    "width": 247,
+    "height": 239,
+    "area": 34087
+  },
+  {
+    "file": "entities_09.webp",
+    "x": 187,
+    "y": 805,
+    "width": 243,
+    "height": 229,
+    "area": 33967
+  },
+  {
+    "file": "entities_10.webp",
+    "x": 991,
+    "y": 830,
+    "width": 245,
+    "height": 208,
+    "area": 29579
+  }
+]

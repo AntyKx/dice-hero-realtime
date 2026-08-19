@@ -37,6 +37,7 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
     const game = new AdventureGame(config, setHud)
     gameRef.current = game
     game.init(el)
+    ;(window as unknown as { __adventure?: AdventureGame }).__adventure = game
     return () => { gameRef.current = null; game.destroy() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -106,6 +107,10 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
 
       <div className="adv-hud">
         <button className="adv-exit-btn" onClick={onExit}>✕ 返回</button>
+        {/* Debug Art Mode（文件第四節）：手機沒有 F2，改成常駐小按鈕，疊出
+            collider/trigger/combatZone/secret/NPC互動範圍/謎題/收集品半徑
+            的除錯外框，方便核對美術跟玩法座標有沒有對齊。 */}
+        <button className="adv-debug-btn" onClick={() => gameRef.current?.toggleDebugArtMode()}>🐞</button>
 
         <div className="adv-counters">
           <span className="adv-counter"><AsterVowIcon name="system-gold" size={14} />{hud.purpleCoinCount}/{hud.purpleCoinTotal}</span>

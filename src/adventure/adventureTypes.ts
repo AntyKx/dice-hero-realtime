@@ -190,6 +190,10 @@ export interface AdventureStageProgress {
   completedQuests: string[]
   completedPuzzles: string[]
   discoveredSecrets: string[]
+  /** 2026-08-19 補上：重玩關卡時已清過的戰鬤區不該重打一次（尤其死亡後
+   * 重進——finishStage(false) 一樣會寫一份 progress，累積到死亡當下的
+   * 進度都算數，不是只有真的通關才存）。 */
+  clearedCombatZones: string[]
   flags: Record<string, boolean>
 }
 
@@ -210,6 +214,7 @@ export function defaultAdventureStageProgress(): AdventureStageProgress {
     cleared: false, bestStars: 0,
     discoveredAreas: [], collectedPurpleCoins: [], collectedStarPieces: [],
     openedTreasures: [], completedQuests: [], completedPuzzles: [], discoveredSecrets: [],
+    clearedCombatZones: [],
     flags: {},
   }
 }
