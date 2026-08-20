@@ -1,0 +1,21 @@
+{
+  "compressionlevel": -1,
+  "height": 64,
+  "infinite": false,
+  "layers": [
+    {"id":1,"image":"../../../../../public/assets/adventure/forest_1_1/rooms_v2/room01.webp","name":"Background","opacity":1,"type":"imagelayer","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":2,"name":"Walkable","objects":[{"height":1460,"id":1,"name":"walkable","rotation":0,"type":"walkable","visible":true,"width":720,"x":180,"y":220}],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":3,"name":"Entry","objects":[{"id":2,"name":"spawn","point":true,"rotation":0,"type":"entry","visible":true,"x":540,"y":1540},{"id":3,"name":"from_room_02","point":true,"rotation":0,"type":"entry","visible":true,"x":540,"y":260}],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":4,"name":"Transition","objects":[{"height":130,"id":4,"name":"01_to_02","rotation":0,"type":"transition","visible":true,"width":180,"x":450,"y":120}],"opacity":0.65,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":5,"name":"Collision","objects":[{"height":200,"id":5,"name":"terrain_r01_gate_post_l","rotation":0,"type":"collision","visible":true,"width":110,"x":340,"y":1480},{"height":200,"id":6,"name":"terrain_r01_gate_post_r","rotation":0,"type":"collision","visible":true,"width":110,"x":630,"y":1480}],"opacity":0.55,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":6,"name":"NPC","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":7,"name":"Trigger","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":8,"name":"Combat","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":9,"name":"Puzzle","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":10,"name":"Collectible","objects":[{"id":7,"name":"pc1","point":true,"rotation":0,"type":"purple_coin","visible":true,"x":430,"y":1040},{"id":8,"name":"pc2","point":true,"rotation":0,"type":"purple_coin","visible":true,"x":650,"y":920},{"id":9,"name":"pc3","point":true,"rotation":0,"type":"purple_coin","visible":true,"x":520,"y":720}],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":11,"name":"Secret","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":12,"name":"Quest","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0},
+    {"draworder":"topdown","id":13,"name":"Exit","objects":[],"opacity":1,"type":"objectgroup","visible":true,"x":0,"y":0}
+  ],
+  "nextlayerid":14,"nextobjectid":10,"orientation":"orthogonal","renderorder":"right-down","tiledversion":"1.11.2","tileheight":30,"tilesets":[],"tilewidth":30,"type":"map","version":"1.10","width":36
+}
