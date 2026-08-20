@@ -348,14 +348,13 @@ export interface AdventureHudState {
     pendingHeroExp: number
   } | null
   /** 2026-08-20：迷你地圖——只有 areasDiscovered 走過的房間才會亮起，跟
-   * 「探索到才會開」的需求一致。座標是整數格（依 atlasOrigin/size 換算，
-   * 假設同一關卡所有房間同尺寸），不是世界座標。沒有 rooms 資料的舊架構
-   * 關卡是 null，畫面不畫地圖。 */
+   * 「探索到才會開」的需求一致。這裡只丟最基本的遊戲狀態（目前房間 id、
+   * 走過的房間 id 清單），房間形狀/走廊怎麼畫由 MiniMapHud.tsx 自己讀
+   * stage.rooms 動態算——不在這裡重複維護一份 grid 座標，單一資料來源。
+   * 沒有 rooms 資料的舊架構關卡是 null，畫面不畫地圖。 */
   minimap: {
     activeRoomId: string
-    rooms: { id: string; gridX: number; gridY: number; discovered: boolean }[]
-    /** 房間之間的連線（走廊），兩端房間都探索過才會列在這裡。 */
-    edges: { a: string; b: string }[]
+    discoveredRoomIds: string[]
   } | null
   heroId: string
   heroName: string

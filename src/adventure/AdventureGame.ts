@@ -1103,40 +1103,16 @@ export class AdventureGame {
   }
 
   /** 2026-08-20 補上迷你地圖：只有走進過的房間（this.areasDiscovered）才會
-   * 在地圖上亮起，跟「探索到才開」的需求一致。格子座標直接用
-   * atlasOrigin/size 換算成整數格（假設所有房間同尺寸，跟目前 forest_1_1
-   * 的 5x2 atlas 排列一致），沒有 rooms 資料的舊架構關卡回傳 null，
-   * AdventureStageScreen 就不畫地圖。
-   *
-   * 2026-08-20 再補：使用者要的是「顯示連結地形」（像參考圖那種節點連線
-   * 圖），不是單純一格一格的方塊。用 room.transitions 反推房間之間的連線
-   * ——一條連線只有在兩端房間都探索過時才顯示（要走過那條走廊才看得到，
-   * 走廊本身也算「探索到的地形」，不會提前爆雷還沒去過的區域長怎樣）。
-   * a/b 用房間 id 表示，畫面端自己查對應格子中心點的座標，不在這裡算像素。 */
+   * 在地圖上亮起，跟「探索到才開」的需求一致。這裡只丟最基本的遊戲狀態，
+   * 房間形狀/走廊連線怎麼畫交給 MiniMapHud.tsx 自己讀 stage.rooms 動態算
+   * ——不在 AdventureGame 這層重複維護一份幾何資料，單一資料來源。沒有
+   * rooms 資料的舊架構關卡回傳 null，AdventureStageScreen 就不畫地圖。 */
   private buildMinimap(): AdventureHudState['minimap'] {
     const rooms = this.stage.rooms
     if (!rooms || rooms.length === 0) return null
-    const edgeKeys = new Set<string>()
-    const edges: { a: string; b: string }[] = []
-    for (const room of rooms) {
-      if (!this.areasDiscovered.has(room.id)) continue
-      for (const t of room.transitions) {
-        if (!this.areasDiscovered.has(t.targetRoomId)) continue
-        const key = [room.id, t.targetRoomId].sort().join('|')
-        if (edgeKeys.has(key)) continue
-        edgeKeys.add(key)
-        edges.push({ a: room.id, b: t.targetRoomId })
-      }
-    }
     return {
       activeRoomId: this.roomSystem.activeRoomId,
-      rooms: rooms.map(r => ({
-        id: r.id,
-        gridX: Math.round(r.atlasOrigin.x / r.size.width),
-        gridY: Math.round(r.atlasOrigin.y / r.size.height),
-        discovered: this.areasDiscovered.has(r.id),
-      })),
-      edges,
+      discoveredRoomIds: [...this.areasDiscovered],
     }
   }
 

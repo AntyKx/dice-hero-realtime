@@ -5757,32 +5757,77 @@ h1, h2, h3, p { margin: 0; }
   cursor: pointer;
 }
 
-/* 2026-08-20：左上角迷你地圖——節點連線圖（跟參考圖一樣有走廊連線+目前
-   位置標記），不是純方塊格子。只有走過的房間才有節點，連線只在兩端都
-   探索過時才畫（資料端已經濾過，見 AdventureGame.ts buildMinimap()）。
-   位置放在返回/debug 按鈕（top:14px）下方，避免疊在一起。 */
+/* 2026-08-20：左上角迷你地圖——房間形狀的節點連線圖（MiniMapHud.tsx），
+   只有走過的房間才會出現、連線只在兩端都探索過時才畫。位置放在返回/debug
+   按鈕（top:14px）下方，避免疊在一起。 */
 .adv-minimap {
   position: absolute;
   top: calc(max(14px, env(safe-area-inset-top)) + 42px);
-  left: 14px;
-  background: rgba(10, 16, 30, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 20;
+  width: min(196px, 42vw);
+  aspect-ratio: 1 / 1;
+  padding: 10px 10px 8px;
+  border: 2px solid rgba(226, 240, 169, 0.52);
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgba(10, 29, 16, 0.88), rgba(25, 55, 25, 0.74));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(5px);
+  pointer-events: none;
 }
-.adv-minimap-edge {
-  stroke: rgba(140, 220, 150, 0.55);
-  stroke-width: 3;
-  stroke-linecap: round;
+.adv-minimap-title {
+  position: absolute;
+  top: 5px;
+  left: 11px;
+  color: #f4f2d3;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-shadow: 0 1px 2px #07130a;
 }
-.adv-minimap-node {
-  fill: rgba(140, 220, 150, 0.9);
-  stroke: rgba(255, 255, 255, 0.45);
-  stroke-width: 1;
+.adv-minimap-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin-top: 6px;
+  overflow: visible;
 }
-.adv-minimap-node.active {
-  fill: #ffe089;
-  stroke: #fff;
-  stroke-width: 1.5;
+.adv-minimap-corridors rect {
+  fill: #76b94d;
+  fill-opacity: .82;
+  stroke: #d6ee9b;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.adv-minimap-active-halo {
+  fill: none;
+  stroke: #fff2a8;
+  stroke-width: 2;
+  opacity: .8;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: adv-minimap-room-pulse 1.65s ease-in-out infinite;
+}
+.adv-minimap-pin path { fill: #e73e43; stroke: #fff8d4; stroke-width: 1.8; }
+.adv-minimap-pin circle:last-child { fill: #fff8d4; }
+.adv-minimap-pin-halo { fill: #ff6a55; opacity: .35; animation: adv-minimap-pin-pulse 1.2s ease-out infinite; }
+.adv-minimap-legend { position: absolute; right: 8px; bottom: 5px; color: rgba(247, 246, 219, .76); font-size: 8px; }
+.adv-minimap-dot { display: inline-block; width: 5px; height: 5px; margin-right: 4px; border-radius: 50%; background: #e73e43; box-shadow: 0 0 5px #ff8b67; }
+@keyframes adv-minimap-room-pulse {
+  0%, 100% { opacity: .42; transform: scale(1); }
+  50% { opacity: .95; transform: scale(1.035); }
+}
+@keyframes adv-minimap-pin-pulse {
+  0% { opacity: .48; transform: scale(.72); }
+  70%, 100% { opacity: 0; transform: scale(1.7); }
+}
+@media (max-width: 520px) {
+  .adv-minimap { width: 152px; padding: 8px 8px 6px; }
+  .adv-minimap-title { font-size: 9px; top: 4px; left: 9px; }
+  .adv-minimap-legend { font-size: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adv-minimap-active-halo, .adv-minimap-pin-halo { animation: none; }
 }
 
 /* 2026-08-20：左下角英雄資訊列——探索畫面之前完全看不到自己的 HP，只有

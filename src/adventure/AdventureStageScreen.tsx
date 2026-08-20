@@ -3,6 +3,7 @@ import { AdventureGame, type AdventureConfig } from './AdventureGame'
 import type { AdventureHudState, AdventureStageResult } from './adventureTypes'
 import AsterVowIcon from '../components/AsterVowIcon'
 import { versionedAsset } from '../data'
+import MiniMapHud from './MiniMapHud'
 
 interface Props {
   config: AdventureConfig
@@ -23,18 +24,6 @@ const INITIAL_HUD: AdventureHudState = {
 }
 
 const JOYSTICK_RADIUS = 50
-
-// 迷你地圖節點連線圖的格子尺寸（svg 座標系，跟畫面 px 無關，靠 svg 的
-// width/height 屬性縮放到實際顯示大小）。
-const MINIMAP_CELL = 16
-const MINIMAP_GAP = 10
-const MINIMAP_PAD = 8
-function minimapNodeCenter(gridX: number, gridY: number) {
-  return {
-    x: MINIMAP_PAD + gridX * (MINIMAP_CELL + MINIMAP_GAP) + MINIMAP_CELL / 2,
-    y: MINIMAP_PAD + gridY * (MINIMAP_CELL + MINIMAP_GAP) + MINIMAP_CELL / 2,
-  }
-}
 
 /** Adventure Stage 探索畫面：跟 ArenaScreen.tsx 同款「canvas + React HUD 疊層」
  * 架構——canvas 掛 AdventureGame 的 Pixi Application，HUD 純讀
@@ -105,11 +94,6 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
   const canInteract = hud.state === 'explore' && !!hud.interactionPrompt
   const showDialogueBox = hud.state === 'dialogue' || hud.state === 'cutscene'
 
-  const minimapCols = hud.minimap ? Math.max(...hud.minimap.rooms.map(r => r.gridX)) + 1 : 0
-  const minimapRows = hud.minimap ? Math.max(...hud.minimap.rooms.map(r => r.gridY)) + 1 : 0
-  const minimapW = MINIMAP_PAD * 2 + minimapCols * MINIMAP_CELL + Math.max(0, minimapCols - 1) * MINIMAP_GAP
-  const minimapH = MINIMAP_PAD * 2 + minimapRows * MINIMAP_CELL + Math.max(0, minimapRows - 1) * MINIMAP_GAP
-  const minimapRoomById = hud.minimap ? new Map(hud.minimap.rooms.map(r => [r.id, r])) : null
   const hpPct = hud.playerMaxHp > 0 ? Math.max(0, Math.min(100, (hud.playerHp / hud.playerMaxHp) * 100)) : 0
   const partyOthers = hud.partyHeroIds.filter(id => id !== hud.heroId)
 
@@ -138,33 +122,11 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
       )}
 
       <div className="adv-hud">
-        {/* 2026-08-20：迷你地圖畫成節點連線圖（像參考圖那種走廊連線+目前
-            位置標記），不是單純一格一格的方塊。只有走過的房間才會出現節點
-            （hud.minimap.rooms[].discovered），連線只有在兩端房間都探索過
-            時才畫出來（edges 已經在 AdventureGame.ts 端過濾好），完全沒探
-            索過的房間連一個點都不會顯示，不會提前爆雷地圖長怎樣。 */}
-        {hud.minimap && minimapRoomById && (
-          <svg className="adv-minimap" width={minimapW} height={minimapH} viewBox={`0 0 ${minimapW} ${minimapH}`}>
-            {hud.minimap.edges.map(e => {
-              const ra = minimapRoomById.get(e.a)
-              const rb = minimapRoomById.get(e.b)
-              if (!ra || !rb) return null
-              const pa = minimapNodeCenter(ra.gridX, ra.gridY)
-              const pb = minimapNodeCenter(rb.gridX, rb.gridY)
-              return <line key={`${e.a}-${e.b}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className="adv-minimap-edge" />
-            })}
-            {hud.minimap.rooms.filter(r => r.discovered).map(r => {
-              const p = minimapNodeCenter(r.gridX, r.gridY)
-              const active = r.id === hud.minimap!.activeRoomId
-              return (
-                <circle
-                  key={r.id}
-                  cx={p.x} cy={p.y} r={active ? 5 : 4}
-                  className={`adv-minimap-node${active ? ' active' : ''}`}
-                />
-              )
-            })}
-          </svg>
+        {/* 2026-08-20：迷你地圖換成 MiniMapHud——房間形狀跟走廊連線都是它
+            自己讀 stage.rooms 動態算的，這裡只丟目前房間 id 跟走過的房間
+            id 清單。 */}
+        {hud.minimap && (
+          <MiniMapHud activeRoomId={hud.minimap.activeRoomId} discoveredRoomIds={hud.minimap.discoveredRoomIds} />
         )}
 
         <button className="adv-exit-btn" onClick={onExit}>✕ 返回</button>
