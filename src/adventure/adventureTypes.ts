@@ -347,6 +347,22 @@ export interface AdventureHudState {
     pendingEnhanceStones: number
     pendingHeroExp: number
   } | null
+  /** 2026-08-20：迷你地圖——只有 areasDiscovered 走過的房間才會亮起，跟
+   * 「探索到才會開」的需求一致。座標是整數格（依 atlasOrigin/size 換算，
+   * 假設同一關卡所有房間同尺寸），不是世界座標。沒有 rooms 資料的舊架構
+   * 關卡是 null，畫面不畫地圖。 */
+  minimap: {
+    activeRoomId: string
+    rooms: { id: string; gridX: number; gridY: number; discovered: boolean }[]
+    /** 房間之間的連線（走廊），兩端房間都探索過才會列在這裡。 */
+    edges: { a: string; b: string }[]
+  } | null
+  heroId: string
+  heroName: string
+  heroLevel: number
+  partyHeroIds: string[]
+  playerHp: number
+  playerMaxHp: number
 }
 
 // ── 英雄探索能力接口（文件第七節，第一版只留接口） ──────────────────────

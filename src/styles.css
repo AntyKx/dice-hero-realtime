@@ -5757,6 +5757,116 @@ h1, h2, h3, p { margin: 0; }
   cursor: pointer;
 }
 
+/* 2026-08-20：左上角迷你地圖——節點連線圖（跟參考圖一樣有走廊連線+目前
+   位置標記），不是純方塊格子。只有走過的房間才有節點，連線只在兩端都
+   探索過時才畫（資料端已經濾過，見 AdventureGame.ts buildMinimap()）。
+   位置放在返回/debug 按鈕（top:14px）下方，避免疊在一起。 */
+.adv-minimap {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 42px);
+  left: 14px;
+  background: rgba(10, 16, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+}
+.adv-minimap-edge {
+  stroke: rgba(140, 220, 150, 0.55);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.adv-minimap-node {
+  fill: rgba(140, 220, 150, 0.9);
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 1;
+}
+.adv-minimap-node.active {
+  fill: #ffe089;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+/* 2026-08-20：左下角英雄資訊列——探索畫面之前完全看不到自己的 HP，只有
+   死掉那一刻才知道。排版比照 Arena 右下角頭像+血條那套（arena-portrait-
+   wrap 系列），隊伍其他成員縮小顯示在旁邊，純資訊不可互動。 */
+.adv-hero-info-bar {
+  pointer-events: none;
+  position: absolute;
+  left: 14px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 16, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 6px 10px 6px 6px;
+}
+.adv-hero-portrait-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.adv-hero-portrait {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1a2740;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.adv-hero-level-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  background: #1a2740;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #7ae0ff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 6px;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.adv-hero-info-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 84px;
+}
+.adv-hero-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #eef4ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adv-hero-hp-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.adv-hero-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5a5a, #ff8a3c);
+  transition: width 0.15s ease-out;
+}
+.adv-party-icons {
+  display: flex;
+  gap: 4px;
+  padding-left: 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+.adv-party-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1a2740;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
 /* ── 右下：頭像+HP+必殺技能量條（M3.6） ── */
 .arena-ultimate-cluster {
   pointer-events: auto;

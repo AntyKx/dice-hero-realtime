@@ -1523,6 +1523,8 @@ export default function App() {
       <AdventureStageScreen
         config={{
           heroId: hero.id,
+          heroName: hero.name,
+          heroLevel: heroProgress.level,
           stars: heroProgress.stars,
           maxHp: hero.hp + talentBonus.hpBonus + equipHpBonus + Math.round(hero.hp * partyBonus.hpBonusPct),
           heroAtk: Math.round((Math.round(hero.atk * 0.6) + talentBonus.flatDamage) * (1 + partyBonus.dmgBonusPct)),

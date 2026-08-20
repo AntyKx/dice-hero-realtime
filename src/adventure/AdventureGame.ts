@@ -34,6 +34,8 @@ import {
 
 export interface AdventureConfig {
   heroId: string
+  heroName: string
+  heroLevel: number
   stars?: number
   maxHp: number
   heroAtk: number
@@ -59,6 +61,10 @@ const COLOR_ROOM_WALKABLE_DEBUG = 0x30ff90
 const COLOR_ROOM_TRANSITION_DEBUG = 0x30d0ff
 const COLOR_TERRAIN_COLLIDER_DEBUG = 0xff9020
 const COLOR_PLAYER_FOOT_DEBUG = 0xffffff
+const COLOR_PLAYER_COLLISION_DEBUG = 0xfacc15
+const COLOR_PLAYER_SHADOW_DEBUG = 0x60a5fa
+const COLOR_PLAYER_ANCHOR_DEBUG = 0xef4444
+const COLOR_PLAYER_YSORT_DEBUG = 0xc084fc
 const TOAST_DURATION_SEC = 2.6
 
 // 目前 forest_1_1 是唯一有正式美術的關卡，這份路徑清單只服務它——之後其他
@@ -123,6 +129,10 @@ export class AdventureGame {
   worldLayer!: Container
   private debugLayer!: Container
   private debugPlayerFootRect?: Graphics
+  private debugPlayerCollisionCircle?: Graphics
+  private debugPlayerShadowBounds?: Graphics
+  private debugPlayerAnchor?: Graphics
+  private debugPlayerYSortLine?: Graphics
   debugArtMode = false
   stage: AdventureStageDef
   destroyed = false
@@ -151,6 +161,8 @@ export class AdventureGame {
   elapsed = 0
 
   heroId: string
+  heroName: string
+  heroLevel: number
   heroAtk: number
   partyHeroIds: string[]
 
@@ -224,6 +236,8 @@ export class AdventureGame {
     if (!stage) throw new Error(`Adventure Stage 資料找不到：${cfg.stageId}`)
     this.stage = stage
     this.heroId = cfg.heroId
+    this.heroName = cfg.heroName
+    this.heroLevel = cfg.heroLevel
     this.heroAtk = cfg.heroAtk
     this.partyHeroIds = cfg.partyHeroIds.length > 0 ? cfg.partyHeroIds : [cfg.heroId]
     this.player.hp = cfg.maxHp
@@ -633,13 +647,38 @@ export class AdventureGame {
       }
     }
 
-    // 玩家目前的碰撞判定矩形（跟 CollisionSystem.playerRect 同一個公式），
-    // 每幀跟著玩家移動，方便手機驗收時直接看「這個方框有沒有卡進橘/紅框」。
+    // 角色接地校準 overlay：全部圖形都以玩家 world position（腳底錨點）為
+    // 基準，每幀一起跟著移動。白色方框才是 CollisionSystem 實際用的判定
+    // 形狀（正方形，不是圓）——黃色圓只是給一個好認的視覺參考半徑，兩者
+    // 同時畫出來，對角線角落請以白色方框為準，圓形範圍比實際判定小一圈。
     const footRect = new Graphics()
       .rect(-PLAYER_RADIUS, -PLAYER_RADIUS, PLAYER_RADIUS * 2, PLAYER_RADIUS * 2)
-      .stroke({ color: COLOR_PLAYER_FOOT_DEBUG, width: 2 })
+      .stroke({ color: COLOR_PLAYER_FOOT_DEBUG, width: 1, alpha: 0.45 })
+    const collisionCircle = new Graphics()
+      .circle(0, 0, PLAYER_RADIUS)
+      .stroke({ color: COLOR_PLAYER_COLLISION_DEBUG, width: 2 })
+    const shadowBounds = new Graphics()
+      .ellipse(0, 4, Math.max(18, PLAYER_RADIUS * 1.65), Math.max(6, PLAYER_RADIUS * 0.42))
+      .fill({ color: COLOR_PLAYER_SHADOW_DEBUG, alpha: 0.16 })
+      .stroke({ color: COLOR_PLAYER_SHADOW_DEBUG, width: 1, alpha: 0.9 })
+    const anchor = new Graphics()
+      .moveTo(-7, 0).lineTo(7, 0)
+      .moveTo(0, -7).lineTo(0, 7)
+      .stroke({ color: COLOR_PLAYER_ANCHOR_DEBUG, width: 2 })
+      .circle(0, 0, 3).fill({ color: COLOR_PLAYER_ANCHOR_DEBUG })
+    const ySortLine = new Graphics()
+      .moveTo(-34, 0).lineTo(34, 0)
+      .stroke({ color: COLOR_PLAYER_YSORT_DEBUG, width: 2, alpha: 0.95 })
+    layer.addChild(shadowBounds)
+    layer.addChild(collisionCircle)
+    layer.addChild(ySortLine)
     layer.addChild(footRect)
+    layer.addChild(anchor)
     this.debugPlayerFootRect = footRect
+    this.debugPlayerCollisionCircle = collisionCircle
+    this.debugPlayerShadowBounds = shadowBounds
+    this.debugPlayerAnchor = anchor
+    this.debugPlayerYSortLine = ySortLine
   }
 
   toggleDebugArtMode() {
@@ -746,6 +785,22 @@ export class AdventureGame {
     if (this.debugPlayerFootRect) {
       this.debugPlayerFootRect.x = this.player.x
       this.debugPlayerFootRect.y = this.player.y
+    }
+    if (this.debugPlayerCollisionCircle) {
+      this.debugPlayerCollisionCircle.x = this.player.x
+      this.debugPlayerCollisionCircle.y = this.player.y
+    }
+    if (this.debugPlayerShadowBounds) {
+      this.debugPlayerShadowBounds.x = this.player.x
+      this.debugPlayerShadowBounds.y = this.player.y
+    }
+    if (this.debugPlayerAnchor) {
+      this.debugPlayerAnchor.x = this.player.x
+      this.debugPlayerAnchor.y = this.player.y
+    }
+    if (this.debugPlayerYSortLine) {
+      this.debugPlayerYSortLine.x = this.player.x
+      this.debugPlayerYSortLine.y = this.player.y
     }
 
     // 2026-08-19：互動提示原本只在 init/收集/對話開始結束等少數時機才
@@ -980,6 +1035,7 @@ export class AdventureGame {
   damagePlayer(amount: number) {
     this.player.hp = Math.max(0, this.player.hp - amount)
     if (this.player.hp <= 0) this.finishStage(false)
+    else this.emitHud() // HP 條要即時反應，不能等下一次剛好觸發 emitHud 的時機
   }
 
   onEnemyKilled(typeId: string) {
@@ -1046,6 +1102,44 @@ export class AdventureGame {
     }
   }
 
+  /** 2026-08-20 補上迷你地圖：只有走進過的房間（this.areasDiscovered）才會
+   * 在地圖上亮起，跟「探索到才開」的需求一致。格子座標直接用
+   * atlasOrigin/size 換算成整數格（假設所有房間同尺寸，跟目前 forest_1_1
+   * 的 5x2 atlas 排列一致），沒有 rooms 資料的舊架構關卡回傳 null，
+   * AdventureStageScreen 就不畫地圖。
+   *
+   * 2026-08-20 再補：使用者要的是「顯示連結地形」（像參考圖那種節點連線
+   * 圖），不是單純一格一格的方塊。用 room.transitions 反推房間之間的連線
+   * ——一條連線只有在兩端房間都探索過時才顯示（要走過那條走廊才看得到，
+   * 走廊本身也算「探索到的地形」，不會提前爆雷還沒去過的區域長怎樣）。
+   * a/b 用房間 id 表示，畫面端自己查對應格子中心點的座標，不在這裡算像素。 */
+  private buildMinimap(): AdventureHudState['minimap'] {
+    const rooms = this.stage.rooms
+    if (!rooms || rooms.length === 0) return null
+    const edgeKeys = new Set<string>()
+    const edges: { a: string; b: string }[] = []
+    for (const room of rooms) {
+      if (!this.areasDiscovered.has(room.id)) continue
+      for (const t of room.transitions) {
+        if (!this.areasDiscovered.has(t.targetRoomId)) continue
+        const key = [room.id, t.targetRoomId].sort().join('|')
+        if (edgeKeys.has(key)) continue
+        edgeKeys.add(key)
+        edges.push({ a: room.id, b: t.targetRoomId })
+      }
+    }
+    return {
+      activeRoomId: this.roomSystem.activeRoomId,
+      rooms: rooms.map(r => ({
+        id: r.id,
+        gridX: Math.round(r.atlasOrigin.x / r.size.width),
+        gridY: Math.round(r.atlasOrigin.y / r.size.height),
+        discovered: this.areasDiscovered.has(r.id),
+      })),
+      edges,
+    }
+  }
+
   emitHud() {
     const activeDialogue = this.dialogue.current()
     const target = this.state === 'explore' ? this.interaction.findNearest() : null
@@ -1063,6 +1157,13 @@ export class AdventureGame {
       toast: this.toastText,
       debugScreenText: this.buildDebugScreenText(),
       stageResult: this.finalResult,
+      minimap: this.buildMinimap(),
+      heroId: this.heroId,
+      heroName: this.heroName,
+      heroLevel: this.heroLevel,
+      partyHeroIds: this.partyHeroIds,
+      playerHp: this.player.hp,
+      playerMaxHp: this.player.maxHp,
     }
     this.onHudChange(hud)
   }
