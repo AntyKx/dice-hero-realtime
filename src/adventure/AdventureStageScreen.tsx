@@ -13,7 +13,7 @@ const INITIAL_HUD: AdventureHudState = {
   state: 'explore',
   purpleCoinCount: 0, purpleCoinTotal: 0,
   starPieceCount: 0, starPieceTotal: 0,
-  activeDialogue: null, interactionPrompt: null, activeQuestTitle: null, toast: null,
+  activeDialogue: null, interactionPrompt: null, stageExitPrompt: null, activeQuestTitle: null, toast: null,
   debugScreenText: null,
   stageResult: null,
 }
@@ -130,6 +130,13 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
 
         {hud.toast && <div className="adv-toast">{hud.toast}</div>}
 
+        {hud.stageExitPrompt && hud.state === 'explore' && (
+          <div className="adv-stage-exit-prompt" role="status">
+            <span className="adv-stage-exit-arrow">✦</span>
+            <span>{hud.stageExitPrompt}</span>
+          </div>
+        )}
+
         {canInteract && (
           <button className="adv-interact-btn" onClick={() => gameRef.current?.tryInteract()}>
             {hud.interactionPrompt}
@@ -161,6 +168,9 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
             <div className="adv-result-row"><span>紫幣</span><strong>{hud.stageResult.purpleCoinCount} / {hud.purpleCoinTotal}</strong></div>
             <div className="adv-result-row"><span>星星碎片</span><strong>{hud.stageResult.starPieceCount} / {hud.starPieceTotal}</strong></div>
             <div className="adv-result-row"><span>支線任務</span><strong>{hud.stageResult.questCompleted ? '已完成' : '未完成'}</strong></div>
+            {hud.stageResult.pendingGold > 0 && <div className="adv-result-row"><span>探索金幣</span><strong>+{hud.stageResult.pendingGold}</strong></div>}
+            {hud.stageResult.pendingEnhanceStones > 0 && <div className="adv-result-row"><span>強化石</span><strong>+{hud.stageResult.pendingEnhanceStones}</strong></div>}
+            {hud.stageResult.pendingHeroExp > 0 && <div className="adv-result-row"><span>英雄經驗</span><strong>+{hud.stageResult.pendingHeroExp}</strong></div>}
           </div>
           <button className="adv-result-btn" onClick={onExit}>返回關卡地圖</button>
         </div>

@@ -31,6 +31,13 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
   spawn: { x: 540, y: 1540 },
   groundColor: 0x1a2e18,
 
+  // 2026-08-20：靜態地形碰撞（岩石/木柱/水面/帳篷…）全部搬去各房間自己的
+  // terrainCollidersLocal（room local 座標，CollisionSystem 統一加一次
+  // atlasOrigin），不再放這裡手動換算世界座標——上一輪 room_05 的南側入口
+  // 卡死 bug 就是手算 atlasOrigin 算錯導致的。這裡只留兩個真正需要「開關」
+  // 的動態機關，藤蔓門/裂牆本身狀態變化要跨系統共用（PuzzleSystem／
+  // SecretSystem／CollisionSystem 都要讀寫同一個 colliderActive），才需要
+  // 留在關卡層級的 stage.colliders。
   colliders: [
     // 三火盆謎題的藤蔓門：純視覺（blocksMovement:false），真正的「能不能
     // 過」是 room_05 的 05_to_06 transition 帶的 lockedByFlag。
@@ -39,57 +46,6 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
     // lockedByFlag: 'secret02_wall'（SecretSystem.reveal() 會自動設這個 flag，
     // 用 secret 自己的 id 當 flag 名，不用另外定義）。
     { id: 'secret02_wall', rect: { x: 900, y: 2830, width: 40, height: 180 }, active: true, blocksMovement: false },
-
-    // 2026-08-20：walkableBoundsLocal 每個房間目前都只是一個矩形，跟房間
-    // 美術實際的可走區域（拱門柱子、水面、帳篷這種非矩形輪廓）對不上，玩家
-    // 回報「可以穿過拱門柱子/走到水上/踩過帳篷」——這裡開始針對幾個明顯的
-    // 例子，額外補實體 collider 卡住矩形範圍內「畫面上其實是實體/水面」的
-    // 子區域。座標是照 room01/05/07.webp 實際美術肉眼比對出來的，不是精算
-    // 出的多邊形，抓大概輪廓、留出美術看起來像通道的地方，不追求像素級精準。
-
-    // room_01 森林入口：入口拱門兩根木柱（atlasOrigin {0,0}）。留中間
-    // banner 那個缺口當唯一出入口，跟 spawn {540,1540} 對齊。
-    { id: 'terrain_r01_gate_post_l', rect: { x: 340, y: 1480, width: 110, height: 200 }, active: true },
-    { id: 'terrain_r01_gate_post_r', rect: { x: 630, y: 1480, width: 110, height: 200 }, active: true },
-
-    // room_05 古老石橋／三火盆：石橋是中間寬、頭尾窄的「橄欖形」步道，
-    // 兩側是水面（atlasOrigin {4320,0}）。用 4 段階梯型矩形卡住步道兩側
-    // 露出來的水面，中段最寬的地方跟 walkableBoundsLocal 本身已經對齊，
-    // 不用額外擋。頭尾兩段的 y 範圍刻意跟 05_to_06／05_to_03 的 transition
-    // zone（世界座標 y:90-250／y:1690-1830）留一點距離不重疊——水面
-    // collider 蓋到 transition zone 會把玩家卡在踩不進出口判定範圍的窘境。
-    // 2026-08-20 修正：top_r／bottom_r 原本寫成 x:4780（世界座標），跟房間
-    // 中心線（local x=540／世界 x=4860，跟兩個 transition zone、三個火盆都
-    // 對齊在這條線上）不對稱——應該鏡射成 x:5020 才對，寫錯的結果是右側
-    // 水面矩形整塊往左多蓋了 240 個單位，剛好蓋住南側入口的重生點
-    // （世界座標 4860,1680），玩家從 room_03 走進來直接落在水面 collider
-    // 裡面出不去。
-    { id: 'terrain_r05_water_top_l', rect: { x: 4440, y: 250, width: 260, height: 150 }, active: true },
-    { id: 'terrain_r05_water_top_r', rect: { x: 5020, y: 250, width: 260, height: 150 }, active: true },
-    { id: 'terrain_r05_water_uppermid_l', rect: { x: 4440, y: 400, width: 140, height: 250 }, active: true },
-    { id: 'terrain_r05_water_uppermid_r', rect: { x: 5140, y: 400, width: 140, height: 250 }, active: true },
-    { id: 'terrain_r05_water_lowermid_l', rect: { x: 4440, y: 1270, width: 140, height: 250 }, active: true },
-    { id: 'terrain_r05_water_lowermid_r', rect: { x: 5140, y: 1270, width: 140, height: 250 }, active: true },
-    { id: 'terrain_r05_water_bottom_l', rect: { x: 4440, y: 1520, width: 260, height: 170 }, active: true },
-    { id: 'terrain_r05_water_bottom_r', rect: { x: 5020, y: 1520, width: 260, height: 170 }, active: true },
-
-    // room_07 哥布林營地：四頂帳篷本體（atlasOrigin {2160,1920}），只卡帳篷
-    // 布幕的實心範圍，不含門口空地。midleft 寬度故意收窄到 140（不是目測的
-    // 完整帳篷寬），因為 pc19（世界座標 2480,3180）就貼在這頂帳篷右側，
-    // 早期版本卡到整頂帳篷寬度會讓這枚紫幣被封死在 collider 裡面撿不到。
-    { id: 'terrain_r07_tent_topleft', rect: { x: 2320, y: 2260, width: 220, height: 200 }, active: true },
-    { id: 'terrain_r07_tent_topright', rect: { x: 2800, y: 2290, width: 200, height: 180 }, active: true },
-    { id: 'terrain_r07_tent_midleft', rect: { x: 2310, y: 3090, width: 140, height: 180 }, active: true },
-    { id: 'terrain_r07_tent_bottomright', rect: { x: 2840, y: 3320, width: 240, height: 220 }, active: true },
-
-    // room_08 古老祭壇：跟 room_01 同一套木門素材（同樣兩根木柱+banner，
-    // 這次在房間底部當入口），加上祭壇拱門兩側各一根石柱（atlasOrigin
-    // {3240,1920}）。石柱 y 範圍跟 08_to_09 transition zone（世界座標
-    // y:2010-2130）在 y 軸有重疊但 x 軸完全不重疊，不影響出口判定。
-    { id: 'terrain_r08_gate_post_l', rect: { x: 3596, y: 3437, width: 110, height: 180 }, active: true },
-    { id: 'terrain_r08_gate_post_r', rect: { x: 3856, y: 3437, width: 110, height: 180 }, active: true },
-    { id: 'terrain_r08_arch_pillar_l', rect: { x: 3499, y: 2074, width: 90, height: 230 }, active: true },
-    { id: 'terrain_r08_arch_pillar_r', rect: { x: 3974, y: 2074, width: 90, height: 230 }, active: true },
   ],
 
   rooms: [
@@ -97,7 +53,22 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       id: 'room_01', name: '森林入口',
       atlasOrigin: { x: 0, y: 0 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room01.webp',
+      foreground: '/assets/adventure/forest_1_1/foreground_v13/room_01_foreground.png',
+      // 入口門樑＋旗幟，用像素連通區域分析量出的實際範圍裁切（不是整張圖）。
+      foregroundPiecesLocal: [{ x: 330, y: 1490, width: 420, height: 202 }],
       walkableBoundsLocal: { x: 180, y: 220, width: 720, height: 1460 },
+      // 入口拱門兩根木柱留中間 banner 缺口當唯一出入口，跟 spawn 對齊；
+      // 其餘 6 顆是兩側突出進可走區的岩石。
+      terrainCollidersLocal: [
+        { id: 'terrain_r01_gate_post_l', rect: { x: 340, y: 1480, width: 110, height: 200 } },
+        { id: 'terrain_r01_gate_post_r', rect: { x: 630, y: 1480, width: 110, height: 200 } },
+        { id: 'terrain_r01_rock_left_upper', rect: { x: 180, y: 620, width: 85, height: 155 } },
+        { id: 'terrain_r01_rock_left_mid', rect: { x: 180, y: 900, width: 75, height: 110 } },
+        { id: 'terrain_r01_rock_left_lower', rect: { x: 180, y: 1370, width: 85, height: 120 } },
+        { id: 'terrain_r01_rock_right_mid', rect: { x: 820, y: 930, width: 80, height: 115 } },
+        { id: 'terrain_r01_rock_right_lower1', rect: { x: 825, y: 1110, width: 75, height: 125 } },
+        { id: 'terrain_r01_rock_right_lower2', rect: { x: 820, y: 1370, width: 80, height: 120 } },
+      ],
       spawnLocal: { x: 540, y: 1540 },
       transitions: [
         { id: '01_to_02', zone: { x: 450, y: 120, width: 180, height: 130 }, targetRoomId: 'room_02', targetSpawnLocal: { x: 540, y: 1600 } },
@@ -123,7 +94,8 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       transitions: [
         { id: '03_to_05', zone: { x: 430, y: 110, width: 220, height: 140 }, targetRoomId: 'room_05', targetSpawnLocal: { x: 540, y: 1680 } },
         { id: '03_to_02', zone: { x: 430, y: 1650, width: 220, height: 150 }, targetRoomId: 'room_02', targetSpawnLocal: { x: 540, y: 260 } },
-        { id: '03_to_03A', zone: { x: 70, y: 820, width: 120, height: 220 }, targetRoomId: 'room_03a', targetSpawnLocal: { x: 850, y: 960 } },
+        // 側向花圃入口放寬 30 world units，降低手機搖桿貼牆的精準度要求。
+        { id: '03_to_03A', zone: { x: 50, y: 820, width: 150, height: 220 }, targetRoomId: 'room_03a', targetSpawnLocal: { x: 850, y: 960 } },
       ],
     },
     {
@@ -133,14 +105,42 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       walkableBoundsLocal: { x: 120, y: 180, width: 820, height: 1560 },
       spawnLocal: { x: 920, y: 960 },
       transitions: [
-        { id: '03A_to_03', zone: { x: 890, y: 820, width: 120, height: 220 }, targetRoomId: 'room_03', targetSpawnLocal: { x: 260, y: 930 } },
+        // 回程側向出口跟入口同寬，避免花圃內必須精準貼右牆才能離開。
+        { id: '03A_to_03', zone: { x: 880, y: 820, width: 150, height: 220 }, targetRoomId: 'room_03', targetSpawnLocal: { x: 260, y: 930 } },
       ],
     },
     {
       id: 'room_05', name: '古老石橋／三火盆',
       atlasOrigin: { x: 4320, y: 0 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room05.webp',
+      foreground: '/assets/adventure/forest_1_1/foreground_v13/room_05_foreground.png',
+      // 北側石門橫樑（保守版，只有一小條）。
+      foregroundPiecesLocal: [{ x: 410, y: 205, width: 265, height: 100 }],
       walkableBoundsLocal: { x: 120, y: 220, width: 840, height: 1500 },
+      // 石橋是中間寬、頭尾窄的「橄欖形」步道，兩側是水面，6 段階梯型矩形卡住
+      // 步道兩側露出來的水面。頭尾兩段跟 05_to_06／05_to_03 的 transition
+      // zone（local y:90-250／y:1690-1830）留距離不重疊。中間「最寬處也還有
+      // 一圈薄水」那一段刻意不加——local x:120-240／840-960、y:710-1180 那圈
+      // 會蓋到 pc11(local 190,1030)／pc12(local 890,1030)，跟現有紫幣位置
+      // 衝突，寧可少擋一小圈水也不要讓紫幣撿不到。
+      terrainCollidersLocal: [
+        { id: 'terrain_r05_water_01_l', rect: { x: 120, y: 250, width: 270, height: 170 } },
+        { id: 'terrain_r05_water_01_r', rect: { x: 690, y: 250, width: 270, height: 170 } },
+        { id: 'terrain_r05_water_02_l', rect: { x: 120, y: 420, width: 250, height: 120 } },
+        { id: 'terrain_r05_water_02_r', rect: { x: 710, y: 420, width: 250, height: 120 } },
+        { id: 'terrain_r05_water_03_l', rect: { x: 120, y: 540, width: 150, height: 170 } },
+        { id: 'terrain_r05_water_03_r', rect: { x: 810, y: 540, width: 150, height: 170 } },
+        { id: 'terrain_r05_water_05_l', rect: { x: 120, y: 1180, width: 160, height: 180 } },
+        { id: 'terrain_r05_water_05_r', rect: { x: 800, y: 1180, width: 160, height: 180 } },
+        { id: 'terrain_r05_water_06_l', rect: { x: 120, y: 1360, width: 250, height: 190 } },
+        { id: 'terrain_r05_water_06_r', rect: { x: 710, y: 1360, width: 250, height: 190 } },
+        // 三個火盆的石台底座：只擋石台中心，不封鎖 InteractionSystem 的
+        // 互動半徑（距離判定跟 collider 是兩回事），玩家可以從側邊靠近
+        // 點火，但不會直接站到/穿過畫面上明確的圓形石台。
+        { id: 'terrain_r05_brazier_base_01', rect: { x: 238, y: 574, width: 84, height: 52 } },
+        { id: 'terrain_r05_brazier_base_02', rect: { x: 498, y: 424, width: 84, height: 52 } },
+        { id: 'terrain_r05_brazier_base_03', rect: { x: 758, y: 574, width: 84, height: 52 } },
+      ],
       spawnLocal: { x: 540, y: 1710 },
       transitions: [
         { id: '05_to_06', zone: { x: 430, y: 90, width: 220, height: 160 }, targetRoomId: 'room_06', targetSpawnLocal: { x: 540, y: 1650 }, lockedByFlag: 'forest01_vine_gate_open' },
@@ -154,8 +154,10 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       walkableBoundsLocal: { x: 100, y: 180, width: 880, height: 1560 },
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
-        { id: '06_to_07', zone: { x: 430, y: 100, width: 220, height: 120 }, targetRoomId: 'room_07', targetSpawnLocal: { x: 540, y: 1660 } },
-        { id: '06_to_05', zone: { x: 430, y: 1710, width: 220, height: 120 }, targetRoomId: 'room_05', targetSpawnLocal: { x: 540, y: 290 } },
+        // 上下拱門出口垂直方向放寬容錯（room_06 沒有 terrainCollidersLocal，
+        // 兩段都不會跟地形碰撞衝突）。
+        { id: '06_to_07', zone: { x: 430, y: 80, width: 220, height: 160 }, targetRoomId: 'room_07', targetSpawnLocal: { x: 540, y: 1660 } },
+        { id: '06_to_05', zone: { x: 430, y: 1690, width: 220, height: 160 }, targetRoomId: 'room_05', targetSpawnLocal: { x: 540, y: 290 } },
         // x 從 910 往左挪到 870（原本離右邊界只有 50 世界單位，是全關卡最窄
         // 的一段——CameraSystem.ts 為了不裁到這個出口，被迫把可視範圍的裁切
         // 上限壓得很低，畫面因此留白比較多；挪寬到 90 世界單位邊界後可以把
@@ -177,22 +179,73 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       id: 'room_07', name: '哥布林營地',
       atlasOrigin: { x: 2160, y: 1920 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room07.webp',
+      foreground: '/assets/adventure/forest_1_1/foreground_v13/room_07_foreground.png',
+      // 四頂帳篷的屋頂各自獨立裁切，各自用自己的底部 y 當排序基準——四頂
+      // 帳篷位置差很多，不能共用同一個 zIndex（這正是上一版「整張圖固定
+      // zIndex」壞掉的原因）。
+      foregroundPiecesLocal: [
+        { x: 150, y: 270, width: 255, height: 185 }, // top-left
+        { x: 630, y: 315, width: 265, height: 155 }, // top-right
+        { x: 85, y: 885, width: 250, height: 165 },  // mid-left
+        { x: 645, y: 1110, width: 285, height: 185 }, // bottom-right
+      ],
       walkableBoundsLocal: { x: 120, y: 180, width: 840, height: 1560 },
+      // 2026-08-20 修正：tent_midleft 上一輪 y:1170-1350 量錯了，那其實是
+      // 長椅/木桶的位置（已另外補成 bench_barrels）；帳篷本體實際在
+      // y:900-1115，用帳篷 foreground 圖的去背像素反推出來的，不是目測。
+      // tent_bottomright 這次拆三塊留一個小缺口——pc20 local=(760,1230)
+      // 剛好卡在右下帳篷實體範圍內，完整方塊會把這顆紫幣封死撿不到，缺口
+      // 留在 x:735-805、y:1200-1330 這段，pc20 正好落在裡面。
+      terrainCollidersLocal: [
+        { id: 'terrain_r07_tent_topleft', rect: { x: 145, y: 310, width: 260, height: 215 } },
+        { id: 'terrain_r07_tent_topright', rect: { x: 645, y: 330, width: 245, height: 215 } },
+        { id: 'terrain_r07_tent_midleft', rect: { x: 95, y: 900, width: 255, height: 215 } },
+        { id: 'terrain_r07_campfire', rect: { x: 430, y: 800, width: 180, height: 115 } },
+        { id: 'terrain_r07_watchtower', rect: { x: 835, y: 455, width: 125, height: 165 } },
+        { id: 'terrain_r07_bench_barrels', rect: { x: 95, y: 1110, width: 150, height: 135 } },
+        { id: 'terrain_r07_tent_bottomright_top', rect: { x: 650, y: 1120, width: 275, height: 80 } },
+        { id: 'terrain_r07_tent_bottomright_left', rect: { x: 650, y: 1200, width: 85, height: 130 } },
+        { id: 'terrain_r07_tent_bottomright_right', rect: { x: 805, y: 1200, width: 120, height: 130 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
-        { id: '07_to_08', zone: { x: 430, y: 90, width: 220, height: 120 }, targetRoomId: 'room_08', targetSpawnLocal: { x: 540, y: 1660 }, lockedByFlag: 'goblin_camp_clear' },
-        { id: '07_to_06', zone: { x: 430, y: 1710, width: 220, height: 120 }, targetRoomId: 'room_06', targetSpawnLocal: { x: 540, y: 260 } },
+        { id: '07_to_08', zone: { x: 430, y: 70, width: 220, height: 160 }, targetRoomId: 'room_08', targetSpawnLocal: { x: 540, y: 1660 }, lockedByFlag: 'goblin_camp_clear' },
+        { id: '07_to_06', zone: { x: 430, y: 1690, width: 220, height: 160 }, targetRoomId: 'room_06', targetSpawnLocal: { x: 540, y: 260 } },
       ],
     },
     {
       id: 'room_08', name: '古老祭壇',
       atlasOrigin: { x: 3240, y: 1920 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room08.webp',
+      foreground: '/assets/adventure/forest_1_1/foreground_v13/room_08_foreground.png',
+      // 上方遺跡拱門橫樑跟底部木門橫樑是兩個不同高度的物件，分開裁切各自排序。
+      foregroundPiecesLocal: [
+        { x: 270, y: 70, width: 540, height: 185 },  // 上方拱門橫樑
+        { x: 330, y: 1490, width: 420, height: 80 }, // 底部木門橫樑
+      ],
       walkableBoundsLocal: { x: 120, y: 140, width: 840, height: 1640 },
+      // 跟 room_01 同一套木門素材（底部入口），加上祭壇拱門兩側石柱、外圈
+      // 高柱、兩顆突出大岩。中央祭壇圓環不設碰撞，避免跟 altar_cutscene
+      // trigger（local x:380-700,y:520-740）衝突。
+      terrainCollidersLocal: [
+        { id: 'terrain_r08_gate_post_l', rect: { x: 356, y: 1517, width: 110, height: 180 } },
+        { id: 'terrain_r08_gate_post_r', rect: { x: 616, y: 1517, width: 110, height: 180 } },
+        { id: 'terrain_r08_arch_pillar_l', rect: { x: 259, y: 154, width: 90, height: 230 } },
+        { id: 'terrain_r08_arch_pillar_r', rect: { x: 734, y: 154, width: 90, height: 230 } },
+        { id: 'terrain_r08_outer_pillar_l', rect: { x: 95, y: 300, width: 120, height: 300 } },
+        { id: 'terrain_r08_outer_pillar_r', rect: { x: 870, y: 300, width: 120, height: 310 } },
+        { id: 'terrain_r08_rock_l', rect: { x: 120, y: 720, width: 105, height: 120 } },
+        { id: 'terrain_r08_rock_r', rect: { x: 875, y: 790, width: 85, height: 120 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
-        { id: '08_to_09', zone: { x: 430, y: 90, width: 220, height: 120 }, targetRoomId: 'room_09', targetSpawnLocal: { x: 540, y: 1660 }, lockedByFlag: 'altar_cutscene_seen' },
-        { id: '08_to_07', zone: { x: 430, y: 1710, width: 220, height: 120 }, targetRoomId: 'room_07', targetSpawnLocal: { x: 540, y: 260 } },
+        { id: '08_to_09', zone: { x: 430, y: 70, width: 220, height: 160 }, targetRoomId: 'room_09', targetSpawnLocal: { x: 540, y: 1660 }, lockedByFlag: 'altar_cutscene_seen' },
+        // 2026-08-20：底部只放寬到 y:1700（不是跟其他出口一樣的 1690），
+        // 因為 terrain_r08_gate_post_l/r 的碰撞箱到 y:1697 才結束——放到
+        // 1690 會跟門柱 collider 的左右外緣重疊一小塊（36x7 世界單位），
+        // 出口 zone 的角落會被地形碰撞卡出一個小缺角。1700 留 3 單位安全
+        // 間距，中央通道完全不受影響。
+        { id: '08_to_07', zone: { x: 430, y: 1700, width: 220, height: 150 }, targetRoomId: 'room_07', targetSpawnLocal: { x: 540, y: 260 } },
       ],
     },
     {

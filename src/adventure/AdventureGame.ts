@@ -1,4 +1,4 @@
-import { Application, Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js'
+import { Application, Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js'
 import { loadCharacterFrames, type AnimState } from '../arena/frameLoader'
 import { setSpriteHeight, getFrameDurationSec, getStateTotalDurationSec } from '../arena/heroSpriteRig'
 import { ALL_CAMPAIGN_STAGE_ENEMIES, type EnemyTypeDef } from '../arena/enemies'
@@ -22,13 +22,14 @@ import { QuestSystem } from './systems/QuestSystem'
 import { AdventureCombatController } from './combat/AdventureCombatController'
 import { NpcController } from './npc/NpcController'
 import { DialogueController } from './npc/DialogueController'
-import { createExitGraphic, updateExitCheck } from './objects/StageExit'
+import { createExitGraphic, getStageExitPrompt, updateExitCheck } from './objects/StageExit'
 import {
   FOREST01_NPC_ART, FOREST01_COLLECTIBLE_ART,
   FOREST01_ENEMY_STATIC_ART, FOREST01_INTERACTIVE_ART, FOREST01_DISPLAY_HEIGHT,
 } from './art/forestRuins01Art'
 import {
   FOREST01_V2_ART, FOREST01_ADVENTURE_DISPLAY, getAdventureHeroRenderHeight,
+  ADVENTURE_PLAYER_HITBOX_RADIUS,
 } from './art/forestRuins01VisualTuning'
 
 export interface AdventureConfig {
@@ -44,7 +45,7 @@ export interface AdventureConfig {
   initialProgress?: AdventureStageProgress
 }
 
-const PLAYER_RADIUS = 14
+const PLAYER_RADIUS = ADVENTURE_PLAYER_HITBOX_RADIUS
 const DEBUG_LAYER_Z = 2_000_000
 
 const COLOR_COLLIDER_DEBUG = 0xff4040
@@ -56,6 +57,8 @@ const COLOR_PUZZLE_DEBUG = 0x5090ff
 const COLOR_COLLECTIBLE_DEBUG = 0x50e070
 const COLOR_ROOM_WALKABLE_DEBUG = 0x30ff90
 const COLOR_ROOM_TRANSITION_DEBUG = 0x30d0ff
+const COLOR_TERRAIN_COLLIDER_DEBUG = 0xff9020
+const COLOR_PLAYER_FOOT_DEBUG = 0xffffff
 const TOAST_DURATION_SEC = 2.6
 
 // 目前 forest_1_1 是唯一有正式美術的關卡，這份路徑清單只服務它——之後其他
@@ -68,6 +71,7 @@ const TOAST_DURATION_SEC = 2.6
 function collectForest01ArtPaths(stage: AdventureStageDef): string[] {
   const paths: string[] = [FOREST01_V2_ART.contactShadow]
   paths.push(...(stage.rooms ?? []).map(r => r.background))
+  paths.push(...(stage.rooms ?? []).map(r => r.foreground).filter((v): v is string => !!v))
   paths.push(...Object.values(FOREST01_NPC_ART))
   paths.push(...Object.values(FOREST01_COLLECTIBLE_ART))
   paths.push(...Object.values(FOREST01_ENEMY_STATIC_ART).filter((v): v is string => !!v))
@@ -118,6 +122,7 @@ export class AdventureGame {
   app: Application | null = null
   worldLayer!: Container
   private debugLayer!: Container
+  private debugPlayerFootRect?: Graphics
   debugArtMode = false
   stage: AdventureStageDef
   destroyed = false
@@ -183,7 +188,18 @@ export class AdventureGame {
   private toastText: string | null = null
   private toastTimer = 0
   private lastInteractionKey: string | null = null
+  private lastStageExitPrompt: string | null = null
   private finalResult: AdventureHudState['stageResult'] = null
+  // 2026-08-20：出口不再「踩到當下瞬間切結算畫面」，改成先鎖輸入淡出，
+  // 淡出播完才真的呼叫 commitStageFinish() 建立結果——pendingFinishWon 記
+  // 這段淡出期間「已經確定要結算、但還沒真的結算」的中繼狀態。
+  private pendingFinishWon: boolean | null = null
+  private stageFinishFadeTimer = 0
+  private readonly stageFinishFadeSec = 0.28
+
+  get isFinalizingStage(): boolean {
+    return this.pendingFinishWon !== null && this.finalResult === null
+  }
 
   // ── Systems / Controllers ──────────────────────────────────────────────
   movement = new MovementSystem(this)
@@ -430,6 +446,25 @@ export class AdventureGame {
       bg.zIndex = -1 // 永遠墊底，房間內容 y 座標最小也是 room.atlasOrigin.y(>=0)，-1 保證比任何內容都低
       this.worldLayer.addChild(bg)
       this.roomBackgroundSprite.set(room.id, bg)
+
+      // 2026-08-20 修正：真正的前景遮擋層，改成依每個獨立物件切塊、各自用
+      // 自己的 zIndex=底部 y 座標排序（見 adventureTypes.ts RoomDef.
+      // foregroundPiecesLocal 註解）——上一版整張圖用固定 zIndex 蓋在角色
+      // 上面，玩家不管站在物件前面還後面都被蓋住，變成「角色被切一半」的
+      // bug，這裡改用跟其他 actor 一致的 y-sort 規則。
+      if (room.foreground && room.foregroundPiecesLocal) {
+        const fgBaseTex = this.tex(room.foreground)
+        for (const piece of room.foregroundPiecesLocal) {
+          const pieceTex = new Texture({
+            source: fgBaseTex.source,
+            frame: new Rectangle(piece.x, piece.y, piece.width, piece.height),
+          })
+          const fg = new Sprite(pieceTex)
+          fg.position.set(room.atlasOrigin.x + piece.x, room.atlasOrigin.y + piece.y)
+          fg.zIndex = room.atlasOrigin.y + piece.y + piece.height
+          this.worldLayer.addChild(fg)
+        }
+      }
     }
 
     const H = FOREST01_DISPLAY_HEIGHT
@@ -587,7 +622,24 @@ export class AdventureGame {
         zg.x = room.atlasOrigin.x + t.zone.x; zg.y = room.atlasOrigin.y + t.zone.y
         layer.addChild(zg)
       }
+      // 橘框＝這個房間的靜態地形碰撞（terrainCollidersLocal），跟現有的
+      // 紅框（stage.colliders，藤蔓門/裂牆這類動態機關）分開顏色，手機
+      // 逐房驗收時一眼就能分出「這塊擋路是美術地形還是可開關的機關」。
+      for (const tc of room.terrainCollidersLocal ?? []) {
+        const cg = new Graphics().rect(0, 0, tc.rect.width, tc.rect.height)
+          .fill({ color: COLOR_TERRAIN_COLLIDER_DEBUG, alpha: 0.18 }).stroke({ color: COLOR_TERRAIN_COLLIDER_DEBUG, width: 2 })
+        cg.x = room.atlasOrigin.x + tc.rect.x; cg.y = room.atlasOrigin.y + tc.rect.y
+        layer.addChild(cg)
+      }
     }
+
+    // 玩家目前的碰撞判定矩形（跟 CollisionSystem.playerRect 同一個公式），
+    // 每幀跟著玩家移動，方便手機驗收時直接看「這個方框有沒有卡進橘/紅框」。
+    const footRect = new Graphics()
+      .rect(-PLAYER_RADIUS, -PLAYER_RADIUS, PLAYER_RADIUS * 2, PLAYER_RADIUS * 2)
+      .stroke({ color: COLOR_PLAYER_FOOT_DEBUG, width: 2 })
+    layer.addChild(footRect)
+    this.debugPlayerFootRect = footRect
   }
 
   toggleDebugArtMode() {
@@ -649,9 +701,20 @@ export class AdventureGame {
       if (this.toastTimer <= 0) { this.toastText = null; this.emitHud() }
     }
 
-    // Room Transition fade 期間鎖輸入：玩家看不到自己還在移動/戰鬤，
-    // roomSystem.update() 會在 fade out 走到底時把玩家傳送到下一個房間。
-    const locked = this.roomSystem.fading
+    // 2026-08-20：Stage exit 結算淡出優先於一般探索——玩家踩到結算圈的
+    // 瞬間不再直接跳結算畫面（走一步忽然整個畫面切換，體感很突兀），改成
+    // 先進這段淡出，播完才真的呼叫 commitStageFinish() 建立結果。
+    if (this.pendingFinishWon !== null) {
+      this.stageFinishFadeTimer += dt
+      if (this.stageFinishFadeTimer >= this.stageFinishFadeSec) {
+        this.commitStageFinish(this.pendingFinishWon)
+      }
+    }
+
+    // Room Transition fade／結算淡出期間鎖輸入：玩家看不到自己還在移動/
+    // 戰鬤，roomSystem.update() 會在 fade out 走到底時把玩家傳送到下一個
+    // 房間。
+    const locked = this.roomSystem.fading || this.isFinalizingStage
     if (!locked && (this.state === 'explore' || this.state === 'combat')) {
       this.movement.update(dt)
       this.trigger.update()
@@ -676,7 +739,14 @@ export class AdventureGame {
       this.shadowSprite.y = this.player.y + FOREST01_ADVENTURE_DISPLAY.contactShadowOffsetY
       this.shadowSprite.zIndex = this.player.y - 1
     }
-    if (this.fadeOverlay) this.fadeOverlay.alpha = this.roomSystem.fadeAlpha
+    if (this.fadeOverlay) {
+      const stageFadeAlpha = this.isFinalizingStage ? Math.min(1, this.stageFinishFadeTimer / this.stageFinishFadeSec) : 0
+      this.fadeOverlay.alpha = Math.max(this.roomSystem.fadeAlpha, stageFadeAlpha)
+    }
+    if (this.debugPlayerFootRect) {
+      this.debugPlayerFootRect.x = this.player.x
+      this.debugPlayerFootRect.y = this.player.y
+    }
 
     // 2026-08-19：互動提示原本只在 init/收集/對話開始結束等少數時機才
     // emitHud()，玩家移動時完全不會刷新——導致「明明走近 NPC 但提示沒出現」
@@ -684,12 +754,16 @@ export class AdventureGame {
     // 目前最近的互動目標有沒有變，變了才 emitHud()，不是每幀都醒 React。
     if (!locked && this.state === 'explore') {
       const key = this.interactionKeyOf(this.interaction.findNearest())
-      if (key !== this.lastInteractionKey) {
+      const exitPrompt = getStageExitPrompt(this)
+      if (key !== this.lastInteractionKey || exitPrompt !== this.lastStageExitPrompt) {
         this.lastInteractionKey = key
+        this.lastStageExitPrompt = exitPrompt
         this.emitHud()
       }
-    } else if (this.lastInteractionKey !== null) {
+    } else if (this.lastInteractionKey !== null || this.lastStageExitPrompt !== null) {
       this.lastInteractionKey = null
+      this.lastStageExitPrompt = null
+      this.emitHud()
     }
     this.updateFloatingSprites()
     this.updateFx(dt)
@@ -912,8 +986,19 @@ export class AdventureGame {
     this.quest.onEnemyKilled(typeId)
   }
 
+  /** 開始 stage 結算淡出；實際建立結果延後到 update() 裡淡出播完那一刻
+   * （見 commitStageFinish）——不再是踩到出口/死亡當下瞬間切結算畫面。 */
   finishStage(won: boolean) {
-    if (this.finalResult) return // 已經結算過，避免重複觸發（例如玩家死亡瞬間又踩到出口）
+    if (this.finalResult || this.pendingFinishWon !== null) return // 已經結算過/正在淡出中，避免重複觸發（例如玩家死亡瞬間又踩到出口）
+    this.pendingFinishWon = won
+    this.stageFinishFadeTimer = 0
+    this.state = 'cutscene' // 鎖住移動/互動/戰鬤，但保留 explore 以外狀態機沿用的既有輸入鎖定路徑
+    this.lastStageExitPrompt = null
+    this.emitHud()
+  }
+
+  private commitStageFinish(won: boolean) {
+    if (this.finalResult) return
     const purpleCoinCount = this.purpleCoinIds.size + this.pendingPurpleCoinBonus
     const starPieceCount = this.starPieceIds.size
     let stars: 0 | 1 | 2 | 3 = 0
@@ -923,7 +1008,11 @@ export class AdventureGame {
       if (starPieceCount >= this.stage.starThresholds.starPieceCount) stars = (stars + 1) as 1 | 2 | 3
     }
     const questCompleted = this.stage.quests.every(q => this.questsCompleted.has(q.id))
-    this.finalResult = { won, stars, purpleCoinCount, starPieceCount, questCompleted }
+    this.finalResult = {
+      won, stars, purpleCoinCount, starPieceCount, questCompleted,
+      pendingGold: this.pendingGold, pendingEnhanceStones: this.pendingEnhanceStones, pendingHeroExp: this.pendingHeroExp,
+    }
+    this.pendingFinishWon = null
     this.state = 'stage_clear'
     this.emitHud()
     this.app?.ticker.stop()
@@ -969,6 +1058,7 @@ export class AdventureGame {
       starPieceTotal: this.stage.collectibles.filter(c => c.kind === 'star_piece').length,
       activeDialogue,
       interactionPrompt: target?.prompt ?? null,
+      stageExitPrompt: this.lastStageExitPrompt,
       activeQuestTitle: activeQuest?.title ?? null,
       toast: this.toastText,
       debugScreenText: this.buildDebugScreenText(),

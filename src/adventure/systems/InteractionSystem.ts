@@ -1,9 +1,12 @@
 import type { AdventureGame } from '../AdventureGame'
 import { dist, rectCenter } from '../geometry'
 
-const NPC_RANGE = 46
-const BRAZIER_RANGE = 46
-const WALL_RANGE = 50
+// 2026-08-20：這輪角色跟互動物件的顯示尺寸都放大了，手機搖桿容錯距離跟著
+// 放寬——原本 46/46/50 是舊的小尺寸時代調的，放大後貼太近才觸發反而變得
+// 不好操作。
+const NPC_RANGE = 56
+const BRAZIER_RANGE = 64
+const WALL_RANGE = 60
 
 export type InteractionTarget =
   | { kind: 'npc'; id: string; prompt: string }

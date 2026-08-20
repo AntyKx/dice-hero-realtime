@@ -197,6 +197,19 @@ export interface RoomTransitionDef {
   lockedByFlag?: string
 }
 
+/** 2026-08-20：靜態地形碰撞（岩石/木柱/水面/帳篷這類畫在房間美術裡、不會
+ * 開關的障礙物）改成房間 local 座標——上一輪全部塞進 stage.colliders 的
+ * world/atlas 座標，每加一個都要手動加 atlasOrigin，room_05 那次直接手算錯
+ * 導致玩家一進房間就卡在南側入口的碰撞箱裡出不來。CollisionSystem.ts 只在
+ * 檢查 activeRoom 的 terrainCollidersLocal 時統一加一次 atlasOrigin，資料
+ * 端不用再算。真正需要「開關」的機關（藤蔓門/裂牆）維持留在
+ * stage.colliders，那邊本來就需要 colliderActive 這個全域動態狀態。 */
+export interface RoomTerrainColliderDef {
+  id: string
+  /** 房間 local 座標（0,0 為房間左上角），不含 atlasOrigin。 */
+  rect: AdventureRect
+}
+
 export interface RoomDef {
   id: string
   name: string
@@ -204,11 +217,28 @@ export interface RoomDef {
   atlasOrigin: AdventureVec2
   size: { width: number; height: number }
   background: string
+  /** 選填的透明前景圖來源貼圖，跟 background 同尺寸(1080x1920)、除了要蓋住
+   * 角色的物件（門樑/帳篷屋頂/拱門上緣）以外都是透明。純視覺遮擋，不參與
+   * 碰撞判定（碰撞完全交給 terrainCollidersLocal）。 */
+  foreground?: string
+  /** 2026-08-20 修正：foreground 不能整張圖用固定 zIndex 蓋在角色上面——
+   * 那樣不管玩家站在物件前面還後面都一定被蓋住，變成「角色被切一半」的
+   * bug（原因：這個引擎全部角色/NPC/敵人都是用 zIndex=y 動態排序決定前後，
+   * 固定 zIndex 直接打破這個規則）。正確做法是比照這套 y-sort 慣例：把
+   * foreground 圖依每個獨立物件（每頂帳篷、每根門樑）切成多塊，每塊各自
+   * 用自己的 zIndex=底部 y 座標跟玩家的 zIndex=y 比大小——玩家腳的 y 還沒
+   * 超過物件底部時物件蓋住玩家（走到物件後面/上方），玩家 y 超過之後換
+   * 玩家蓋住物件（走到物件前面），這樣才會隨著玩家位置動態切換前後。
+   * rect 是 foreground 貼圖裡的裁切範圍（房間 local 座標），排序基準點
+   * 用 rect 本身的下緣（y+height），不用另外存一個數字。 */
+  foregroundPiecesLocal?: AdventureRect[]
   /** 房間 local 座標，玩家只能在這塊矩形（∪ 底下任一 transitions[].zone）
    * 內移動——CollisionSystem.ts 刻意把 walkableBounds 跟 transition zone
    * 兩者用 OR 判定，不要求兩塊矩形本身有沒有緊貼在一起，這樣才不會重演
    * 上一版矩形/多邊形對不齊留下縫隙的問題。 */
   walkableBoundsLocal: AdventureRect
+  /** 這個矩形範圍內，依實際美術補的靜態地形障礙（岩石/木柱/水面/帳篷…）。 */
+  terrainCollidersLocal?: RoomTerrainColliderDef[]
   spawnLocal: AdventureVec2
   transitions: RoomTransitionDef[]
 }
@@ -292,6 +322,10 @@ export interface AdventureHudState {
   activeDialogue: { speaker: string; text: string; hasMore: boolean } | null
   /** 「按互動鍵」之類的提示文字，null＝畫面上沒有可互動物件。 */
   interactionPrompt: string | null
+  /** 2026-08-20：走近 room_09 的 stage exit（但還沒真的踩到結算圈）時的
+   * 提示文字——手機搖桿很難一次精準對準結算圈，先讓玩家知道「快到了」。
+   * null＝不在提示範圍內。 */
+  stageExitPrompt: string | null
   activeQuestTitle: string | null
   /** 一次性小提示（撿到道具/任務完成/秘密發現），AdventureStageScreen 顯示
    * 幾秒後自動消失。 */
@@ -306,6 +340,12 @@ export interface AdventureHudState {
     purpleCoinCount: number
     starPieceCount: number
     questCompleted: boolean
+    /** 2026-08-20：結算畫面直接顯示這趟賺到的獎勵，不用等回到關卡地圖才
+     * 看到——實際寫回 meta 還是走 buildStageResult()/onAdventureStageEnd
+     * 那條既有路徑，這裡純粹是提早給玩家看一眼。 */
+    pendingGold: number
+    pendingEnhanceStones: number
+    pendingHeroExp: number
   } | null
 }
 

@@ -3,6 +3,7 @@ import type { AdventureGame } from '../AdventureGame'
 import type { CombatZoneDef } from '../adventureTypes'
 import { setSpriteHeight } from '../../arena/heroSpriteRig'
 import { dist, pointInRect } from '../geometry'
+import { getAdventureEnemyRenderHeight, getAdventureEnemyHitboxRadius } from '../art/forestRuins01VisualTuning'
 
 /**
  * Adventure Stage 原生輕量戰鬥系統——不是掛一個 ArenaGame 進來（那樣等於在
@@ -20,9 +21,12 @@ import { dist, pointInRect } from '../geometry'
 const BASE_ENEMY_HP = 30
 const BASE_ENEMY_DAMAGE = 6
 const ENEMY_SPEED = 70
-const ENEMY_ATTACK_RANGE = 32
+// 2026-08-20：接觸／攻擊距離改成「雙方 hitbox 半徑相加再加一點餘裕」，不
+// 再是寫死的 32/46——這輪把玩家跟敵人的 hitbox 都改成依實際顯示尺寸算，
+// 固定距離會跟新尺寸對不上（角色變大了，接觸判定卻還是舊的小範圍）。
+const ENEMY_ATTACK_REACH = 8
 const ENEMY_ATTACK_COOLDOWN = 1.1
-const PLAYER_ATTACK_RANGE = 46
+const PLAYER_ATTACK_REACH = 14
 const PLAYER_ATTACK_COOLDOWN = 0.55
 
 export interface AdventureEnemyInstance {
@@ -30,6 +34,8 @@ export interface AdventureEnemyInstance {
   typeId: string
   x: number
   y: number
+  /** 腳底中心周圍的 world-space 接觸半徑，不等同整張立繪寬度。 */
+  hitRadius: number
   hp: number
   maxHp: number
   alive: boolean
@@ -114,14 +120,19 @@ export class AdventureCombatController {
     const tex = staticTex ?? frames?.idle[0]
     const sprite = tex ? new Sprite(tex) : new Sprite()
     sprite.anchor.set(0.5, 1)
-    if (tex) setSpriteHeight(sprite, staticTex ? Math.round(type.spriteHeight * 0.6) : type.spriteHeight)
+    // 靜態立繪 (staticTex) 不再另外乘 0.6——getAdventureEnemyRenderHeight
+    // 統一依 EnemyTypeDef.spriteHeight 換算，跟逐幀動畫敵人共用同一套
+    // Map-Native 比例基準，不需要靜態圖再單獨縮小一次。
+    const renderHeight = getAdventureEnemyRenderHeight(type.spriteHeight)
+    const hitRadius = getAdventureEnemyHitboxRadius(renderHeight)
+    if (tex) setSpriteHeight(sprite, renderHeight)
     sprite.x = x
     sprite.y = y
     sprite.zIndex = y
     g.worldLayer.addChild(sprite)
 
-    const hpBarBg = new Graphics().rect(-16, -type.spriteHeight - 10, 32, 4).fill({ color: 0x1a1a1a, alpha: 0.8 })
-    const hpBarFill = new Graphics().rect(-16, -type.spriteHeight - 10, 32, 4).fill({ color: 0xe05050 })
+    const hpBarBg = new Graphics().rect(-20, -renderHeight - 12, 40, 5).fill({ color: 0x1a1a1a, alpha: 0.82 })
+    const hpBarFill = new Graphics().rect(-20, -renderHeight - 12, 40, 5).fill({ color: 0xe05050 })
     hpBarBg.x = x; hpBarBg.y = y
     hpBarFill.x = x; hpBarFill.y = y
     g.worldLayer.addChild(hpBarBg)
@@ -129,7 +140,7 @@ export class AdventureCombatController {
 
     const maxHp = Math.round(BASE_ENEMY_HP * type.hpMult)
     this.enemies.push({
-      id: `ae_${nextEnemyInstanceId++}`, typeId: type.id, x, y, hp: maxHp, maxHp,
+      id: `ae_${nextEnemyInstanceId++}`, typeId: type.id, x, y, hitRadius, hp: maxHp, maxHp,
       alive: true, atkTimer: Math.random() * ENEMY_ATTACK_COOLDOWN, sprite, hpBarBg, hpBarFill,
     })
   }
@@ -140,12 +151,18 @@ export class AdventureCombatController {
       if (!e.alive) continue
       const type = g.enemyTypeDefs[e.typeId]
       const d = dist(e.x, e.y, g.player.x, g.player.y)
-      if (d > ENEMY_ATTACK_RANGE) {
+      const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
+      if (d > contactDistance) {
         const speed = ENEMY_SPEED * (type?.speedMult ?? 1)
         const dx = (g.player.x - e.x) / (d || 1)
         const dy = (g.player.y - e.y) / (d || 1)
-        e.x += dx * speed * dt
-        e.y += dy * speed * dt
+        // 2026-08-20：敵人追逐這輪開始真的走房間碰撞——之前完全沒有這段，
+        // 敵人可以直接穿牆/穿水/穿帳篷貼臉，現在跟玩家共用同一套
+        // moveCircleWithCollision（allowTransitionOverlap=false，見
+        // CollisionSystem.ts 註解）。
+        const moved = g.collision.moveEnemyWithCollision(e.x, e.y, e.hitRadius, dx * speed * dt, dy * speed * dt)
+        e.x = moved.x
+        e.y = moved.y
       } else {
         e.atkTimer -= dt
         if (e.atkTimer <= 0) {
@@ -166,11 +183,12 @@ export class AdventureCombatController {
     if (this.playerAtkTimer > 0) return
     const g = this.game
     let nearest: AdventureEnemyInstance | null = null
-    let nearestDist = PLAYER_ATTACK_RANGE
+    let nearestDist = Number.POSITIVE_INFINITY
     for (const e of this.enemies) {
       if (!e.alive) continue
       const d = dist(e.x, e.y, g.player.x, g.player.y)
-      if (d <= nearestDist) { nearest = e; nearestDist = d }
+      const attackDistance = g.player.radius + e.hitRadius + PLAYER_ATTACK_REACH
+      if (d <= attackDistance && d <= nearestDist) { nearest = e; nearestDist = d }
     }
     if (!nearest) return
     this.playerAtkTimer = PLAYER_ATTACK_COOLDOWN

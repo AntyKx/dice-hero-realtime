@@ -5663,6 +5663,30 @@ h1, h2, h3, p { margin: 0; }
   animation: arena-levelup-fadein 0.2s ease-out;
 }
 
+/* 2026-08-20：room_09 快到終點出口時的提示——放在 quest-badge 下方，跟
+   toast（置中偏上、短暫消失）分開，這個是「持續顯示直到離開範圍」。 */
+.adv-stage-exit-prompt {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 66px);
+  right: 14px;
+  max-width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffe089;
+  background: rgba(10, 16, 30, 0.75);
+  border: 1px solid rgba(255, 224, 137, 0.45);
+  border-radius: 8px;
+  padding: 4px 10px;
+  text-align: right;
+  animation: arena-levelup-fadein 0.2s ease-out;
+}
+.adv-stage-exit-arrow {
+  flex-shrink: 0;
+}
+
 .adv-interact-btn {
   pointer-events: auto;
   position: absolute;

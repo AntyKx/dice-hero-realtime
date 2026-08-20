@@ -26,8 +26,27 @@ export function getAdventureHeroRenderHeight(heroId: string): number {
   return clamp(Math.round(getHeroRenderHeight(heroId) * 2.75), 180, 220)
 }
 
+/** 2026-08-20：敵人立繪跟 hitbox 這一輪一起補上——英雄放大到 180~220 之後，
+ * 敵人如果還是照 EnemyTypeDef.spriteHeight 原始比例顯示，兩邊會明顯不成
+ * 比例（敵人看起來比英雄矮小很多）。1.15 倍是刻意讓一般雜兵略小於英雄、
+ * Boss 級（spriteHeight 本來就比較大）能接近甚至持平英雄高度，不是統一套
+ * 同一個數字。 */
+export function getAdventureEnemyRenderHeight(baseHeight: number): number {
+  return clamp(Math.round(baseHeight * 1.15), 150, 230)
+}
+
+/** Adventure 的邏輯碰撞半徑，跟角色腳底的 world-space 座標共用同一套基準。
+ * 半徑不是整張立繪的寬度，是角色腳下實際佔用的圓形身體範圍——用顯示高度
+ * 換算，放大立繪後 hitbox 會跟著等比放大，不會停留在放大前的舊尺寸，
+ * 造成「看起來已經碰到了但判定沒過」。 */
+export const ADVENTURE_PLAYER_HITBOX_RADIUS = 22
+
+export function getAdventureEnemyHitboxRadius(renderHeight: number): number {
+  return clamp(Math.round(renderHeight * 0.18), 18, 34)
+}
+
 export const FOREST01_ADVENTURE_DISPLAY = {
-  npcHeight: 190,
+  npcHeight: 210,
   contactShadowWidth: 105,
   contactShadowHeight: 40,
   contactShadowAlpha: 0.28,
