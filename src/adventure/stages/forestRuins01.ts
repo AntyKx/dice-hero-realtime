@@ -79,6 +79,16 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 1080, y: 0 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room02.webp',
       walkableBoundsLocal: { x: 180, y: 180, width: 720, height: 1540 },
+      // 兩側樹叢+岩石群沿邊界分段擋，中央土路跟上下出口 zone（y:110-230／
+      // y:1680-1800）都完全避開，不做貫穿整個房高的長矩形。
+      terrainCollidersLocal: [
+        { id: 'terrain_r02_edge_left_01', rect: { x: 180, y: 340, width: 80, height: 220 } },
+        { id: 'terrain_r02_edge_left_02', rect: { x: 180, y: 740, width: 80, height: 200 } },
+        { id: 'terrain_r02_edge_left_03', rect: { x: 180, y: 1120, width: 80, height: 220 } },
+        { id: 'terrain_r02_edge_right_01', rect: { x: 820, y: 340, width: 80, height: 220 } },
+        { id: 'terrain_r02_edge_right_02', rect: { x: 820, y: 740, width: 80, height: 200 } },
+        { id: 'terrain_r02_edge_right_03', rect: { x: 820, y: 1120, width: 80, height: 220 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
         { id: '02_to_03', zone: { x: 430, y: 110, width: 220, height: 120 }, targetRoomId: 'room_03', targetSpawnLocal: { x: 540, y: 1640 } },
@@ -90,6 +100,17 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 2160, y: 0 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room03.webp',
       walkableBoundsLocal: { x: 140, y: 220, width: 800, height: 1460 },
+      // 左側分段刻意避開 y:820-1040（03_to_03A 出口 zone 所在的 y 帶），
+      // 右側沒有側向出口，可以多留一段。
+      terrainCollidersLocal: [
+        { id: 'terrain_r03_edge_left_01', rect: { x: 140, y: 280, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_left_02', rect: { x: 140, y: 1150, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_left_03', rect: { x: 140, y: 1500, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_right_01', rect: { x: 860, y: 280, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_right_02', rect: { x: 860, y: 650, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_right_03', rect: { x: 860, y: 1150, width: 80, height: 200 } },
+        { id: 'terrain_r03_edge_right_04', rect: { x: 860, y: 1500, width: 80, height: 200 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
         { id: '03_to_05', zone: { x: 430, y: 110, width: 220, height: 140 }, targetRoomId: 'room_05', targetSpawnLocal: { x: 540, y: 1680 } },
@@ -103,6 +124,11 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 3240, y: 0 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room03a.webp',
       walkableBoundsLocal: { x: 120, y: 180, width: 820, height: 1560 },
+      // 這間大部分是開闊花圃草地，圍牆是薄柵欄已經貼著 walkableBounds 邊界，
+      // 唯一明顯突出可走區的是底部這叢大岩石。
+      terrainCollidersLocal: [
+        { id: 'terrain_r03a_rock_cluster_01', rect: { x: 640, y: 1580, width: 130, height: 100 } },
+      ],
       spawnLocal: { x: 920, y: 960 },
       transitions: [
         // 回程側向出口跟入口同寬，避免花圃內必須精準貼右牆才能離開。
@@ -152,10 +178,19 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 0, y: 1920 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room06.webp',
       walkableBoundsLocal: { x: 100, y: 180, width: 880, height: 1560 },
+      // 兩側石柱群分段擋。右側刻意在 y:880-1140 留缺口（06_to_06A 出口 zone
+      // 所在的 y 帶＋margin），不然密室入口會被自己這邊的柱子擋住；左側沒有
+      // 這個限制。中央圓形遺跡地板保持完全不擋，玩家可以直接繞行。
+      terrainCollidersLocal: [
+        { id: 'terrain_r06_edge_left_01', rect: { x: 100, y: 140, width: 100, height: 280 } },
+        { id: 'terrain_r06_edge_left_02', rect: { x: 100, y: 680, width: 100, height: 340 } },
+        { id: 'terrain_r06_edge_left_03', rect: { x: 100, y: 1420, width: 100, height: 320 } },
+        { id: 'terrain_r06_edge_right_01', rect: { x: 880, y: 140, width: 100, height: 280 } },
+        { id: 'terrain_r06_edge_right_02', rect: { x: 880, y: 1160, width: 100, height: 190 } },
+        { id: 'terrain_r06_edge_right_03', rect: { x: 880, y: 1450, width: 100, height: 320 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [
-        // 上下拱門出口垂直方向放寬容錯（room_06 沒有 terrainCollidersLocal，
-        // 兩段都不會跟地形碰撞衝突）。
         { id: '06_to_07', zone: { x: 430, y: 80, width: 220, height: 160 }, targetRoomId: 'room_07', targetSpawnLocal: { x: 540, y: 1660 } },
         { id: '06_to_05', zone: { x: 430, y: 1690, width: 220, height: 160 }, targetRoomId: 'room_05', targetSpawnLocal: { x: 540, y: 290 } },
         // x 從 910 往左挪到 870（原本離右邊界只有 50 世界單位，是全關卡最窄
@@ -170,6 +205,16 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 1080, y: 1920 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room06a.webp',
       walkableBoundsLocal: { x: 100, y: 120, width: 880, height: 1680 },
+      // 四周是明顯比其他房間厚的石牆，walkableBounds 邊界比牆的實際內緣還
+      // 深入約 40-60 世界單位。左牆拆兩段避開 06A_to_06 入口缺口
+      // （y:860-1100，兩側各留 40 margin）。
+      terrainCollidersLocal: [
+        { id: 'terrain_r06a_wall_top', rect: { x: 140, y: 120, width: 800, height: 90 } },
+        { id: 'terrain_r06a_wall_bottom', rect: { x: 140, y: 1710, width: 800, height: 90 } },
+        { id: 'terrain_r06a_wall_left_upper', rect: { x: 100, y: 120, width: 70, height: 700 } },
+        { id: 'terrain_r06a_wall_left_lower', rect: { x: 100, y: 1140, width: 70, height: 570 } },
+        { id: 'terrain_r06a_wall_right', rect: { x: 910, y: 210, width: 70, height: 1500 } },
+      ],
       spawnLocal: { x: 180, y: 960 },
       transitions: [
         { id: '06A_to_06', zone: { x: 70, y: 860, width: 120, height: 240 }, targetRoomId: 'room_06', targetSpawnLocal: { x: 860, y: 960 } },
@@ -253,6 +298,19 @@ export const FOREST_RUINS_01_STAGE: AdventureStageDef = {
       atlasOrigin: { x: 4320, y: 1920 }, size: { width: 1080, height: 1920 },
       background: '/assets/adventure/forest_1_1/rooms_v2/room09.webp',
       walkableBoundsLocal: { x: 160, y: 180, width: 760, height: 1540 },
+      // 兩側石柱殘牆分段擋，中央 x:400-680 這條通道完全不放（stage exit 在
+      // local(540,370)，終點戰鬤/結算展示空間跟中央祭壇廣場都保持開放）。
+      // 這間沒有 transition，不用擔心跟出口 zone 衝突。
+      terrainCollidersLocal: [
+        { id: 'terrain_r09_edge_left_01', rect: { x: 160, y: 60, width: 110, height: 340 } },
+        { id: 'terrain_r09_edge_left_02', rect: { x: 160, y: 520, width: 110, height: 280 } },
+        { id: 'terrain_r09_edge_left_03', rect: { x: 160, y: 980, width: 110, height: 260 } },
+        { id: 'terrain_r09_edge_left_04', rect: { x: 160, y: 1350, width: 110, height: 280 } },
+        { id: 'terrain_r09_edge_right_01', rect: { x: 810, y: 60, width: 110, height: 340 } },
+        { id: 'terrain_r09_edge_right_02', rect: { x: 810, y: 520, width: 110, height: 280 } },
+        { id: 'terrain_r09_edge_right_03', rect: { x: 810, y: 980, width: 110, height: 260 } },
+        { id: 'terrain_r09_edge_right_04', rect: { x: 810, y: 1350, width: 110, height: 280 } },
+      ],
       spawnLocal: { x: 540, y: 1660 },
       transitions: [],
     },
