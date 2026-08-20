@@ -878,7 +878,13 @@ export class AdventureGame {
     this.toastTimer = 0
     if (!this.areasDiscovered.has(room.id)) {
       this.areasDiscovered.add(room.id)
-      this.showToast(`發現：${room.name}`)
+      this.showToast(`發現：${room.name}`) // showToast() 內部會呼叫 emitHud()
+    } else {
+      // 2026-08-20 修正：回到已經探索過的房間時，上面那個 showToast 分支
+      // 不會執行，emitHud() 就完全沒被呼叫——迷你地圖的 activeRoomId 停在
+      // 上一個房間，玩家回報「換房間沒精準顯示在哪個房間」。這裡補一個
+      // 無條件呼叫，不管是不是第一次進來，換房當下都要刷新 HUD。
+      this.emitHud()
     }
   }
 

@@ -330,3 +330,22 @@ campaign_saga_select（SagaSelectScreen）
 `meta.enhanceStoneCount`/`meta.synthesisMaterialCount` 是新增的兩個帳號共
 用材料貨幣，關卡通關（`campaign_stage`/`arena_run` 都有）小額額外掉強化
 石，合成材料只從分解 rare+ 裝備拿。
+
+### Adventure 探索關卡（src/adventure/，Room Transition 架構）
+
+跟上面回合制 Roguelite、即時制 ASTERVOW 大廳/戰鬤都是平行、完全獨立的
+第三套系統，只共用少數美術管線跟敵人數值公式。玩家從固定式主線地圖選到
+`forest_1_1` 這類 Adventure 專屬關卡時，走的是這一套（`AdventureGame.ts`/
+`AdventureStageScreen.tsx`），不是 `ArenaGame.ts`。
+
+離散房間（每個房間直式 1080×1920，貼在一張離屏 atlas 上）+ 單一
+worldLayer + 房間淡出淡入轉場，房間內一切資料一律用 room-local 座標
+（`CollisionSystem.ts` 統一加一次 `atlasOrigin` 換算，資料端不要手動算）。
+
+**新增/調整任何 Adventure 關卡（地形碰撞、迷你地圖、前景遮擋、角色/敵人
+顯示尺寸、房間資料……）之前，先看
+[`docs/adventure-room-design-guide.md`](docs/adventure-room-design-guide.md)**
+——這份文件整理了 forest_1_1 從 v1 到 v13.6.x 一路踩過的坑（atlasOrigin
+座標系誤用、collider 手算世界座標算錯、前景遮擋固定 zIndex 蓋住角色、
+迷你地圖用貼圖座標排版看不懂……）跟對應的正確做法，照做可以直接跳過
+這些已經解決過的問題，不要重新摸索一次。

@@ -28,11 +28,18 @@ export function getAdventureHeroRenderHeight(heroId: string): number {
 
 /** 2026-08-20：敵人立繪跟 hitbox 這一輪一起補上——英雄放大到 180~220 之後，
  * 敵人如果還是照 EnemyTypeDef.spriteHeight 原始比例顯示，兩邊會明顯不成
- * 比例（敵人看起來比英雄矮小很多）。1.15 倍是刻意讓一般雜兵略小於英雄、
- * Boss 級（spriteHeight 本來就比較大）能接近甚至持平英雄高度，不是統一套
- * 同一個數字。 */
+ * 比例（敵人看起來比英雄矮小很多）。
+ *
+ * 2026-08-20 修正：森林遺跡這關實際會出現的敵人 spriteHeight 是
+ * forest_slime=44、goblin_warrior=114、goblin_archer=109、
+ * forest_shaman=106——套原本「×1.15 再夾在 150~230」的公式，這四種算出來
+ * 全部低於 150 這個下限，代表史萊姆跟三種哥布林/薩滿全部被夾到同一個
+ * 150，變成大小完全一樣，史萊姆該有的「體型明顯比哥布林小」直接消失。
+ * 換成「×1.1 + 30，夾在 70~220」：44→約78（明顯小隻）、106~114→約
+ * 147~155（雜兵，仍小於英雄的 180~220），未來 spriteHeight 更大的 Boss
+ * 級敵人會自然逼近甚至頂到 220 的上限，不用另外特殊處理。 */
 export function getAdventureEnemyRenderHeight(baseHeight: number): number {
-  return clamp(Math.round(baseHeight * 1.15), 150, 230)
+  return clamp(Math.round(baseHeight * 1.1 + 30), 70, 220)
 }
 
 /** Adventure 的邏輯碰撞半徑，跟角色腳底的 world-space 座標共用同一套基準。
