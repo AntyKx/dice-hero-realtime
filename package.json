@@ -1,7 +1,7 @@
 {
   "name": "dicehero-sprite-integrated-game",
   "private": true,
-  "version": "12.2.0",
+  "version": "13.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",

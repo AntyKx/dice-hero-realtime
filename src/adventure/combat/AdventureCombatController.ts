@@ -54,7 +54,15 @@ export class AdventureCombatController {
   constructor(private game: AdventureGame) {}
 
   /** 每幀檢查玩家是否走進尚未觸發的戰鬤區域（跟舊 exploreWorld 的
-   * battleZone 判定同款手感：走進去才開打，不是一進關卡就打）。 */
+   * battleZone 判定同款手感：走進去才開打，不是一進關卡就打）。
+   *
+   * 2026-08-20 修正：原本這段判斷「沒有 activeZone 就直接 return」，結果
+   * 任務擊殺目標（QuestSystem.spawnHostileEnemy 生的怪，不走 startZone，
+   * 不會設 activeZone）生出來以後永遠不會被 tick 到——敵人不會移動、玩家
+   * 也打不到（updateEnemies/updatePlayerAttack 整段被跳過），任務卡死在
+   * 「已接受」湊不齊擊殺數。改成「有沒有 enemies 存在」才是 AI／攻擊要不
+   * 要 tick 的條件，activeZone 只用來判斷波次推進／戰鬤結算（checkWaveProgress）
+   * 要不要跑，兩件事分開判斷。 */
   update(dt: number) {
     const g = this.game
     if (!this.activeZone) {
@@ -65,11 +73,11 @@ export class AdventureCombatController {
           break
         }
       }
-      return
     }
+    if (this.enemies.length === 0) return
     this.updateEnemies(dt)
     this.updatePlayerAttack(dt)
-    this.checkWaveProgress()
+    if (this.activeZone) this.checkWaveProgress()
   }
 
   private startZone(zone: CombatZoneDef) {
@@ -166,6 +174,7 @@ export class AdventureCombatController {
     }
     if (!nearest) return
     this.playerAtkTimer = PLAYER_ATTACK_COOLDOWN
+    g.triggerPlayerAttackAnim()
     this.damageEnemy(nearest, g.heroAtk)
   }
 
@@ -201,6 +210,7 @@ export class AdventureCombatController {
     this.activeZone = null
     g.clearedCombatZones.add(zone.id)
     for (const id of zone.gateColliderIds) g.setColliderActive(id, false)
+    if (zone.setsFlag) g.flags[zone.setsFlag] = true
     g.pendingGold += zone.rewardGold
     g.pendingHeroExp += zone.rewardExp
     g.state = 'explore'

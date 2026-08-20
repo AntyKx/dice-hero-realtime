@@ -21,6 +21,13 @@ export const FOREST_RUINS_01_DIALOGUES: DialogueDef[] = [
       { speaker: '迷途女孩', text: '這個給你，一點小小的謝禮。' },
     ] }],
   },
+  // 任務完成後回頭再找她的固定閒聊台詞，不會再重複交任務那句「這個給你」。
+  {
+    id: 'girl_quest_done',
+    variants: [{ lines: [
+      { speaker: '迷途女孩', text: '謝謝你，小熊已經被我抱在懷裡了，再也不會弄丟牠了。' },
+    ] }],
+  },
   // 古老祭壇劇情（文件第十節）：Party Conditional Dialogue 接口示範——皇家
   // 公主/死亡騎士在隊伍裡時顯示各自專屬的一句，其餘情況顯示無角色差異的
   // 通用旁白。

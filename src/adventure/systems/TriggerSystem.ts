@@ -25,6 +25,7 @@ export class TriggerSystem {
       }
     } else if (action.type === 'start_cutscene') {
       g.startCutscene(action.cutsceneId)
+      if (action.setsFlag) g.flags[action.setsFlag] = true
     }
   }
 }

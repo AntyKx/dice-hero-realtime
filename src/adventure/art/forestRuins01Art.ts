@@ -15,12 +15,11 @@
 
 const BASE = '/assets/adventure/forest_1_1'
 
-// 2026-08-19 Art V2：原本這兩張只有 1024x1536，AdventureGame.buildScene()
-// 又把它們 runtime 拉到 2400x3600（2.34x）造成模糊。V2 改成 build 階段
-// （scripts/build-forest01-art-v2.mjs）就先做好 2400x3600 的 master，
-// AdventureGame 不再做任何 runtime 拉伸，見該檔案 buildScene() 的說明。
-export const FOREST01_GROUND = `${BASE}/v2/ground/forest_1_1_ground_v2.webp`
-export const FOREST01_FOREGROUND = `${BASE}/v2/foreground/forest_1_1_foreground_v2.webp`
+// 2026-08-19 Room Transition 改版：原本這裡有 FOREST01_GROUND/
+// FOREST01_FOREGROUND（單一連續世界的大圖，V2 修過 runtime 拉伸問題）跟
+// FOREST01_PROPS_ART（裝飾道具 sprite），現在都被 9 張房間背景取代（見
+// forestRuins01.ts 的 rooms[].background）——那批圖已經把裝飾直接畫進場景，
+// 這兩份 manifest 沒有用了，整份刪掉，不留死 export。
 
 export const FOREST01_NPC_ART = {
   idle: `${BASE}/entities/entities_01.webp`,
@@ -43,13 +42,6 @@ export const FOREST01_ENEMY_STATIC_ART: Partial<Record<string, string>> = {
 }
 
 export const FOREST01_INTERACTIVE_ART = {
-  altarObelisk: `${BASE}/interactive/interactive_01.webp`,
-  altarFlame: [
-    `${BASE}/interactive/interactive_02.webp`,
-    `${BASE}/interactive/interactive_03.webp`,
-    `${BASE}/interactive/interactive_04.webp`,
-    `${BASE}/interactive/interactive_05.webp`,
-  ] as const,
   /** 三個火盆各自固定配色，跟 forestRuins01.ts 的 brazier_01/02/03 id 對應。 */
   brazierLit: {
     brazier_01: `${BASE}/interactive/interactive_07.webp`, // 橙焰
@@ -61,63 +53,26 @@ export const FOREST01_INTERACTIVE_ART = {
   vineGateOpen: `${BASE}/interactive/interactive_13.webp`,
   wallIntact: `${BASE}/interactive/interactive_14.webp`,
   wallBroken: `${BASE}/interactive/interactive_15.webp`,
-  sealedDoor: `${BASE}/interactive/interactive_16.webp`,
-  exitGlow: `${BASE}/interactive/interactive_17.webp`,
   treasureOpen: `${BASE}/interactive/interactive_18.webp`,
   treasureClosed: `${BASE}/interactive/interactive_19.webp`,
 }
 
-/** 純裝飾用環境道具（哥布林營地/遺跡廣場/花圃擺設），不參與互動邏輯，
- * AdventureGame 只會在建場景時一次性擺放，不會被任何 system 讀取狀態。 */
-export const FOREST01_PROPS_ART = {
-  goblinTent1: `${BASE}/props/props_01.webp`,
-  goblinTent2: `${BASE}/props/props_04.webp`,
-  campfire: `${BASE}/props/props_05.webp`,
-  fenceStraight1: `${BASE}/props/props_02.webp`,
-  fenceStraight2: `${BASE}/props/props_06.webp`,
-  fencePostCluster: `${BASE}/props/props_07.webp`,
-  fencePost1: `${BASE}/props/props_08.webp`,
-  fencePost2: `${BASE}/props/props_09.webp`,
-  crateStack: `${BASE}/props/props_10.webp`,
-  crate1: `${BASE}/props/props_11.webp`,
-  supplyStack: `${BASE}/props/props_12.webp`,
-  crate2: `${BASE}/props/props_13.webp`,
-  crate3: `${BASE}/props/props_14.webp`,
-  barrel1: `${BASE}/props/props_15.webp`,
-  barrel2: `${BASE}/props/props_16.webp`,
-  barrel3: `${BASE}/props/props_17.webp`,
-  ruinArchCluster: `${BASE}/props/props_18.webp`,
-  ruinPillar1: `${BASE}/props/props_19.webp`,
-  ruinWallCluster: `${BASE}/props/props_20.webp`,
-  ruinPillar2: `${BASE}/props/props_21.webp`,
-  ruinWallLong: `${BASE}/props/props_22.webp`,
-  rubbleCluster: `${BASE}/props/props_23.webp`,
-  flowerFencePurple: `${BASE}/props/props_24.webp`,
-  flowerFenceYellow: `${BASE}/props/props_25.webp`,
-  flowerFencePost1: `${BASE}/props/props_26.webp`,
-  flowerFencePost2: `${BASE}/props/props_27.webp`,
-  flowerFencePost3: `${BASE}/props/props_28.webp`,
-}
-
 /** 各類物件的目標顯示高度（px），建立 Sprite 時搭配
  * heroSpriteRig.ts 的 setSpriteHeight() 依貼圖實際像素高度換算縮放。
- * 英雄本身走 HERO_RENDER_HEIGHT（60px）這一路現有邏輯，不在這裡重複定義。 */
+ * 英雄本身走 HERO_RENDER_HEIGHT（60px）這一路現有邏輯，NPC 走
+ * forestRuins01VisualTuning.ts 的 FOREST01_ADVENTURE_DISPLAY.npcHeight，
+ * 都不在這裡重複定義。 */
+// 2026-08-20：整體物件太小（跟英雄一起被回報），紫幣/星星碎片/任務道具/
+// 寶箱一起放大到約 3 倍（見 forestRuins01VisualTuning.ts 同一輪英雄放大的
+// 註解，換算邏輯一致）。brazier/vineGate/wall 維持原尺寸不動——這三個是
+// 卡進謎題 collider 寬高算出來的，跟角色觀感無關，使用者這次也沒提到。
 export const FOREST01_DISPLAY_HEIGHT = {
-  npc: 50,               // 「小型 Q 版比例，不要當大型立繪」，比英雄 60px 略小
-  purpleCoin: 20,
-  starPiece: 28,          // 比紫幣約 1.4 倍
-  pickupSparkle: 26,
-  dirtyTeddy: 26,
-  enemyStatic: 40,
-  altarObelisk: 150,
-  altarFlame: 46,
+  purpleCoin: 65,
+  starPiece: 90,          // 比紫幣約 1.4 倍
+  pickupSparkle: 85,
+  dirtyTeddy: 85,
   brazier: 48,
   vineGate: 190,          // 撐滿謎題藤蔓門 collider 的寬度（見 forestRuins01.ts puzzle_vine_gate）
   wall: 210,              // 撐滿裂牆 collider 高度（見 secret02_wall）
-  sealedDoor: 160,
-  exitGlow: 130,
-  treasure: 40,
-  propSmall: 44,          // 柵欄柱/木箱/木桶等小型裝飾
-  propMedium: 70,         // 石柱/長牆/花圃柵欄等中型裝飾
-  propLarge: 130,         // 帳篷/營火/遺跡拱門群等大型裝飾
+  treasure: 130,
 } as const

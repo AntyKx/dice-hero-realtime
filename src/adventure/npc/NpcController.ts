@@ -27,7 +27,12 @@ export class NpcController {
         dialogueId = quest.completeDialogueId
         onDone = () => g.quest.complete(quest.id)
       } else {
-        dialogueId = quest.inProgressDialogueId // completed 之後沿用同一句閒聊台詞
+        // 2026-08-20 修正：這裡原本誤用 inProgressDialogueId（「小熊還在花圃
+        // 那邊」），導致任務明明完成了，重新對話還在講小熊沒找到。改用
+        // 專門的完成後台詞，沒設定才退回 completeDialogueId（那句本身就是
+        // 「謝謝你」，當閒聊台詞也說得通，只是「這個給你」那句給禮物的話
+        // 重複講會怪，所以優先用 postCompleteDialogueId）。
+        dialogueId = quest.postCompleteDialogueId ?? quest.completeDialogueId
       }
     }
 

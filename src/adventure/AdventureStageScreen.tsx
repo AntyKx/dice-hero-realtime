@@ -14,6 +14,7 @@ const INITIAL_HUD: AdventureHudState = {
   purpleCoinCount: 0, purpleCoinTotal: 0,
   starPieceCount: 0, starPieceTotal: 0,
   activeDialogue: null, interactionPrompt: null, activeQuestTitle: null, toast: null,
+  debugScreenText: null,
   stageResult: null,
 }
 
@@ -90,13 +91,20 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
 
   return (
     <div className="adv-screen">
+      {/* 2026-08-20：pointermove/up/cancel 故意不跟著 showJoystick 一起關掉——
+          如果玩家走進對話/劇情 trigger 時手指還按著搖桿，state 會在 drag
+          進行中切離 explore/combat，showJoystick 變 false；只有 pointerdown
+          需要看 showJoystick（不能在非探索狀態開新的 drag），move/up/cancel
+          一定要留著，才能正確收掉那個還在進行中的 drag，不然 dragRef 會卡在
+          active=true，回到 explore 後新的觸控會被 handleFieldPointerDown
+          開頭的 guard 直接吃掉，變成搖桿完全沒反應。 */}
       <div
         className="adv-canvas-wrap"
         ref={containerRef}
         onPointerDown={showJoystick ? handleFieldPointerDown : undefined}
-        onPointerMove={showJoystick ? handleFieldPointerMove : undefined}
-        onPointerUp={showJoystick ? handleFieldRelease : undefined}
-        onPointerCancel={showJoystick ? handleFieldRelease : undefined}
+        onPointerMove={handleFieldPointerMove}
+        onPointerUp={handleFieldRelease}
+        onPointerCancel={handleFieldRelease}
       />
 
       {showJoystick && (
@@ -111,6 +119,7 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
             collider/trigger/combatZone/secret/NPC互動範圍/謎題/收集品半徑
             的除錯外框，方便核對美術跟玩法座標有沒有對齊。 */}
         <button className="adv-debug-btn" onClick={() => gameRef.current?.toggleDebugArtMode()}>🐞</button>
+        {hud.debugScreenText && <div className="adv-debug-screen-text">{hud.debugScreenText}</div>}
 
         <div className="adv-counters">
           <span className="adv-counter"><AsterVowIcon name="system-gold" size={14} />{hud.purpleCoinCount}/{hud.purpleCoinTotal}</span>

@@ -1,16 +1,18 @@
 import { Application, Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js'
 import { loadCharacterFrames, type AnimState } from '../arena/frameLoader'
-import { setSpriteHeight } from '../arena/heroSpriteRig'
+import { setSpriteHeight, getFrameDurationSec, getStateTotalDurationSec } from '../arena/heroSpriteRig'
 import { ALL_CAMPAIGN_STAGE_ENEMIES, type EnemyTypeDef } from '../arena/enemies'
 import type {
   AdventureStageDef, AdventureGameState, AdventureHudState, AdventureStageProgress,
-  AdventureStageResult, CollectibleDef, ColliderDef,
+  AdventureStageResult, CollectibleDef, ColliderDef, RoomDef,
 } from './adventureTypes'
 import { defaultAdventureStageProgress } from './adventureTypes'
 import { getAdventureStageDef } from './stages'
 import { MovementSystem } from './systems/MovementSystem'
 import { CollisionSystem } from './systems/CollisionSystem'
 import { CameraSystem } from './systems/CameraSystem'
+import { RoomSystem } from './systems/RoomSystem'
+import { computeRoomFitScale } from './systems/CameraSystem'
 import { InteractionSystem } from './systems/InteractionSystem'
 import { TriggerSystem } from './systems/TriggerSystem'
 import { CollectibleSystem } from './systems/CollectibleSystem'
@@ -22,8 +24,8 @@ import { NpcController } from './npc/NpcController'
 import { DialogueController } from './npc/DialogueController'
 import { createExitGraphic, updateExitCheck } from './objects/StageExit'
 import {
-  FOREST01_GROUND, FOREST01_FOREGROUND, FOREST01_NPC_ART, FOREST01_COLLECTIBLE_ART,
-  FOREST01_ENEMY_STATIC_ART, FOREST01_INTERACTIVE_ART, FOREST01_PROPS_ART, FOREST01_DISPLAY_HEIGHT,
+  FOREST01_NPC_ART, FOREST01_COLLECTIBLE_ART,
+  FOREST01_ENEMY_STATIC_ART, FOREST01_INTERACTIVE_ART, FOREST01_DISPLAY_HEIGHT,
 } from './art/forestRuins01Art'
 import {
   FOREST01_V2_ART, FOREST01_ADVENTURE_DISPLAY, getAdventureHeroRenderHeight,
@@ -43,8 +45,6 @@ export interface AdventureConfig {
 }
 
 const PLAYER_RADIUS = 14
-const TOAST_DURATION_SEC = 2.6
-const FOREGROUND_Z = 1_000_000
 const DEBUG_LAYER_Z = 2_000_000
 
 const COLOR_COLLIDER_DEBUG = 0xff4040
@@ -54,22 +54,29 @@ const COLOR_SECRET_DEBUG = 0xb060ff
 const COLOR_NPC_RANGE_DEBUG = 0xffe066
 const COLOR_PUZZLE_DEBUG = 0x5090ff
 const COLOR_COLLECTIBLE_DEBUG = 0x50e070
+const COLOR_ROOM_WALKABLE_DEBUG = 0x30ff90
+const COLOR_ROOM_TRANSITION_DEBUG = 0x30d0ff
+const TOAST_DURATION_SEC = 2.6
 
 // 目前 forest_1_1 是唯一有正式美術的關卡，這份路徑清單只服務它——之後其他
 // 關卡若也做正式美術，這裡要改成依 stageId 動態決定要載入哪一包
-// art manifest，不是繼續往同一份清單塞。
-function collectForest01ArtPaths(): string[] {
-  const paths: string[] = [FOREST01_GROUND, FOREST01_FOREGROUND, FOREST01_V2_ART.contactShadow]
+// art manifest，不是繼續往同一份清單塞。2026-08-19 Room Transition 改版：
+// 不再載入單一大 Ground/Foreground/Props（已經被 9 張房間背景取代，見
+// stage.rooms[].background——那批圖已經把裝飾道具直接畫進場景裡，不用再
+// 另外疊 props sprite），也不再載入 altarObelisk/altarFlame/sealedDoor/
+// exitGlow（房間美術本身就有這些視覺，另外疊只會重複）。
+function collectForest01ArtPaths(stage: AdventureStageDef): string[] {
+  const paths: string[] = [FOREST01_V2_ART.contactShadow]
+  paths.push(...(stage.rooms ?? []).map(r => r.background))
   paths.push(...Object.values(FOREST01_NPC_ART))
   paths.push(...Object.values(FOREST01_COLLECTIBLE_ART))
   paths.push(...Object.values(FOREST01_ENEMY_STATIC_ART).filter((v): v is string => !!v))
   const ia = FOREST01_INTERACTIVE_ART
   paths.push(
-    ia.altarObelisk, ...ia.altarFlame, ...Object.values(ia.brazierLit), ia.brazierUnlit,
+    ...Object.values(ia.brazierLit), ia.brazierUnlit,
     ia.vineGateClosed, ia.vineGateOpen, ia.wallIntact, ia.wallBroken,
-    ia.sealedDoor, ia.exitGlow, ia.treasureOpen, ia.treasureClosed,
+    ia.treasureOpen, ia.treasureClosed,
   )
-  paths.push(...Object.values(FOREST01_PROPS_ART))
   return paths
 }
 
@@ -89,9 +96,10 @@ interface TimedFx {
   maxLife: number
 }
 
-/** 藤蔓門系用的 colliderId 集合——目前石橋/哥布林營地的戰鬤前後藤蔓沒有
- * 專屬美術，沿用謎題藤蔓門同一張圖（森林裡的藤蔓意象通用，見任務回報）。 */
-const VINE_GATE_COLLIDER_IDS = new Set(['bridge_gate_south', 'bridge_gate_north', 'goblin_gate_south', 'goblin_gate_north', 'puzzle_vine_gate'])
+/** 藤蔓門系 colliderId——Room Transition 改版後兩場戰鬤都不再用實體閘門
+ * （見 forestRuins01.ts combatZones 的 gateColliderIds:[] 註解），目前只剩
+ * 三火盆謎題這一道，用 Set 保留擴充彈性（以後真的多一道也不用改判斷邏輯）。 */
+const VINE_GATE_COLLIDER_IDS = new Set(['puzzle_vine_gate'])
 
 /**
  * Adventure Stage 探索引擎（2026-08-19 建立，2026-08-19 稍晚換上正式美術）。
@@ -117,6 +125,20 @@ export class AdventureGame {
   player = { x: 0, y: 0, hp: 0, maxHp: 0, radius: PLAYER_RADIUS }
   playerSprite: Sprite | null = null
   private shadowSprite: Sprite | null = null
+  private fadeOverlay: Graphics | null = null
+  private roomMask: Graphics | null = null
+  private containerResizeObserver: ResizeObserver | null = null
+  private containerEl: HTMLElement | null = null
+  private roomBackgroundSprite = new Map<string, Sprite>()
+  /** 2026-08-19：之前只在 init() 建立玩家 sprite 時用了一次 heroFrames.idle[0]，
+   * 之後從來沒有切換過 texture——玩家移動/攻擊時角色貼圖完全靜止，是真的
+   * bug，不是美術限制。存起來給 updatePlayerAnim() 依 moveDir/攻擊狀態逐幀
+   * 切換，跟 ArenaGame.ts 同一套 heroSpriteRig.ts 的 frame duration 資料。 */
+  private heroFrames: Record<AnimState, Texture[]> | null = null
+  private playerAnimState: AnimState = 'idle'
+  private playerAnimFrame = 0
+  private playerAnimTimer = 0
+  private playerAttackAnimTimer = 0
   moveDir = { x: 0, y: 0 }
   facing: 'left' | 'right' = 'right'
   camera = { x: 0, y: 0 }
@@ -160,12 +182,17 @@ export class AdventureGame {
 
   private toastText: string | null = null
   private toastTimer = 0
+  private lastInteractionKey: string | null = null
   private finalResult: AdventureHudState['stageResult'] = null
 
   // ── Systems / Controllers ──────────────────────────────────────────────
   movement = new MovementSystem(this)
   collision = new CollisionSystem(this)
   cameraSystem = new CameraSystem(this)
+  /** stage.rooms[0] 才知道要從哪個房間開始，這個 stage 要等 constructor
+   * 內文才會賦值，所以 roomSystem 沒辦法跟其他 system 一樣用欄位預設值
+   * 建立，改成 constructor 內文手動 new（見下方）。 */
+  roomSystem!: RoomSystem
   interaction = new InteractionSystem(this)
   trigger = new TriggerSystem(this)
   collectible = new CollectibleSystem(this)
@@ -185,6 +212,7 @@ export class AdventureGame {
     this.partyHeroIds = cfg.partyHeroIds.length > 0 ? cfg.partyHeroIds : [cfg.heroId]
     this.player.hp = cfg.maxHp
     this.player.maxHp = cfg.maxHp
+    this.roomSystem = new RoomSystem(this, stage.rooms?.[0]?.id ?? '')
     for (const c of stage.colliders) this.colliderActive.set(c.id, c.active ?? true)
 
     const p = cfg.initialProgress
@@ -229,9 +257,34 @@ export class AdventureGame {
   }
 
   async init(container: HTMLElement): Promise<void> {
+    this.containerEl = container
+    // 2026-08-19 最終版：實機除錯數字證實 container/canvas/renderer 三個
+    // 已經可以對齊（上一版手動 resize 那段做對了），真正剩下的落差是
+    // .adv-screen 的 CSS 高度沒有把 iOS standalone 狀態列的
+    // env(safe-area-inset-top) 加回去（100dvh 本身是「扣掉安全區」的保守
+    // 值，Ground 卻設計成要畫到狀態列後面）——這個已經在 styles.css 的
+    // .adv-screen 修正。CSS 決定「container 實際應該多大」，這裡不再自己
+    // 用 visualViewport／innerWidth 猜尺寸，改成 ResizeObserver 直接看
+    // container 被 CSS 排版完之後的真實 boundingClientRect，天然就會在
+    // safe-area-inset-top 這種要等一輪 layout 才 settle 的 CSS 值算出來後
+    // 自動觸發一次，不用自己猜要補幾次 rAF。
+    const resizeRenderer = () => {
+      const rect = container.getBoundingClientRect()
+      const w = Math.round(rect.width)
+      const h = Math.round(rect.height)
+      if (w > 0 && h > 0) this.app?.renderer.resize(w, h)
+    }
+    const resizeObserver = new ResizeObserver(resizeRenderer)
+    resizeObserver.observe(container)
+    this.containerResizeObserver = resizeObserver
+
     const app = new Application()
+    const initialRect = container.getBoundingClientRect()
     await app.init({
-      resizeTo: container,
+      // resizeTo 交給上面的 ResizeObserver 手動處理，這裡只給 init 當下的
+      // 初始值（避免量到 0）。
+      width: initialRect.width || window.innerWidth,
+      height: initialRect.height || window.innerHeight,
       backgroundColor: this.stage.groundColor,
       antialias: true,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
@@ -239,14 +292,34 @@ export class AdventureGame {
     if (this.destroyed) { app.destroy(true, { children: true, texture: false }); return }
     this.app = app
     container.appendChild(app.canvas)
+    resizeRenderer() // app 剛建立完，立刻照 container 當下的真實尺寸校正一次
 
     this.worldLayer = new Container()
     this.worldLayer.sortableChildren = true
     app.stage.addChild(this.worldLayer)
 
+    // Room Transition 遮罩：9 個房間背景全部常駐在同一個 worldLayer 裡
+    // （不同 atlasOrigin，互不重疊），但畫面比例跟房間 1280x720 對不上時
+    // （例如直向手機），contain-fit 縮放後房間上下會留白，若不裁切，那塊
+    // 留白會直接透出 atlas 上下相鄰的其他房間背景——這是實測抓到的真的
+    // bug（螢幕同時看到兩個房間疊在一起），不是我算錯 scale。加一個永遠
+    // 跟著目前房間世界座標範圍畫的矩形遮罩，裁掉不屬於目前房間的部分，
+    // 留白處就會乖乖露出畫布 backgroundColor，不會看到別間房間。
+    // 2026-08-19 修正：上一版這裡多加了 roomMask.renderable = false，結果
+    // 變成整個畫面全綠（只剩 app 的 groundColor 背景色）——Pixi 對「子節點
+    // 同時是自己的 mask」這個常見寫法，本來就會自動跳過該子節點的一般
+    // render pass，不需要另外關 renderable；關了反而連 mask 該畫的
+    // stencil 幾何一起被跳過，等於整塊 worldLayer 被裁成空的。加進
+    // worldLayer 純粹是為了讓它的 transform 自動跟著父層更新，不用手動同步。
+    const roomMask = new Graphics()
+    this.worldLayer.addChild(roomMask)
+    this.worldLayer.mask = roomMask
+    this.roomMask = roomMask
+    this.updateRoomMask()
+
     const heroStars = Math.min(3, Math.max(0, this.cfg.stars ?? 0))
     const enemyIds = this.collectUsedEnemyIds()
-    const artPaths = collectForest01ArtPaths()
+    const artPaths = collectForest01ArtPaths(this.stage)
     const [heroFrames, enemyFrameList, artTextures] = await Promise.all([
       loadCharacterFrames(`/assets/frames/heroes/${this.heroId}/s${heroStars}`),
       Promise.all(enemyIds.map(id => loadCharacterFrames(`/assets/frames/enemies/${this.enemyTypeDefs[id]?.placeholderSpriteId ?? id}`))),
@@ -255,6 +328,7 @@ export class AdventureGame {
     if (this.destroyed) return
     enemyIds.forEach((id, i) => { this.enemyFrames[id] = enemyFrameList[i] })
     this.art = artTextures
+    this.heroFrames = heroFrames
 
     this.buildScene()
 
@@ -283,6 +357,16 @@ export class AdventureGame {
     this.worldLayer.addChild(playerSprite)
     this.playerSprite = playerSprite
 
+    // Room Transition 用的黑幕：故意加在 app.stage（不是 worldLayer），這樣
+    // 才不會被 CameraSystem 的 scale/position 影響，永遠原封不動蓋滿畫面。
+    // 尺寸給很大一塊固定值，不用每幀依螢幕大小重畫。
+    const fadeOverlay = new Graphics().rect(-4000, -4000, 8000, 8000).fill({ color: 0x000000 })
+    fadeOverlay.alpha = 0
+    fadeOverlay.eventMode = 'none'
+    app.stage.addChild(fadeOverlay)
+    this.fadeOverlay = fadeOverlay
+
+    this.onRoomEntered(this.roomSystem.activeRoom)
     this.cameraSystem.update()
     this.emitHud()
 
@@ -318,80 +402,42 @@ export class AdventureGame {
     return sprite
   }
 
-  // ── 場景建置：Ground → 裝飾道具/互動物件/NPC/玩家/敵人（同一個
-  //    sortableChildren worldLayer，zIndex=y 做 Y-sort）→ Foreground → Debug ──
+  // ── 場景建置：9 個房間背景（各自 atlasOrigin 定位，原生尺寸不縮放）→
+  //    互動物件/NPC/玩家/敵人（同一個 sortableChildren worldLayer，zIndex=y
+  //    做 Y-sort）→ Debug。房間背景圖本身已經把帳篷/營火/柱子/花圃這些裝飾
+  //    畫進場景了，不用再另外疊 props sprite（那是連續世界版本的做法）。 ──
 
   private buildScene() {
-    const { world } = this.stage
-    const H = FOREST01_DISPLAY_HEIGHT
-
-    // Ground：V2 素材在 build 階段（scripts/build-forest01-art-v2.mjs）就
-    // 已經做成跟 world 同尺寸的 2400x3600 master，這裡不再 runtime 拉伸
-    // （之前 1024x1536 硬拉 2.34x 是模糊感主因）。尺寸不符時只 warn，不靜默拉伸。
-    const groundTex = this.tex(FOREST01_GROUND)
-    if (import.meta.env.DEV && (groundTex.width !== world.width || groundTex.height !== world.height)) {
-      console.warn(`[AdventureGame] Ground 材質尺寸(${groundTex.width}x${groundTex.height})跟 world(${world.width}x${world.height})不符，可能又混入沒有跑過 build-forest01-art-v2.mjs 的舊圖。`)
+    for (const room of this.stage.rooms ?? []) {
+      const tex = this.tex(room.background)
+      // 2026-08-19 抓到的真的 bug：這批房間圖實際檔案是 941x1672，不是
+      // room.size 寫的 1080x1920（差了約 14.8%）。Sprite 沒有另外指定
+      // width/height 時預設用「材質原始像素尺寸」，等於背景實際只蓋住
+      // 世界座標 0~941/0~1672 這一塊，右下角還有一截 1080/1920 的範圍是
+      // 空的——但可走範圍/出口/收集品/鏡頭 cover-fit 全部是照 1080x1920
+      // 這個「邏輯房間尺寸」算的。結果就是：CameraSystem 算出來的 scale
+      // 數字完全正確，套用到 worldLayer 上也完全正確，但背景圖本身沒有
+      // 撐滿它應該代表的範圍，畫面看起來就是「填不滿」——問題不在鏡頭，
+      // 在背景 sprite 沒有明確拉到 room.size。這裡明確指定 width/height，
+      // 不管來源檔案實際幾 px，永遠強制對齊邏輯房間尺寸。
+      if (import.meta.env.DEV && (tex.width !== room.size.width || tex.height !== room.size.height)) {
+        console.warn(`[AdventureGame] 房間「${room.id}」背景材質尺寸(${tex.width}x${tex.height})跟 room.size(${room.size.width}x${room.size.height})不符，已強制拉到 room.size——來源圖建議之後補正確尺寸，這裡只是保底。`)
+      }
+      const bg = new Sprite(tex)
+      bg.position.set(room.atlasOrigin.x, room.atlasOrigin.y)
+      bg.width = room.size.width
+      bg.height = room.size.height
+      bg.zIndex = -1 // 永遠墊底，房間內容 y 座標最小也是 room.atlasOrigin.y(>=0)，-1 保證比任何內容都低
+      this.worldLayer.addChild(bg)
+      this.roomBackgroundSprite.set(room.id, bg)
     }
-    const ground = new Sprite(groundTex)
-    ground.position.set(0, 0)
-    this.worldLayer.addChild(ground)
 
-    this.buildDecorationProps()
+    const H = FOREST01_DISPLAY_HEIGHT
     this.buildInteractiveObjects(H)
     for (const npc of this.stage.npcs) this.buildNpcSprite(npc, FOREST01_ADVENTURE_DISPLAY.npcHeight)
     for (const c of this.stage.collectibles) this.buildCollectibleSprite(c, H)
 
-    // Foreground：跟 Ground 同樣是 build 階段就做好 2400x3600，不做 runtime
-    // 拉伸；alpha 固定 0.96（不是 1）讓邊框跟底圖融合感更自然，先不做「玩家
-    // 走到樹冠下淡出」的局部遮蔽（目前素材只有邊框構圖，做了也沒意義，見
-    // 任務回報的已知限制）。
-    const foregroundTex = this.tex(FOREST01_FOREGROUND)
-    if (import.meta.env.DEV && (foregroundTex.width !== world.width || foregroundTex.height !== world.height)) {
-      console.warn(`[AdventureGame] Foreground 材質尺寸(${foregroundTex.width}x${foregroundTex.height})跟 world(${world.width}x${world.height})不符。`)
-    }
-    const foreground = new Sprite(foregroundTex)
-    foreground.position.set(0, 0)
-    foreground.alpha = FOREST01_ADVENTURE_DISPLAY.foregroundNormalAlpha
-    foreground.zIndex = FOREGROUND_Z
-    foreground.eventMode = 'none'
-    this.worldLayer.addChild(foreground)
-
     this.buildDebugLayer()
-  }
-
-  private buildDecorationProps() {
-    const P = FOREST01_PROPS_ART
-    const H = FOREST01_DISPLAY_HEIGHT
-    const place = (path: string, x: number, y: number, height: number) => {
-      const s = this.makeSprite(path, height)
-      s.x = x; s.y = y; s.zIndex = y
-      this.worldLayer.addChild(s)
-    }
-    // 哥布林營地（area6, x:1500-2100 y:750-1100）：帳篷/營火/柵欄/木箱沿邊緣
-    // 擺，中間留空給 Combat #2 的敵人 spawn（見 forestRuins01.ts 的
-    // goblin_camp_combat.area），不要蓋住敵人生成範圍。
-    place(P.goblinTent1, 1580, 800, H.propLarge)
-    place(P.goblinTent2, 2000, 800, H.propLarge)
-    place(P.campfire, 1790, 1040, H.propMedium)
-    place(P.fenceStraight1, 1560, 1080, H.propSmall)
-    place(P.fenceStraight2, 2020, 1080, H.propSmall)
-    place(P.crateStack, 1540, 1000, H.propSmall)
-    place(P.barrel1, 2040, 970, H.propSmall)
-
-    // 古老祭壇（area7, x:350-900 y:750-1100）：遺跡拱門/柱子點綴，紫色調
-    // 由 interactive 的 altar 素材負責，這裡只補周邊環境。
-    place(P.ruinArchCluster, 420, 800, H.propLarge)
-    place(P.ruinPillar1, 830, 1020, H.propMedium)
-
-    // 森林遺跡廣場（area5, x:900-1500 y:1500-1850）：石柱/長牆/碎石沿邊緣。
-    place(P.ruinPillar2, 940, 1560, H.propMedium)
-    place(P.ruinWallLong, 1420, 1820, H.propMedium)
-    place(P.rubbleCluster, 950, 1800, H.propSmall)
-
-    // 被遺忘的花圃（area3A, x:450-950 y:2400-2750）：花圃柵欄圍邊。
-    place(P.flowerFencePurple, 500, 2420, H.propMedium)
-    place(P.flowerFenceYellow, 880, 2720, H.propMedium)
-    place(P.flowerFencePost1, 480, 2700, H.propSmall)
   }
 
   private buildInteractiveObjects(H: typeof FOREST01_DISPLAY_HEIGHT) {
@@ -410,42 +456,17 @@ export class AdventureGame {
       }
     }
 
-    // 藤蔓門／石門類 collider：依目前 active 狀態決定要顯示關閉還開啟的貼圖。
+    // 藤蔓門／裂牆類 collider：依目前 active 狀態決定要顯示關閉還開啟的貼圖。
     for (const c of this.stage.colliders) {
       const sprite = this.buildColliderSprite(c, H)
       if (!sprite) continue
       this.worldLayer.addChild(sprite)
       this.colliderSprite.set(c.id, sprite)
     }
-
-    // 古老祭壇：obelisk + 4 個紫焰基座圍繞。
-    const altarArea = this.stage.areas.find(a => a.id === 'area7')?.area
-    if (altarArea) {
-      const cx = altarArea.x + altarArea.width / 2
-      const cy = altarArea.y + altarArea.height * 0.55
-      const obelisk = this.makeSprite(IA.altarObelisk, H.altarObelisk)
-      obelisk.x = cx; obelisk.y = cy; obelisk.zIndex = cy
-      this.worldLayer.addChild(obelisk)
-      const offsets = [[-70, 30], [70, 30], [-100, -30], [100, -30]]
-      IA.altarFlame.forEach((path, i) => {
-        const [ox, oy] = offsets[i]
-        const flame = this.makeSprite(path, H.altarFlame)
-        flame.x = cx + ox; flame.y = cy + oy; flame.zIndex = flame.y
-        this.worldLayer.addChild(flame)
-        this.floatingSprites.push({ sprite: flame, baseX: flame.x, baseY: flame.y, baseScale: flame.scale.y, seed: i * 1.7, speed: 2.2, amplitude: 2 })
-      })
-    }
-
-    // Exit：發光法陣貼圖取代原本的圓形 Graphics。
-    const exitSprite = this.makeSprite(IA.exitGlow, H.exitGlow, { x: 0.5, y: 0.7 })
-    exitSprite.x = this.stage.exit.x; exitSprite.y = this.stage.exit.y
-    exitSprite.zIndex = this.stage.exit.y
-    this.worldLayer.addChild(exitSprite)
-    this.floatingSprites.push({ sprite: exitSprite, baseX: exitSprite.x, baseY: exitSprite.y, baseScale: exitSprite.scale.y, seed: 0, speed: 1.6, amplitude: 0 })
   }
 
-  /** breakable_wall／vine_gate／sealed_door 三種 collider 對應到各自的貼圖；
-   * 其餘（例如未來新增、沒有對應美術的 collider）回傳 null，不畫東西。 */
+  /** breakable_wall／vine_gate 兩種 collider 對應到各自的貼圖；其餘（例如
+   * 未來新增、沒有對應美術的 collider）回傳 null，不畫東西。 */
   private buildColliderSprite(c: ColliderDef, H: typeof FOREST01_DISPLAY_HEIGHT): Sprite | null {
     const IA = FOREST01_INTERACTIVE_ART
     const active = this.colliderActive.get(c.id) ?? true
@@ -457,15 +478,11 @@ export class AdventureGame {
       sprite = this.makeSprite(IA.wallBroken, H.wall, { x: 0.5, y: 0.5 })
     } else if (this.stage.secrets.some(s => s.id === c.id && s.kind === 'breakable_wall')) {
       sprite = this.makeSprite(IA.wallIntact, H.wall, { x: 0.5, y: 0.5 })
-    } else if (c.id === 'altar_gate') {
-      sprite = this.makeSprite(active ? IA.sealedDoor : IA.sealedDoor, H.sealedDoor, { x: 0.5, y: 0.5 })
-      sprite.visible = active // 石門打開後直接消失（doc：解鎖用既有 collider active=false 語意，沒有另外的「開門」貼圖）
     } else if (VINE_GATE_COLLIDER_IDS.has(c.id)) {
       sprite = this.makeSprite(active ? IA.vineGateClosed : IA.vineGateOpen, H.vineGate, { x: 0.5, y: 0.5 })
     }
     if (!sprite) return null
     sprite.x = cx; sprite.y = cy; sprite.zIndex = cy
-    sprite.visible = sprite.visible && (active || VINE_GATE_COLLIDER_IDS.has(c.id) || this.stage.secrets.some(s => s.id === c.id))
     return sprite
   }
 
@@ -555,11 +572,71 @@ export class AdventureGame {
     const exitDebug = createExitGraphic(this.stage.exit.radius)
     exitDebug.x = this.stage.exit.x; exitDebug.y = this.stage.exit.y
     layer.addChild(exitDebug)
+
+    // 2026-08-19 Room Transition：綠色＝每個房間的 walkableBounds，
+    // 藍色＝房間的 transition zone（踩進去會 fade 換房）。
+    for (const room of this.stage.rooms ?? []) {
+      const wb = room.walkableBoundsLocal
+      const wg = new Graphics().rect(0, 0, wb.width, wb.height)
+        .fill({ color: COLOR_ROOM_WALKABLE_DEBUG, alpha: 0.06 }).stroke({ color: COLOR_ROOM_WALKABLE_DEBUG, width: 2 })
+      wg.x = room.atlasOrigin.x + wb.x; wg.y = room.atlasOrigin.y + wb.y
+      layer.addChild(wg)
+      for (const t of room.transitions) {
+        const zg = new Graphics().rect(0, 0, t.zone.width, t.zone.height)
+          .fill({ color: COLOR_ROOM_TRANSITION_DEBUG, alpha: 0.25 }).stroke({ color: COLOR_ROOM_TRANSITION_DEBUG, width: 2 })
+        zg.x = room.atlasOrigin.x + t.zone.x; zg.y = room.atlasOrigin.y + t.zone.y
+        layer.addChild(zg)
+      }
+    }
   }
 
   toggleDebugArtMode() {
     this.debugArtMode = !this.debugArtMode
     if (this.debugLayer) this.debugLayer.visible = this.debugArtMode
+    this.emitHud() // 立刻刷新 debugScreenText，不用等下一次自然觸發
+  }
+
+  /** 玩家回報「畫面沒填滿」但沒辦法遠端裝置除錯，用這組數字讓截圖直接把
+   * app.screen／window/room 尺寸帶回來——不用再繼續猜 CSS。 */
+  private buildDebugScreenText(): string | null {
+    if (!this.debugArtMode || !this.app) return null
+    const room = this.roomSystem.activeRoom
+    // 2026-08-19：光印「算出來的 scale」騙過自己兩次了——公式對、但套用
+    // 過程中有別的地方（這次抓到是背景 sprite 沒有明確拉伸到 room.size，
+    // 用材質原始像素尺寸在畫）沒對齊，數字看起來對但畫面不對。這次改印
+    // 每一層「實際套用後」量到的真實值，不是只印計算結果：container 的
+    // CSS 尺寸、canvas 的實際渲染尺寸、Pixi renderer 的內部尺寸、
+    // worldLayer 真的套上去的 scale、背景 sprite 套用 width/height 後的
+    // 實際渲染尺寸——每一層都印出來，哪一層兜不起來一眼就看得出來。
+    const scale = computeRoomFitScale(this.app.screen.width, this.app.screen.height, room.size)
+    const bg = this.roomBackgroundSprite.get(room.id)
+    const canvasEl = this.app.canvas
+    const advScreenEl = this.containerEl?.parentElement // .adv-canvas-wrap 的父層就是 .adv-screen
+    const advScreenRect = advScreenEl?.getBoundingClientRect()
+    const wrapRect = this.containerEl?.getBoundingClientRect()
+    const canvasRect = canvasEl.getBoundingClientRect()
+    const renderedW = room.size.width * this.worldLayer.scale.x
+    const renderedH = room.size.height * this.worldLayer.scale.y
+    // safeAreaTop：沒有直接的 JS API 能讀 env(safe-area-inset-top) 的 px
+    // 值，用 .adv-screen 實際量到的高度減掉 window.innerHeight（約等於
+    // 100dvh）反推——跟這次抓 bug 用的推論方式一樣，兩者差額就是安全區。
+    const safeAreaTop = advScreenRect ? Math.round(advScreenRect.height - window.innerHeight) : null
+    const vv = window.visualViewport
+    const fmtRect = (r: DOMRect | undefined) =>
+      r ? `top ${r.top.toFixed(0)} bottom ${r.bottom.toFixed(0)} height ${r.height.toFixed(0)}` : '?'
+    const lines = [
+      `screen ${this.app.screen.width.toFixed(0)}x${this.app.screen.height.toFixed(0)} win ${window.innerWidth}x${window.innerHeight}`,
+      `100dvh~=${window.innerHeight} safeAreaTop~=${safeAreaTop ?? '?'}`,
+      `vv.offsetTop ${vv ? vv.offsetTop.toFixed(0) : '?'} vv.height ${vv ? vv.height.toFixed(0) : '?'}`,
+      `adv: ${fmtRect(advScreenRect)}`,
+      `wrap: ${fmtRect(wrapRect)}`,
+      `canvas: ${fmtRect(canvasRect)}`,
+      `container ${this.containerEl?.clientWidth ?? '?'}x${this.containerEl?.clientHeight ?? '?'} canvas(css) ${canvasEl.clientWidth}x${canvasEl.clientHeight} renderer ${this.app.renderer.width}x${this.app.renderer.height}`,
+      `room texture ${bg?.texture.width ?? '?'}x${bg?.texture.height ?? '?'} logical room ${room.size.width}x${room.size.height}`,
+      `coverScale ${scale.toFixed(3)} worldLayer.scale ${this.worldLayer.scale.x.toFixed(3)}x${this.worldLayer.scale.y.toFixed(3)}`,
+      `rendered room ${renderedW.toFixed(0)}x${renderedH.toFixed(0)} worldLayer.position ${this.worldLayer.position.x.toFixed(0)},${this.worldLayer.position.y.toFixed(0)}`,
+    ]
+    return lines.join('\n')
   }
 
   // ── 主迴圈 ───────────────────────────────────────────────────────────
@@ -572,19 +649,11 @@ export class AdventureGame {
       if (this.toastTimer <= 0) { this.toastText = null; this.emitHud() }
     }
 
-    if (this.state === 'explore' || this.state === 'combat') {
+    // Room Transition fade 期間鎖輸入：玩家看不到自己還在移動/戰鬤，
+    // roomSystem.update() 會在 fade out 走到底時把玩家傳送到下一個房間。
+    const locked = this.roomSystem.fading
+    if (!locked && (this.state === 'explore' || this.state === 'combat')) {
       this.movement.update(dt)
-      if (this.playerSprite) {
-        this.playerSprite.x = this.player.x
-        this.playerSprite.y = this.player.y
-        this.playerSprite.zIndex = this.player.y
-        this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x) * (this.facing === 'left' ? -1 : 1)
-      }
-      if (this.shadowSprite) {
-        this.shadowSprite.x = this.player.x
-        this.shadowSprite.y = this.player.y + FOREST01_ADVENTURE_DISPLAY.contactShadowOffsetY
-        this.shadowSprite.zIndex = this.player.y - 1
-      }
       this.trigger.update()
       this.collectible.update()
       this.secret.update()
@@ -592,10 +661,110 @@ export class AdventureGame {
       this.combat.update(dt)
       updateExitCheck(this)
     }
+
+    this.roomSystem.update(dt) // 可能在這裡把玩家傳送到下一個房間、推進 fade 進度
+
+    if (this.playerSprite) {
+      this.playerSprite.x = this.player.x
+      this.playerSprite.y = this.player.y
+      this.playerSprite.zIndex = this.player.y
+      this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x) * (this.facing === 'left' ? -1 : 1)
+    }
+    this.updatePlayerAnim(dt)
+    if (this.shadowSprite) {
+      this.shadowSprite.x = this.player.x
+      this.shadowSprite.y = this.player.y + FOREST01_ADVENTURE_DISPLAY.contactShadowOffsetY
+      this.shadowSprite.zIndex = this.player.y - 1
+    }
+    if (this.fadeOverlay) this.fadeOverlay.alpha = this.roomSystem.fadeAlpha
+
+    // 2026-08-19：互動提示原本只在 init/收集/對話開始結束等少數時機才
+    // emitHud()，玩家移動時完全不會刷新——導致「明明走近 NPC 但提示沒出現」
+    // （系統內部其實抓得到目標，只是 React 端沒被通知）。這裡改成每幀比對
+    // 目前最近的互動目標有沒有變，變了才 emitHud()，不是每幀都醒 React。
+    if (!locked && this.state === 'explore') {
+      const key = this.interactionKeyOf(this.interaction.findNearest())
+      if (key !== this.lastInteractionKey) {
+        this.lastInteractionKey = key
+        this.emitHud()
+      }
+    } else if (this.lastInteractionKey !== null) {
+      this.lastInteractionKey = null
+    }
     this.updateFloatingSprites()
     this.updateFx(dt)
     this.updateShakes(dt)
     this.cameraSystem.update()
+  }
+
+  /** 玩家逐幀動畫：走路播 walk、攻擊命中時播 attack（見 triggerPlayerAttackAnim，
+   * AdventureCombatController 命中敵人時呼叫）、都沒有就 idle。跟
+   * ArenaGame.ts 共用 heroSpriteRig.ts 的 getFrameDurationSec/
+   * getStateTotalDurationSec，不等速的幀也會照設計表跑，不是簡單等速迴圈。
+   * 沒有真的 walk/attack 幀的角色（frameLoader 沒美術時 fallback 回 idle
+   * 陣列）frames.length<=1，直接跳過切幀，維持原本「至少顯示得出來」的
+   * 行為，不會因為缺幀而報錯。 */
+  private updatePlayerAnim(dt: number) {
+    if (!this.playerSprite || !this.heroFrames) return
+    if (this.playerAttackAnimTimer > 0) this.playerAttackAnimTimer = Math.max(0, this.playerAttackAnimTimer - dt)
+
+    const moving = this.moveDir.x !== 0 || this.moveDir.y !== 0
+    const nextState: AnimState = this.playerAttackAnimTimer > 0 ? 'attack' : moving ? 'walk' : 'idle'
+    if (nextState !== this.playerAnimState) {
+      this.playerAnimState = nextState
+      this.playerAnimFrame = 0
+      this.playerAnimTimer = 0
+    }
+
+    const frames = this.heroFrames[nextState]
+    if (frames.length <= 1) {
+      if (frames.length === 1) this.playerSprite.texture = frames[0]
+      return
+    }
+    this.playerAnimTimer += dt
+    while (this.playerAnimTimer >= getFrameDurationSec(nextState, this.playerAnimFrame, frames.length)) {
+      this.playerAnimTimer -= getFrameDurationSec(nextState, this.playerAnimFrame, frames.length)
+      this.playerAnimFrame = (this.playerAnimFrame + 1) % frames.length
+    }
+    this.playerSprite.texture = frames[this.playerAnimFrame]
+  }
+
+  /** AdventureCombatController 的自動攻擊真的命中敵人時呼叫，觸發一次
+   * attack 動畫（播完整組 attack 幀的時長，比照 ArenaGame.ts 的
+   * playerAnim.attackTimer 用法）。沒有真的 attack 美術時 heroFrames.attack
+   * 會 fallback 成 idle 陣列，updatePlayerAnim 會直接跳過切幀，不會出錯。 */
+  triggerPlayerAttackAnim() {
+    if (!this.heroFrames) return
+    this.playerAttackAnimTimer = getStateTotalDurationSec('attack', this.heroFrames.attack.length)
+  }
+
+  /** RoomSystem 換房成功時呼叫：第一次進某個房間顯示「發現：xxx」並記錄進
+   * areasDiscovered（沿用舊架構的欄位名，語意從「發現區域」變成「進入房間」，
+   * 存檔格式不用跟著改）；換房一定要重畫遮罩，不然裁切範圍還停在舊房間。
+   * 進新房間時如果上一個房間的 toast 還沒消失，會讓玩家看著新房間卻讀到
+   * 舊提示文字，一併清掉。 */
+  onRoomEntered(room: RoomDef) {
+    this.updateRoomMask()
+    this.toastText = null
+    this.toastTimer = 0
+    if (!this.areasDiscovered.has(room.id)) {
+      this.areasDiscovered.add(room.id)
+      this.showToast(`發現：${room.name}`)
+    }
+  }
+
+  private updateRoomMask() {
+    if (!this.roomMask) return
+    const room = this.roomSystem.activeRoom
+    this.roomMask.clear()
+    this.roomMask.rect(room.atlasOrigin.x, room.atlasOrigin.y, room.size.width, room.size.height).fill(0xffffff)
+  }
+
+  private interactionKeyOf(target: ReturnType<InteractionSystem['findNearest']>): string | null {
+    if (!target) return null
+    if (target.kind === 'npc') return `npc:${target.id}`
+    if (target.kind === 'brazier') return `brazier:${target.puzzleId}:${target.brazierId}`
+    return `wall:${target.secretId}`
   }
 
   private updateShakes(dt: number) {
@@ -802,6 +971,7 @@ export class AdventureGame {
       interactionPrompt: target?.prompt ?? null,
       activeQuestTitle: activeQuest?.title ?? null,
       toast: this.toastText,
+      debugScreenText: this.buildDebugScreenText(),
       stageResult: this.finalResult,
     }
     this.onHudChange(hud)
@@ -809,6 +979,10 @@ export class AdventureGame {
 
   destroy(): void {
     this.destroyed = true
+    if (this.containerResizeObserver) {
+      this.containerResizeObserver.disconnect()
+      this.containerResizeObserver = null
+    }
     if (this.app) {
       this.app.destroy(true, { children: true, texture: false })
       this.app = null

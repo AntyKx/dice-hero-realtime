@@ -38,6 +38,10 @@ export class SecretSystem {
   private reveal(secret: SecretDef) {
     const g = this.game
     g.secretsDiscovered.add(secret.id)
+    // 用秘密自己的 id 當 flag 名——RoomTransitionDef.lockedByFlag 可以直接
+    // 用 secret.id（例如 secret02_wall）湊出「牆打穿才能過」，不用另外定義
+    // 一個 flag 名稱。
+    g.flags[secret.id] = true
     g.showToast('發現秘密區域！')
     for (const cid of secret.revealsCollectibleIds) g.revealCollectible(cid)
     if (secret.kind === 'breakable_wall') g.setColliderActive(secret.id, false)

@@ -5496,8 +5496,22 @@ h1, h2, h3, p { margin: 0; }
    pointer-events:none 的 HUD 容器 + 個別按鈕 pointer-events:auto）。
    ══════════════════════════════════════════════════════════════════════ */
 .adv-screen {
+  /* 2026-08-20 修正：上一版的假設（100dvh 沒把狀態列空間算進去，要手動
+   * +env(safe-area-inset-top) 補回來）被實機除錯數字推翻了——加了新的
+   * getBoundingClientRect() 除錯欄位後量到 top:0 這行本身就已經跟
+   * visualViewport.offsetTop(=0) 對齊，代表 100dvh 的頂端本來就等於畫面
+   * 真正可視的頂端，上面根本沒有「狀態列後面」那塊空間可以讓內容多畫
+   * 62px 進去。真正發生的事是：top 沒變、高度卻被硬加了 62px，多出來的
+   * 62px 全部長在「底部」，超出 visualViewport.height(=812) 的可視/可觸控
+   * 範圍，變成一段畫面量得到、但實機看不到也點不到的區域（畫面最下面那
+   * 條深色底條、對話框 bottom:24px 被推到這塊看不到的地方的根因）。改回
+   * 純 100dvh，不再額外加 safe-area-inset-top。 */
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100svh;
+  height: 100dvh;
   background: #0b1220;
   touch-action: none;
   overscroll-behavior: none;
@@ -5505,13 +5519,20 @@ h1, h2, h3, p { margin: 0; }
 .adv-canvas-wrap {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   touch-action: none;
   user-select: none;
 }
 .adv-canvas-wrap canvas {
   display: block;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  /* !important：Pixi 的 resizeTo 會另外直接寫 canvas.style.width/height
+   * （通常等於 renderer 內部渲染尺寸），這裡強制蓋成 100%，確保「畫面上
+   * 顯示的大小」永遠等於 .adv-canvas-wrap 容器大小，不會因為 Pixi 自己那
+   * 一手尺寸算得跟容器對不上而露出縫隙。 */
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .adv-joystick {
@@ -5573,6 +5594,21 @@ h1, h2, h3, p { margin: 0; }
   padding: 4px 8px;
   font-size: 14px;
   cursor: pointer;
+}
+.adv-debug-screen-text {
+  pointer-events: none;
+  position: absolute;
+  top: max(56px, calc(env(safe-area-inset-top) + 42px));
+  left: 14px;
+  right: 14px;
+  background: rgba(10, 16, 30, 0.88);
+  border: 1px solid rgba(255, 200, 80, 0.4);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #ffd070;
+  white-space: pre-line;
 }
 
 .adv-counters {

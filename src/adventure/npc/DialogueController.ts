@@ -27,6 +27,17 @@ export class DialogueController {
     this.onDone = onDone
     if (g.state !== 'dialogue' && g.state !== 'cutscene') this.previousState = g.state
     g.state = stateOverride
+    // 2026-08-20 修正：對話/劇情開始時玩家常常還在移動（走進 NPC/劇情
+    // trigger 當下手指還按著搖桿），MovementSystem 因為 state 不是
+    // explore/combat 而停止套用，但 g.moveDir 這個「目前按住的方向」本身
+    // 沒有被清掉——如果放開手指的那次 pointerup 又剛好在對話/劇情播放期間
+    // 發生（AdventureStageScreen.tsx 的搖桿事件只在 explore/combat 才會綁
+    // 上，dialogue/cutscene 期間放開手指不會觸發 release），moveDir 就會維持
+    // 對話開始前那個非零方向，對話結束、state 切回 explore 的那一刻
+    // MovementSystem 立刻讀到這個殘留方向，變成「講完話自動往前走」。這裡
+    // 對話/劇情一開始就直接歸零，之後要嘛玩家真的重新操作搖桿給新方向，
+    // 要嘛就是 0，不會再有殘留輸入。
+    g.moveDir = { x: 0, y: 0 }
     g.emitHud()
   }
 
