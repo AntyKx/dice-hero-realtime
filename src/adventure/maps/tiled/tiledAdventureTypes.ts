@@ -8,6 +8,7 @@ import type {
   SecretDef,
   TriggerDef,
 } from '../../adventureTypes'
+import type { AdventureMapSource } from '../mapSourceTypes'
 
 export interface TiledProperty {
   name: string
@@ -93,4 +94,8 @@ export interface TiledRoomGameplay {
   secrets?: Array<Omit<SecretDef, 'area'>>
   quests?: TiledQuestGameplay[]
   exit?: { radius: number }
+}
+
+export type TiledAdventureMapGameplay = Omit<AdventureMapSource, 'rooms'> & {
+  rooms: TiledRoomGameplay[]
 }
