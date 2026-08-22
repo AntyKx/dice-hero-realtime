@@ -29,6 +29,65 @@ const ENEMY_ATTACK_COOLDOWN = 1.1
 const PLAYER_ATTACK_REACH = 14
 const PLAYER_ATTACK_COOLDOWN = 0.55
 
+// 2026-08-21（雪原篇 2-1 霜狼伏擊）：精英詞綴的體型/血量加成，跟金色 tint
+// 一起讓玩家一眼認出「這隻不一樣」，不用另外做專屬立繪。
+const ELITE_HP_MULT = 1.85
+const ELITE_SIZE_MULT = 1.16
+const ELITE_TINT = 0xffcf6b
+
+// 精英專屬技能——2026-08-21 一開始只有 frost_wolf 的 leap（雪原篇 2-1
+// 霜狼伏擊），後續幾關陸續加了幾個 typeId 不同、節奏相同或相近的技能，
+// 全部用 typeId→{skillId,kind} 查表分派，不為每個 Boss 重寫一份狀態機：
+// - 'charge'：cooldown（一般追逐）→ telegraph（原地蓄力，紅光預警）→
+//   lunge（高速衝刺，命中才算數）。frost_wolf 的 leap／frost_knight_captain
+//   的 ice_charge。
+// - 'aoe'／'cone'：原地不動版本，一樣 cooldown→telegraph，蓄力完直接原地
+//   判定（'aoe' 不分方向、'cone' 只判定蓄力當下瞄準的扇形方向）——
+//   snow_troll 的重砸（aoe）、ice_dragon 的冰息（cone，範圍更大更像吐息）。
+type EliteSkillKind = 'charge' | 'aoe' | 'cone'
+const ELITE_SKILL_CONFIG: Record<string, { skillId: string; kind: EliteSkillKind }> = {
+  frost_wolf: { skillId: 'frost_wolf_leap', kind: 'charge' },
+  frost_knight_captain: { skillId: 'frost_knight_ice_charge', kind: 'charge' },
+  snow_troll: { skillId: 'snow_troll_heavy_slam', kind: 'aoe' },
+  ice_dragon: { skillId: 'ice_dragon_breath', kind: 'cone' },
+}
+const ELITE_LEAP_COOLDOWN_SEC = 3.4
+const ELITE_LEAP_TELEGRAPH_SEC = 0.45
+const ELITE_LEAP_DASH_SEC = 0.24
+const ELITE_LEAP_SPEED = 900
+const ELITE_LEAP_MIN_RANGE = 90
+const ELITE_LEAP_MAX_RANGE = 320
+const ELITE_LEAP_DAMAGE_MULT = 1.9
+const ELITE_LEAP_RETRY_SEC = 0.35
+const ELITE_LEAP_TINT = 0xff5a5a
+
+// 原地技能（aoe/cone）共用參數。
+const STATIONARY_COOLDOWN_SEC = 4.2
+const STATIONARY_TELEGRAPH_SEC = 0.6
+const STATIONARY_RANGE = 260
+const STATIONARY_CONE_HALF_RAD = (45 * Math.PI) / 180
+const STATIONARY_DAMAGE_MULT = 2.2
+
+// ice_shaman（2-4 冰霜祭台）：支援型精英每隔 SUPPORT_HEAL_INTERVAL_SEC 秒
+// 自我治療一次（簡化版——Greybox 輕量戰鬤系統沒有敵人互相治療的機制，見
+// 檔案開頭註解，這裡只做「未滿血就補自己」），命中 heal_count_under 星星
+// 條件用同一份 skillHitCounts 記帳。
+const SUPPORT_HEAL_INTERVAL_SEC = 4
+const SUPPORT_HEAL_PCT = 0.15
+
+interface EliteLeapState {
+  phase: 'cooldown' | 'telegraph' | 'lunge'
+  timer: number
+  dirX: number
+  dirY: number
+}
+
+interface EliteStationaryState {
+  phase: 'cooldown' | 'telegraph'
+  timer: number
+  angleCenter: number
+}
+
 export interface AdventureEnemyInstance {
   id: string
   typeId: string
@@ -43,6 +102,9 @@ export interface AdventureEnemyInstance {
   sprite: Sprite
   hpBarBg: Graphics
   hpBarFill: Graphics
+  /** 2026-08-21：精英詞綴，目前只有 frost_wolf 額外解鎖 leap 技能狀態機
+   * （見 updateEliteLeap），其餘敵人掛這個純粹只是變大變硬。 */
+  isElite: boolean
 }
 
 interface ActiveZoneState {
@@ -56,6 +118,9 @@ export class AdventureCombatController {
   enemies: AdventureEnemyInstance[] = []
   private activeZone: ActiveZoneState | null = null
   private playerAtkTimer = 0
+  private eliteLeap = new Map<string, EliteLeapState>()
+  private eliteStationary = new Map<string, EliteStationaryState>()
+  private supportHealTimers = new Map<string, number>()
 
   constructor(private game: AdventureGame) {}
 
@@ -102,14 +167,14 @@ export class AdventureCombatController {
       for (let i = 0; i < w.count; i++) {
         const x = area.x + Math.random() * area.width
         const y = area.y + Math.random() * area.height
-        this.spawnHostileEnemy(w.enemyId, x, y)
+        this.spawnHostileEnemy(w.enemyId, x, y, w.isElite ?? false)
       }
     }
   }
 
   /** 任務擊殺目標（QuestSystem）跟正式戰鬤區共用同一套敵人生成/AI/傷害，
    * 不需要另外走一套機制——差別只在誰呼叫、生完之後不進 combat 狀態機。 */
-  spawnHostileEnemy(enemyId: string, x: number, y: number) {
+  spawnHostileEnemy(enemyId: string, x: number, y: number, isElite = false) {
     const g = this.game
     const type = g.enemyTypeDefs[enemyId]
     if (!type) return
@@ -119,29 +184,37 @@ export class AdventureCombatController {
     const frames = g.enemyFrames[type.placeholderSpriteId ?? type.id]
     const tex = staticTex ?? frames?.idle[0]
     const sprite = tex ? new Sprite(tex) : new Sprite()
-    sprite.anchor.set(0.5, 1)
+    // 2026-08-22 修正：這裡原本寫死 anchor.set(0.5,1)，完全沒讀
+    // type.anchorRatio——森林遺跡 12 隻真圖敵人跟雪原篇這批新怪都是靠
+    // anchorRatio 記錄畫布上實際的腳底落地比例（跟 ArenaGame.ts
+    // spawnEnemyOfType() 已經在用的邏輯一致，見 enemies.ts 的
+    // anchorRatio 註解），沒有這行的敵人會整隻明顯偏移/浮空。沒有
+    // anchorRatio 的敵人（totem 類靜止物件、舊版置中裁切素材）維持原本
+    // (0.5,1) 底部置中，行為不變。
+    sprite.anchor.set(type.anchorRatio?.x ?? 0.5, type.anchorRatio?.y ?? 1)
     // 靜態立繪 (staticTex) 不再另外乘 0.6——getAdventureEnemyRenderHeight
     // 統一依 EnemyTypeDef.spriteHeight 換算，跟逐幀動畫敵人共用同一套
     // Map-Native 比例基準，不需要靜態圖再單獨縮小一次。
-    const renderHeight = getAdventureEnemyRenderHeight(type.spriteHeight)
+    const renderHeight = Math.round(getAdventureEnemyRenderHeight(type.spriteHeight) * (isElite ? ELITE_SIZE_MULT : 1))
     const hitRadius = getAdventureEnemyHitboxRadius(renderHeight)
     if (tex) setSpriteHeight(sprite, renderHeight)
+    if (isElite) sprite.tint = ELITE_TINT
     sprite.x = x
     sprite.y = y
     sprite.zIndex = y
     g.worldLayer.addChild(sprite)
 
     const hpBarBg = new Graphics().rect(-20, -renderHeight - 12, 40, 5).fill({ color: 0x1a1a1a, alpha: 0.82 })
-    const hpBarFill = new Graphics().rect(-20, -renderHeight - 12, 40, 5).fill({ color: 0xe05050 })
+    const hpBarFill = new Graphics().rect(-20, -renderHeight - 12, 40, 5).fill({ color: isElite ? 0xffcf6b : 0xe05050 })
     hpBarBg.x = x; hpBarBg.y = y
     hpBarFill.x = x; hpBarFill.y = y
     g.worldLayer.addChild(hpBarBg)
     g.worldLayer.addChild(hpBarFill)
 
-    const maxHp = Math.round(BASE_ENEMY_HP * type.hpMult)
+    const maxHp = Math.round(BASE_ENEMY_HP * type.hpMult * (isElite ? ELITE_HP_MULT : 1))
     this.enemies.push({
       id: `ae_${nextEnemyInstanceId++}`, typeId: type.id, x, y, hitRadius, hp: maxHp, maxHp,
-      alive: true, atkTimer: Math.random() * ENEMY_ATTACK_COOLDOWN, sprite, hpBarBg, hpBarFill,
+      alive: true, atkTimer: Math.random() * ENEMY_ATTACK_COOLDOWN, sprite, hpBarBg, hpBarFill, isElite,
     })
   }
 
@@ -149,26 +222,25 @@ export class AdventureCombatController {
     const g = this.game
     for (const e of this.enemies) {
       if (!e.alive) continue
-      const type = g.enemyTypeDefs[e.typeId]
-      const d = dist(e.x, e.y, g.player.x, g.player.y)
-      const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
-      if (d > contactDistance) {
-        const speed = ENEMY_SPEED * (type?.speedMult ?? 1)
-        const dx = (g.player.x - e.x) / (d || 1)
-        const dy = (g.player.y - e.y) / (d || 1)
-        // 2026-08-20：敵人追逐這輪開始真的走房間碰撞——之前完全沒有這段，
-        // 敵人可以直接穿牆/穿水/穿帳篷貼臉，現在跟玩家共用同一套
-        // moveCircleWithCollision（allowTransitionOverlap=false，見
-        // CollisionSystem.ts 註解）。
-        const moved = g.collision.moveEnemyWithCollision(e.x, e.y, e.hitRadius, dx * speed * dt, dy * speed * dt)
-        e.x = moved.x
-        e.y = moved.y
+      const skillCfg = e.isElite ? ELITE_SKILL_CONFIG[e.typeId] : undefined
+      if (skillCfg?.kind === 'charge') {
+        this.updateEliteChargeSkill(e, dt, skillCfg.skillId)
+      } else if (skillCfg?.kind === 'aoe' || skillCfg?.kind === 'cone') {
+        this.updateEliteStationarySkill(e, dt, skillCfg.skillId, skillCfg.kind)
       } else {
-        e.atkTimer -= dt
-        if (e.atkTimer <= 0) {
-          e.atkTimer = ENEMY_ATTACK_COOLDOWN
-          g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1)))
+        const type = g.enemyTypeDefs[e.typeId]
+        const d = dist(e.x, e.y, g.player.x, g.player.y)
+        const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
+        if (d > contactDistance) {
+          this.chaseTowardsPlayer(e, dt, type?.speedMult ?? 1)
+        } else {
+          e.atkTimer -= dt
+          if (e.atkTimer <= 0) {
+            e.atkTimer = ENEMY_ATTACK_COOLDOWN
+            g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1)))
+          }
         }
+        if (e.typeId === 'ice_shaman') this.updateSupportHeal(e, dt)
       }
       e.sprite.x = e.x; e.sprite.y = e.y; e.sprite.zIndex = e.y
       e.hpBarBg.x = e.x; e.hpBarBg.y = e.y; e.hpBarBg.zIndex = e.y
@@ -176,6 +248,157 @@ export class AdventureCombatController {
       const pct = Math.max(0, e.hp / e.maxHp)
       e.hpBarFill.scale.x = pct
     }
+  }
+
+  /** 一般追逐移動，抽成獨立方法給普通敵人跟精英 leap 冷卻期間共用。 */
+  private chaseTowardsPlayer(e: AdventureEnemyInstance, dt: number, speedMult: number) {
+    const g = this.game
+    const d = dist(e.x, e.y, g.player.x, g.player.y) || 1
+    const speed = ENEMY_SPEED * speedMult
+    const dx = (g.player.x - e.x) / d
+    const dy = (g.player.y - e.y) / d
+    // 2026-08-20：敵人追逐這輪開始真的走房間碰撞——之前完全沒有這段，
+    // 敵人可以直接穿牆/穿水/穿帳篷貼臉，現在跟玩家共用同一套
+    // moveCircleWithCollision（allowTransitionOverlap=false，見
+    // CollisionSystem.ts 註解）。
+    const moved = g.collision.moveEnemyWithCollision(e.x, e.y, e.hitRadius, dx * speed * dt, dy * speed * dt)
+    e.x = moved.x
+    e.y = moved.y
+  }
+
+  /** 2026-08-21（雪原篇 2-1 霜狼伏擊起）：精英衝刺技能狀態機（frost_wolf
+   * 的 leap／frost_knight_captain 的 ice_charge 共用同一套）——cooldown
+   * 期間沿用一般追逐，進 telegraph 原地蓄力紅光預警，蓄力完進 lunge 高速
+   * 衝刺，命中玩家才算數（呼應 star_conditions.json 的 avoid_skill，
+   * skillId 由呼叫端傳入）。沒命中／衝刺時間到都會回到 cooldown，不會卡在
+   * lunge 出不來。 */
+  private updateEliteChargeSkill(e: AdventureEnemyInstance, dt: number, skillId: string) {
+    const g = this.game
+    let st = this.eliteLeap.get(e.id)
+    if (!st) { st = { phase: 'cooldown', timer: 1.0, dirX: 0, dirY: 0 }; this.eliteLeap.set(e.id, st) }
+    st.timer -= dt
+
+    if (st.phase === 'cooldown') {
+      const d = dist(e.x, e.y, g.player.x, g.player.y)
+      if (st.timer <= 0 && d >= ELITE_LEAP_MIN_RANGE && d <= ELITE_LEAP_MAX_RANGE) {
+        st.phase = 'telegraph'
+        st.timer = ELITE_LEAP_TELEGRAPH_SEC
+        e.sprite.tint = ELITE_LEAP_TINT
+      } else {
+        if (st.timer <= 0) st.timer = ELITE_LEAP_RETRY_SEC // 距離不對，短暫重試冷卻，避免每幀重算
+        const type = g.enemyTypeDefs[e.typeId]
+        const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
+        if (d > contactDistance) {
+          this.chaseTowardsPlayer(e, dt, type?.speedMult ?? 1)
+        } else {
+          e.atkTimer -= dt
+          if (e.atkTimer <= 0) {
+            e.atkTimer = ENEMY_ATTACK_COOLDOWN
+            g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1)))
+          }
+        }
+      }
+      return
+    }
+
+    if (st.phase === 'telegraph') {
+      if (st.timer <= 0) {
+        st.phase = 'lunge'
+        st.timer = ELITE_LEAP_DASH_SEC
+        const d = dist(e.x, e.y, g.player.x, g.player.y) || 1
+        st.dirX = (g.player.x - e.x) / d
+        st.dirY = (g.player.y - e.y) / d
+      }
+      return // 蓄力中原地不動
+    }
+
+    // lunge
+    const moved = g.collision.moveEnemyWithCollision(e.x, e.y, e.hitRadius, st.dirX * ELITE_LEAP_SPEED * dt, st.dirY * ELITE_LEAP_SPEED * dt)
+    e.x = moved.x; e.y = moved.y
+    const type = g.enemyTypeDefs[e.typeId]
+    const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
+    if (dist(e.x, e.y, g.player.x, g.player.y) <= contactDistance) {
+      g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1) * ELITE_LEAP_DAMAGE_MULT))
+      g.recordSkillHit(skillId)
+      st.phase = 'cooldown'; st.timer = ELITE_LEAP_COOLDOWN_SEC; e.sprite.tint = ELITE_TINT
+      return
+    }
+    if (st.timer <= 0) { st.phase = 'cooldown'; st.timer = ELITE_LEAP_COOLDOWN_SEC; e.sprite.tint = ELITE_TINT }
+  }
+
+  /** 2026-08-21（雪原篇 2-7/2-10）：原地技能狀態機（snow_troll 的重砸＝
+   * 'aoe'、ice_dragon 的冰息＝'cone'）——跟 updateEliteChargeSkill 的差異
+   * 是蓄力完不衝刺，直接原地判定範圍內有沒有玩家。cooldown 期間維持正常
+   * 追逐/接觸攻擊，不會因為在等技能冷卻就站著不動。 */
+  private updateEliteStationarySkill(e: AdventureEnemyInstance, dt: number, skillId: string, kind: 'aoe' | 'cone') {
+    const g = this.game
+    let st = this.eliteStationary.get(e.id)
+    if (!st) { st = { phase: 'cooldown', timer: 1.2, angleCenter: 0 }; this.eliteStationary.set(e.id, st) }
+    st.timer -= dt
+    const type = g.enemyTypeDefs[e.typeId]
+
+    if (st.phase === 'cooldown') {
+      if (st.timer <= 0) {
+        st.phase = 'telegraph'
+        st.timer = STATIONARY_TELEGRAPH_SEC
+        st.angleCenter = Math.atan2(g.player.y - e.y, g.player.x - e.x)
+        e.sprite.tint = ELITE_LEAP_TINT
+      } else {
+        const d = dist(e.x, e.y, g.player.x, g.player.y)
+        const contactDistance = g.player.radius + e.hitRadius + ENEMY_ATTACK_REACH
+        if (d > contactDistance) {
+          this.chaseTowardsPlayer(e, dt, type?.speedMult ?? 1)
+        } else {
+          e.atkTimer -= dt
+          if (e.atkTimer <= 0) {
+            e.atkTimer = ENEMY_ATTACK_COOLDOWN
+            g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1)))
+          }
+        }
+      }
+      return
+    }
+
+    // telegraph：原地蓄力，時間到才判定一次
+    if (st.timer <= 0) {
+      const d = dist(e.x, e.y, g.player.x, g.player.y)
+      let hit = false
+      if (d <= STATIONARY_RANGE) {
+        if (kind === 'aoe') {
+          hit = true
+        } else {
+          const angle = Math.atan2(g.player.y - e.y, g.player.x - e.x)
+          const diff = Math.atan2(Math.sin(angle - st.angleCenter), Math.cos(angle - st.angleCenter))
+          hit = Math.abs(diff) <= STATIONARY_CONE_HALF_RAD
+        }
+      }
+      if (hit) {
+        g.damagePlayer(Math.round(BASE_ENEMY_DAMAGE * (type?.damageMult ?? 1) * STATIONARY_DAMAGE_MULT))
+        g.recordSkillHit(skillId)
+      }
+      st.phase = 'cooldown'
+      st.timer = STATIONARY_COOLDOWN_SEC
+      e.sprite.tint = ELITE_TINT
+    }
+  }
+
+  /** 2026-08-21（雪原篇 2-4 冰霜祭台）：ice_shaman 未滿血時每隔
+   * SUPPORT_HEAL_INTERVAL_SEC 秒自我治療一次，命中 heal_count_under 星星
+   * 條件（`${typeId}_heal_cast` key，見 AdventureGame.checkStarCondition）。
+   * 跟 updateEliteChargeSkill 不同，這個不取代一般追逐/攻擊，是額外疊加
+   * 的行為（ice_shaman 該追還是追、該打還是打，只是多一個定期自癒）。 */
+  private updateSupportHeal(e: AdventureEnemyInstance, dt: number) {
+    let t = this.supportHealTimers.get(e.id)
+    if (t === undefined) t = SUPPORT_HEAL_INTERVAL_SEC
+    t -= dt
+    if (t <= 0) {
+      t = SUPPORT_HEAL_INTERVAL_SEC
+      if (e.hp < e.maxHp) {
+        e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * SUPPORT_HEAL_PCT))
+        this.game.recordSkillHit(`${e.typeId}_heal_cast`)
+      }
+    }
+    this.supportHealTimers.set(e.id, t)
   }
 
   private updatePlayerAttack(dt: number) {
@@ -191,9 +414,9 @@ export class AdventureCombatController {
       if (d <= attackDistance && d <= nearestDist) { nearest = e; nearestDist = d }
     }
     if (!nearest) return
-    this.playerAtkTimer = PLAYER_ATTACK_COOLDOWN
+    this.playerAtkTimer = PLAYER_ATTACK_COOLDOWN * g.atkCooldownMult
     g.triggerPlayerAttackAnim()
-    this.damageEnemy(nearest, g.heroAtk)
+    this.damageEnemy(nearest, g.heroAtk + g.bonusDamage)
   }
 
   private damageEnemy(e: AdventureEnemyInstance, amount: number) {
@@ -226,6 +449,9 @@ export class AdventureCombatController {
     const g = this.game
     this.enemies = []
     this.activeZone = null
+    this.eliteLeap.clear()
+    this.eliteStationary.clear()
+    this.supportHealTimers.clear()
     g.clearedCombatZones.add(zone.id)
     for (const id of zone.gateColliderIds) g.setColliderActive(id, false)
     if (zone.setsFlag) g.flags[zone.setsFlag] = true

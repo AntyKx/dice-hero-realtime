@@ -46,7 +46,21 @@ export class DialogueController {
   current(): { speaker: string; text: string; hasMore: boolean } | null {
     if (!this.active || this.index >= this.lines.length) return null
     const line = this.lines[this.index]
-    return { speaker: line.speaker, text: line.text, hasMore: this.index < this.lines.length - 1 }
+    return { speaker: this.resolveSpeaker(line.speaker), text: line.text, hasMore: this.index < this.lines.length - 1 }
+  }
+
+  /** 2026-08-21（雪原篇 2-1 起）：主線劇情資料的 speaker 有三種寫法——
+   * 'protagonist'（主角本人，不綁死特定英雄 id/classId，顯示時換成當下
+   * 英雄的真實名字）、`npc_<enemyId>`／`boss_<enemyId>`（Boss 開戰前的
+   * 對話，例如 npc_ice_shaman／boss_frost_knight_captain，2-4/2-5 開始
+   * 出現）。後兩種直接查 g.enemyTypeDefs[enemyId].name 顯示中文名字，不用
+   * 為每句 Boss 對話另外存一份顯示名稱；查不到就顯示去掉前綴後的原始 id，
+   * 不會直接崩潰或顯示空字串。 */
+  private resolveSpeaker(raw: string): string {
+    if (raw === 'protagonist') return this.game.heroName
+    const m = /^(?:npc|boss)_(.+)$/.exec(raw)
+    if (m) return this.game.enemyTypeDefs[m[1]]?.name ?? m[1]
+    return raw
   }
 
   /** 按互動鍵推進到下一句；播完最後一句時關閉對話框、還原成進場前的狀態

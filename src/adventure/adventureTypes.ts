@@ -7,10 +7,15 @@
  * 這個檔案只放純資料型別，不含任何行為邏輯（呼應 campaignTypes.ts 的慣例）。
  */
 
+import type { StarCondition } from '../campaign/campaignTypes'
+
 export interface AdventureRect { x: number; y: number; width: number; height: number }
 export interface AdventureVec2 { x: number; y: number }
 
-export type AdventureGameState = 'explore' | 'dialogue' | 'combat' | 'cutscene' | 'puzzle' | 'stage_clear'
+/** 'build_pick'（2026-08-21，雪原篇 2-1）：關卡內 EXP→升級→三選一 Build
+ * 選卡畫面，跟 dialogue/cutscene 一樣會鎖住移動/戰鬤 tick（見 AdventureGame.
+ * update() 的 locked 判斷），只有宣告 stage.inStageBuild 的關卡會用到。 */
+export type AdventureGameState = 'explore' | 'dialogue' | 'combat' | 'cutscene' | 'puzzle' | 'build_pick' | 'stage_clear'
 
 // ── 碰撞 ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +79,15 @@ export interface TriggerDef {
 
 // ── 戰鬥區 ───────────────────────────────────────────────────────────────
 
-export interface CombatWaveDef { enemyId: string; count: number }
+export interface CombatWaveDef {
+  enemyId: string
+  count: number
+  /** 2026-08-21（雪原篇 2-1 霜狼伏擊）：精英詞綴——目前只影響
+   * AdventureCombatController 生成時的血量/體型縮放跟視覺 tint，特定敵人
+   * （frost_wolf）額外解鎖 leap 技能狀態機。沒有專屬技能的敵人掛 isElite
+   * 純粹只是變大變硬，不會出錯。 */
+  isElite?: boolean
+}
 
 export interface CombatZoneDef {
   id: string
@@ -163,9 +176,80 @@ export interface QuestDef {
   completeFlag: string
 }
 
+// ── 環境危害（2026-08-21，雪原篇 2-1 起） ─────────────────────────────────
+//
+// 設計文件列了 8 種（ice_floor/falling_icicle/frozen_zone/snow_gust/
+// thin_ice/whiteout/frost_tower/frost_line），先只實作真的有關卡用到的
+// kind——其餘先不加進聯集，等真的有關卡用到再照這個模式擴充（每種各自的
+// params 語意都不一樣，先加空殼容易變成沒人維護的死型別）。
+// - ice_floor（2-1）：MovementSystem.ts 的滑動修正，純移動手感，沒有獨立
+//   物件/計時器。
+// - falling_icicle（2-2）：HazardSystem.ts 管理的主動危害，區域內每隔
+//   intervalSec 秒隨機一點顯示 warningSec 秒預警圈，時間到未離開範圍受傷。
+// - frozen_zone（2-4）：MovementSystem.ts 的減速修正，連續停留
+//   freezeAfterSec 秒後短暫定身一次（control_count_under 星星條件計數）。
+// - frost_line（2-5）：HazardSystem.ts 管理的主動危害，跟 falling_icicle
+//   同一套「預警→判定」節奏，但形狀是整條 lane（矩形）不是一個點。
+// - snow_gust（2-3）：MovementSystem.ts 的減速修正，跟 ice_floor/
+//   frozen_zone 同一類但方向相關——逆著 direction 走才減速，順風不受影響。
+// - thin_ice（2-6）：MovementSystem.ts 的持續停留傷害——跟 frozen_zone 同一種
+//   「連續停留 X 秒觸發一次」節奏，差別是傷害（breakDamagePct）不是定身。
+// - frost_tower（2-8）：HazardSystem.ts 管理的主動危害，固定點朝玩家目前
+//   位置扇形預警（coneDeg），跟 falling_icicle/frost_line 同一套
+//   「預警→判定」節奏，形狀是扇形。
+// - whiteout（2-9）：純視覺效果，沒有任何星星條件依賴它——HazardSystem.ts
+//   週期性拉暗畫面＋玩家周圍留一圈可視範圍，不影響傷害/控制/星星判定。
+
+export type HazardKind =
+  | 'ice_floor' | 'falling_icicle' | 'frozen_zone' | 'frost_line' | 'snow_gust'
+  | 'thin_ice' | 'frost_tower' | 'whiteout'
+
+export interface HazardZoneDef {
+  id: string
+  roomId: string
+  kind: HazardKind
+  /** 房間 local 座標——跟 RoomTerrainColliderDef 同一套規則，只在
+   * AdventureGame.getActiveHazardZone() 查詢當下房間時加一次 atlasOrigin。 */
+  area: AdventureRect
+  /** 大多數 kind 的 params 都是數字（slowMult/intervalSec/warningSec…），
+   * 但 snow_gust 這類需要方向字串——還沒實作 snow_gust 前先放寬型別，
+   * 用到字串的 kind 在各自的 System 內自己 narrow。 */
+  params: Record<string, number | string>
+}
+
+// ── 主線劇情觸發（2026-08-21，雪原篇 2-1 起） ─────────────────────────────
+//
+// 跟既有 TriggerDef／DialogueDef 系統的差異：既有系統的 TriggerDef.area 是
+// 手動換算好的 atlas 世界座標（森林遺跡沿用的舊模式），這裡改成房間 local
+// 座標＋roomId，由 StoryTriggerSystem 只檢查目前房間、統一加一次
+// atlasOrigin，避免重演手算世界座標算錯的問題。實際對話內容仍然沿用
+// DialogueDef（id 跟這裡的 id 相同）＋現有 DialogueController，不重新發明
+// 一套播放機制。
+export interface StoryTriggerDef {
+  id: string
+  roomId: string
+  mode: 'once' | 'repeat'
+  /** 省略＝進入這個房間就算觸發（room_enter／combat_start 語意都適用，
+   * combat_start 的戰鬤本身另外由 CombatZoneDef.area 判斷是否開打，這裡的
+   * 對話只是搭配演出，不用重複表示同一塊區域）。 */
+  area?: AdventureRect
+  /** 2026-08-21（雪原篇 2-7/2-9/2-10）：combat_clear／boss_clear 語意——給定
+   * 時，只有這個 CombatZoneDef.id 已經清空（g.clearedCombatZones）才會觸發，
+   * 沒給就是一般的「進房間/進區域」語意（room_enter/area_enter/
+   * boss_enter，這三種在 StoryTriggerSystem 眼裡其實是同一件事）。 */
+  requiresCombatCleared?: string
+}
+
 // ── 出口 ─────────────────────────────────────────────────────────────────
 
-export interface ExitDef { x: number; y: number; radius: number }
+export interface ExitDef {
+  x: number
+  y: number
+  radius: number
+  /** 2026-08-21：出口所在房間 id，省略＝沿用森林遺跡的寫死值 'room_09'
+   * （見 StageExit.ts FINAL_ROOM_ID 的 fallback），新關卡一定要給。 */
+  roomId?: string
+}
 
 // ── 房間（Room Transition 架構，2026-08-19） ─────────────────────────────
 //
@@ -265,9 +349,24 @@ export interface AdventureStageDef {
   secrets: SecretDef[]
   quests: QuestDef[]
   exit: ExitDef
-  /** 呼應 forestRuins.ts 這關的 starConditions［1］/［2］門檻值，兩邊要手動
-   * 對齊（沒有自動同步機制，改一邊記得改另一邊）。 */
-  starThresholds: { purpleCoinCount: number; starPieceCount: number }
+  /** 舊制（forest_1_1 專用）：呼應 forestRuins.ts 這關的
+   * starConditions［1］/［2］門檻值，兩邊要手動對齊（沒有自動同步機制，改
+   * 一邊記得改另一邊）。跟 starConditions 互斥，兩者都給時
+   * commitStageFinish() 優先看 starConditions。 */
+  starThresholds?: { purpleCoinCount: number; starPieceCount: number }
+  /** 新制（2026-08-21 雪原篇 2-1 起）：紫幣/星片跟關卡內容脫鉤的關卡改用
+   * 這個——跟 CampaignStage.starConditions 共用同一份 StarConditionType，
+   * UI 顯示文字（CampaignMapScreen）跟 AdventureGame.commitStageFinish() 的
+   * 實際判定讀同一份資料，不用兩邊手動對齊。目前 AdventureGame 只認得
+   * 'clear'／'hp_above'／'avoid_skill' 三種 type，其餘 type 一律視為通過
+   * （沿用既有星星就往上疊的邏輯，不會反而卡關）。 */
+  starConditions?: [StarCondition, StarCondition, StarCondition]
+  /** 2026-08-21：關卡內 EXP→升級→三選一 Build（見 AdventureGame.
+   * gainBuildExp/tryTriggerLevelUp/chooseBuildCard）。false／省略的關卡
+   * （forest_1_1）完全不會累積擊殺 EXP，也不會進 build_pick 狀態。 */
+  inStageBuild?: boolean
+  hazards?: HazardZoneDef[]
+  storyTriggers?: StoryTriggerDef[]
 }
 
 // ── 存檔進度（MetaState.adventureStageProgress[stageId]） ───────────────
@@ -362,6 +461,10 @@ export interface AdventureHudState {
   partyHeroIds: string[]
   playerHp: number
   playerMaxHp: number
+  /** 2026-08-21：關卡內 Build 等級（見 AdventureStageDef.inStageBuild），
+   * 0＝這關沒有這個系統，AdventureStageScreen 不顯示徽章。跟 heroLevel
+   * （英雄本身跨關卡的養成等級）是兩回事，故意分開欄位不要混在一起。 */
+  buildLevel: number
 }
 
 // ── 英雄探索能力接口（文件第七節，第一版只留接口） ──────────────────────

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AdventureGame, type AdventureConfig } from './AdventureGame'
 import type { AdventureHudState, AdventureStageResult } from './adventureTypes'
 import AsterVowIcon from '../components/AsterVowIcon'
 import { versionedAsset } from '../data'
 import MiniMapHud from './MiniMapHud'
+import { getAdventureStageDef } from './stages'
+import DiceUpgradeOverlay from '../arena/DiceUpgradeOverlay'
 
 interface Props {
   config: AdventureConfig
@@ -21,6 +23,7 @@ const INITIAL_HUD: AdventureHudState = {
   minimap: null,
   heroId: '', heroName: '', heroLevel: 1, partyHeroIds: [],
   playerHp: 0, playerMaxHp: 0,
+  buildLevel: 0,
 }
 
 const JOYSTICK_RADIUS = 50
@@ -36,6 +39,7 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
   const dragRef = useRef<{ active: boolean; pointerId: number; centerX: number; centerY: number }>({ active: false, pointerId: -1, centerX: 0, centerY: 0 })
   const stageEndFiredRef = useRef(false)
   const [hud, setHud] = useState<AdventureHudState>(INITIAL_HUD)
+  const stageDef = useMemo(() => getAdventureStageDef(config.stageId), [config.stageId])
 
   useEffect(() => {
     const el = containerRef.current
@@ -125,8 +129,8 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
         {/* 2026-08-20：迷你地圖換成 MiniMapHud——房間形狀跟走廊連線都是它
             自己讀 stage.rooms 動態算的，這裡只丟目前房間 id 跟走過的房間
             id 清單。 */}
-        {hud.minimap && (
-          <MiniMapHud activeRoomId={hud.minimap.activeRoomId} discoveredRoomIds={hud.minimap.discoveredRoomIds} />
+        {hud.minimap && stageDef && (
+          <MiniMapHud stage={stageDef} activeRoomId={hud.minimap.activeRoomId} discoveredRoomIds={hud.minimap.discoveredRoomIds} />
         )}
 
         <button className="adv-exit-btn" onClick={onExit}>✕ 返回</button>
@@ -136,10 +140,16 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
         <button className="adv-debug-btn" onClick={() => gameRef.current?.toggleDebugArtMode()}>🐞</button>
         {hud.debugScreenText && <div className="adv-debug-screen-text">{hud.debugScreenText}</div>}
 
-        <div className="adv-counters">
-          <span className="adv-counter"><AsterVowIcon name="system-gold" size={14} />{hud.purpleCoinCount}/{hud.purpleCoinTotal}</span>
-          <span className="adv-counter"><AsterVowIcon name="system-stardust" size={14} />{hud.starPieceCount}/{hud.starPieceTotal}</span>
-        </div>
+        {/* 2026-08-21：新制關卡（雪原 2-1 起）沒有紫幣/星片這套收集系統，
+            hud.purpleCoinTotal/starPieceTotal 會是 0——不顯示空的「0/0」計數
+            條，改顯示 Build 等級徽章（stage.inStageBuild 才有意義）。 */}
+        {(hud.purpleCoinTotal > 0 || hud.starPieceTotal > 0) && (
+          <div className="adv-counters">
+            {hud.purpleCoinTotal > 0 && <span className="adv-counter"><AsterVowIcon name="system-gold" size={14} />{hud.purpleCoinCount}/{hud.purpleCoinTotal}</span>}
+            {hud.starPieceTotal > 0 && <span className="adv-counter"><AsterVowIcon name="system-stardust" size={14} />{hud.starPieceCount}/{hud.starPieceTotal}</span>}
+          </div>
+        )}
+        {hud.buildLevel > 0 && <div className="adv-counters"><span className="adv-counter">⚔ Build Lv.{hud.buildLevel}</span></div>}
 
         {hud.activeQuestTitle && <div className="adv-quest-badge">📜 {hud.activeQuestTitle}</div>}
 
@@ -182,6 +192,13 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
         )}
       </div>
 
+      {/* 2026-08-21：關卡內 EXP Build 選卡——直接沿用 Roguelite 的
+          DiceUpgradeOverlay（擲骰決定三張卡品質＋顯示卡池），不重新做一份
+          UI；選完呼叫 chooseBuildCard() 套用效果並恢復遊戲狀態。 */}
+      {hud.state === 'build_pick' && (
+        <DiceUpgradeOverlay onComplete={card => gameRef.current?.chooseBuildCard(card)} />
+      )}
+
       {showDialogueBox && hud.activeDialogue && (
         <div className="adv-dialogue-box" onClick={() => gameRef.current?.tryInteract()}>
           <div className="adv-dialogue-speaker">{hud.activeDialogue.speaker}</div>
@@ -203,9 +220,12 @@ export default function AdventureStageScreen({ config, onExit, onAdventureStageE
             </div>
           )}
           <div className="adv-result-stats">
-            <div className="adv-result-row"><span>紫幣</span><strong>{hud.stageResult.purpleCoinCount} / {hud.purpleCoinTotal}</strong></div>
-            <div className="adv-result-row"><span>星星碎片</span><strong>{hud.stageResult.starPieceCount} / {hud.starPieceTotal}</strong></div>
-            <div className="adv-result-row"><span>支線任務</span><strong>{hud.stageResult.questCompleted ? '已完成' : '未完成'}</strong></div>
+            {hud.purpleCoinTotal > 0 && <div className="adv-result-row"><span>紫幣</span><strong>{hud.stageResult.purpleCoinCount} / {hud.purpleCoinTotal}</strong></div>}
+            {hud.starPieceTotal > 0 && <div className="adv-result-row"><span>星星碎片</span><strong>{hud.stageResult.starPieceCount} / {hud.starPieceTotal}</strong></div>}
+            {/* 2026-08-21：quests.every() 對空陣列會回傳 true，沒有支線任務的
+                新制關卡（雪原 2-1）不該因此顯示「支線任務：已完成」——用
+                stage.quests 是否存在來判斷，不是只看 questCompleted 本身。 */}
+            {(stageDef?.quests.length ?? 0) > 0 && <div className="adv-result-row"><span>支線任務</span><strong>{hud.stageResult.questCompleted ? '已完成' : '未完成'}</strong></div>}
             {hud.stageResult.pendingGold > 0 && <div className="adv-result-row"><span>探索金幣</span><strong>+{hud.stageResult.pendingGold}</strong></div>}
             {hud.stageResult.pendingEnhanceStones > 0 && <div className="adv-result-row"><span>強化石</span><strong>+{hud.stageResult.pendingEnhanceStones}</strong></div>}
             {hud.stageResult.pendingHeroExp > 0 && <div className="adv-result-row"><span>英雄經驗</span><strong>+{hud.stageResult.pendingHeroExp}</strong></div>}

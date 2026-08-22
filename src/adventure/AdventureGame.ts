@@ -8,6 +8,7 @@ import type {
 } from './adventureTypes'
 import { defaultAdventureStageProgress } from './adventureTypes'
 import { getAdventureStageDef } from './stages'
+import { versionedAsset } from '../data'
 import { MovementSystem } from './systems/MovementSystem'
 import { CollisionSystem } from './systems/CollisionSystem'
 import { CameraSystem } from './systems/CameraSystem'
@@ -15,6 +16,8 @@ import { RoomSystem } from './systems/RoomSystem'
 import { computeRoomFitScale } from './systems/CameraSystem'
 import { InteractionSystem } from './systems/InteractionSystem'
 import { TriggerSystem } from './systems/TriggerSystem'
+import { StoryTriggerSystem } from './systems/StoryTriggerSystem'
+import { HazardSystem } from './systems/HazardSystem'
 import { CollectibleSystem } from './systems/CollectibleSystem'
 import { PuzzleSystem } from './systems/PuzzleSystem'
 import { SecretSystem } from './systems/SecretSystem'
@@ -23,6 +26,12 @@ import { AdventureCombatController } from './combat/AdventureCombatController'
 import { NpcController } from './npc/NpcController'
 import { DialogueController } from './npc/DialogueController'
 import { createExitGraphic, getStageExitPrompt, updateExitCheck } from './objects/StageExit'
+import { pointInRect } from './geometry'
+import type { ArenaCard } from '../arena/cards'
+import type { HazardKind, HazardZoneDef } from './adventureTypes'
+import type { StarCondition } from '../campaign/campaignTypes'
+
+const BUILD_EXP_PER_KILL = 12
 import {
   FOREST01_NPC_ART, FOREST01_COLLECTIBLE_ART,
   FOREST01_ENEMY_STATIC_ART, FOREST01_INTERACTIVE_ART, FOREST01_DISPLAY_HEIGHT,
@@ -76,8 +85,15 @@ const TOAST_DURATION_SEC = 2.6
 // exitGlow（房間美術本身就有這些視覺，另外疊只會重複）。
 function collectForest01ArtPaths(stage: AdventureStageDef): string[] {
   const paths: string[] = [FOREST01_V2_ART.contactShadow]
-  paths.push(...(stage.rooms ?? []).map(r => r.background))
-  paths.push(...(stage.rooms ?? []).map(r => r.foreground).filter((v): v is string => !!v))
+  // 2026-08-21：房間背景/前景檔名會被同一個關卡的美術重繪覆蓋（例如雪原篇
+  // 2-1~2-10 整批換圖，檔名完全不變、只是內容變了）——不像 forest_1_1 那樣
+  // 每次改圖都換資料夾名稱（rooms_v2/foreground_v13）。跟先前修過的
+  // frame 圖 Cloudflare 邊緣快取問題（feedback_dicehero_cdn_edge_cache_frames）
+  // 同一個成因，這裡一律加 versionedAsset() 的 ?v= 版號，換版時保證繞過
+  // CDN 快取讀到新圖。buildScene() 裡實際查表時要用同一個
+  // versionedAsset() 包過的字串當 key，兩邊不一致會找不到材質。
+  paths.push(...(stage.rooms ?? []).map(r => versionedAsset(r.background)))
+  paths.push(...(stage.rooms ?? []).map(r => r.foreground).filter((v): v is string => !!v).map(versionedAsset))
   paths.push(...Object.values(FOREST01_NPC_ART))
   paths.push(...Object.values(FOREST01_COLLECTIBLE_ART))
   paths.push(...Object.values(FOREST01_ENEMY_STATIC_ART).filter((v): v is string => !!v))
@@ -197,6 +213,21 @@ export class AdventureGame {
   pendingHeroExp = 0
   pendingPurpleCoinBonus = 0
 
+  // ── 關卡內 Build（2026-08-21，雪原篇 2-1 起，stage.inStageBuild） ────────
+  /** 累計擊殺 EXP／目前等級，只有 stage.inStageBuild 的關卡會累積。 */
+  buildExp = 0
+  buildLevel = 1
+  private buildPickPreviousState: AdventureGameState = 'explore'
+  /** ArenaCard 疊加的即時屬性加成，套用點見 applyBuildCard()——跟
+   * ArenaGame.ts 的 applyCard() 是同一套 ArenaCardEffect，直接共用
+   * src/arena/cards.ts 不重新設計一份卡池。 */
+  bonusDamage = 0
+  atkCooldownMult = 1
+  moveSpeedMult = 1
+  /** Boss 技能命中次數統計（例如 frost_wolf_leap），給 avoid_skill 星星
+   * 條件用，見 commitStageFinish() 的 checkStarCondition()。 */
+  skillHitCounts: Record<string, number> = {}
+
   private toastText: string | null = null
   private toastTimer = 0
   private lastInteractionKey: string | null = null
@@ -223,6 +254,8 @@ export class AdventureGame {
   roomSystem!: RoomSystem
   interaction = new InteractionSystem(this)
   trigger = new TriggerSystem(this)
+  storyTrigger = new StoryTriggerSystem(this)
+  hazard = new HazardSystem(this)
   collectible = new CollectibleSystem(this)
   puzzle = new PuzzleSystem(this)
   secret = new SecretSystem(this)
@@ -439,7 +472,7 @@ export class AdventureGame {
 
   private buildScene() {
     for (const room of this.stage.rooms ?? []) {
-      const tex = this.tex(room.background)
+      const tex = this.tex(versionedAsset(room.background))
       // 2026-08-19 抓到的真的 bug：這批房間圖實際檔案是 941x1672，不是
       // room.size 寫的 1080x1920（差了約 14.8%）。Sprite 沒有另外指定
       // width/height 時預設用「材質原始像素尺寸」，等於背景實際只蓋住
@@ -467,7 +500,7 @@ export class AdventureGame {
       // 上面，玩家不管站在物件前面還後面都被蓋住，變成「角色被切一半」的
       // bug，這裡改用跟其他 actor 一致的 y-sort 規則。
       if (room.foreground && room.foregroundPiecesLocal) {
-        const fgBaseTex = this.tex(room.foreground)
+        const fgBaseTex = this.tex(versionedAsset(room.foreground))
         for (const piece of room.foregroundPiecesLocal) {
           const pieceTex = new Texture({
             source: fgBaseTex.source,
@@ -645,6 +678,14 @@ export class AdventureGame {
         cg.x = room.atlasOrigin.x + tc.rect.x; cg.y = room.atlasOrigin.y + tc.rect.y
         layer.addChild(cg)
       }
+      // 青色＝環境危害區（目前只有 ice_floor），跟橘色地形碰撞分開顏色——
+      // 危害不擋路，只改變移動手感，混在一起容易誤判成「這裡會卡住」。
+      for (const hz of (this.stage.hazards ?? []).filter(h => h.roomId === room.id)) {
+        const hg = new Graphics().rect(0, 0, hz.area.width, hz.area.height)
+          .fill({ color: 0x40e0ff, alpha: 0.14 }).stroke({ color: 0x40e0ff, width: 2 })
+        hg.x = room.atlasOrigin.x + hz.area.x; hg.y = room.atlasOrigin.y + hz.area.y
+        layer.addChild(hg)
+      }
     }
 
     // 角色接地校準 overlay：全部圖形都以玩家 world position（腳底錨點）為
@@ -757,6 +798,8 @@ export class AdventureGame {
     if (!locked && (this.state === 'explore' || this.state === 'combat')) {
       this.movement.update(dt)
       this.trigger.update()
+      this.storyTrigger.update()
+      this.hazard.update(dt)
       this.collectible.update()
       this.secret.update()
       this.quest.update()
@@ -1046,6 +1089,75 @@ export class AdventureGame {
 
   onEnemyKilled(typeId: string) {
     this.quest.onEnemyKilled(typeId)
+    if (this.stage.inStageBuild) this.gainBuildExp(BUILD_EXP_PER_KILL)
+  }
+
+  /** 目前房間裡玩家腳下有沒有踩在指定 kind 的環境危害區（room local 座標，
+   * 只在這裡加一次 atlasOrigin，見 adventureTypes.ts HazardZoneDef 註解）。
+   * MovementSystem 用來判斷要不要套用 ice_floor 滑動。 */
+  getActiveHazardZone(kind: HazardKind): HazardZoneDef | null {
+    const room = this.roomSystem.activeRoom
+    for (const hz of this.stage.hazards ?? []) {
+      if (hz.roomId !== room.id || hz.kind !== kind) continue
+      const worldArea = {
+        x: room.atlasOrigin.x + hz.area.x, y: room.atlasOrigin.y + hz.area.y,
+        width: hz.area.width, height: hz.area.height,
+      }
+      if (pointInRect(this.player.x, this.player.y, worldArea)) return hz
+    }
+    return null
+  }
+
+  /** AdventureCombatController 的精英技能（目前只有 frost_wolf_leap）命中
+   * 玩家時呼叫，給 avoid_skill 星星條件統計用。 */
+  recordSkillHit(skillId: string) {
+    this.skillHitCounts[skillId] = (this.skillHitCounts[skillId] ?? 0) + 1
+  }
+
+  private buildExpToNext(): number {
+    return 30 + (this.buildLevel - 1) * 22
+  }
+
+  gainBuildExp(amount: number) {
+    this.buildExp += amount
+    this.tryTriggerLevelUp()
+  }
+
+  private tryTriggerLevelUp() {
+    if (this.state !== 'explore' && this.state !== 'combat') return // 對話/劇情/結算中不打斷，下次滿足條件的呼叫會再檢查一次
+    if (this.buildExp < this.buildExpToNext()) return
+    this.buildExp -= this.buildExpToNext()
+    this.buildLevel++
+    this.buildPickPreviousState = this.state
+    this.state = 'build_pick'
+    this.moveDir = { x: 0, y: 0 }
+    this.emitHud()
+  }
+
+  /** AdventureStageScreen 的 DiceUpgradeOverlay 選完卡呼叫（那個元件自己
+   * 擲骰＋生三張卡，這裡只負責套用效果＋恢復遊戲狀態）。 */
+  chooseBuildCard(card: ArenaCard) {
+    if (this.state !== 'build_pick') return
+    this.applyBuildCard(card)
+    this.state = this.buildPickPreviousState
+    this.emitHud()
+    this.tryTriggerLevelUp() // 這次擊殺的 EXP 可能一次跨兩級，接著檢查有沒有下一次要選
+  }
+
+  /** 跟 ArenaGame.ts 的 applyCard() 是同一套 ArenaCardEffect 語意，直接
+   * common 邏輯搬過來——Adventure 目前沒有拾取範圍機制，pickupRangeBonus
+   * 這個效果欄位對這裡沒有意義，静默忽略（卡池共用，不為了 Adventure 特地
+   * 拆一份子集）。 */
+  private applyBuildCard(card: ArenaCard) {
+    const e = card.effect
+    if (e.flatDamage) this.bonusDamage += e.flatDamage
+    if (e.atkCooldownMult) this.atkCooldownMult *= e.atkCooldownMult
+    if (e.moveSpeedBonus) this.moveSpeedMult *= 1 + e.moveSpeedBonus
+    if (e.maxHpBonus) {
+      this.player.maxHp += e.maxHpBonus
+      this.player.hp += e.maxHpBonus
+    }
+    this.showToast(`升級：${card.name}`)
   }
 
   /** 開始 stage 結算淡出；實際建立結果延後到 update() 裡淡出播完那一刻
@@ -1059,15 +1171,52 @@ export class AdventureGame {
     this.emitHud()
   }
 
+  /** 新制關卡（stage.starConditions，見 adventureTypes.ts 註解）依序檢查
+   * 三個條件，第一個不過就停——跟 CampaignStage 的星星「後面幾顆建立在前面
+   * 已達成」慣例一致，不是三個各自獨立判定。 */
+  private checkStarCondition(c: StarCondition): boolean {
+    if (c.type === 'clear') return true // 呼叫端已經確認 won===true 才會走到這裡
+    if (c.type === 'hp_above') return (this.player.hp / this.player.maxHp) * 100 >= (c.value ?? 0)
+    // 2026-08-21（雪原篇 2-7）：hits_under 沒有給 skillId 時，就是跟
+    // avoid_skill 完全一樣的語意（「被某個 Boss 技能命中幾次」），差別只在
+    // campaignTypes.ts 的描述文字習慣用哪個 type name，判定邏輯共用。
+    if (c.type === 'avoid_skill' || c.type === 'hits_under') return (this.skillHitCounts[c.skillId ?? ''] ?? 0) <= (c.value ?? 0)
+    if (c.type === 'time_under') return this.elapsed <= (c.value ?? Infinity)
+    // 2026-08-21（雪原篇 2-6/2-8）：avoid_hazard 統計「被指定 hazardId 命中/
+    // 破壞幾次」，key 是 `${hazardId}_hazard_hit`（見 MovementSystem.ts 的
+    // thin_ice、HazardSystem.ts 的 frost_tower）。
+    if (c.type === 'avoid_hazard') return (this.skillHitCounts[`${c.hazardId ?? ''}_hazard_hit`] ?? 0) <= (c.value ?? Infinity)
+    // 2026-08-21（雪原篇 2-2）：借用既有 'custom' type + targetId 存房間 id，
+    // 給「找到隱藏房間」這種條件用（areasDiscovered 本來就是「進過的房間 id
+    // 清單」，不用另外新增一個 StarConditionType 成員）。
+    if (c.type === 'custom') return this.areasDiscovered.has(c.targetId ?? '')
+    // 2026-08-21（雪原篇 2-3/2-4）：frozen_zone 定身次數／snow_gust 陣風
+    // 干擾次數共用 MovementSystem.ts 的 'hazard_control_count' 計數 key
+    // （兩種星星條件描述文字不同，但語意都是「行動被環境打斷幾次」），跟
+    // ice_shaman 自我治療次數（見 AdventureCombatController.ts 的
+    // `${typeId}_heal_cast`）一樣借用同一份 skillHitCounts 記帳，不用另外
+    // 開欄位。
+    if (c.type === 'control_count_under') return (this.skillHitCounts['hazard_control_count'] ?? 0) <= (c.value ?? Infinity)
+    if (c.type === 'heal_count_under') return (this.skillHitCounts[`${c.targetId ?? ''}_heal_cast`] ?? 0) <= (c.value ?? Infinity)
+    return true // 其餘 type 一律視為通過，不會反而卡關
+  }
+
   private commitStageFinish(won: boolean) {
     if (this.finalResult) return
     const purpleCoinCount = this.purpleCoinIds.size + this.pendingPurpleCoinBonus
     const starPieceCount = this.starPieceIds.size
     let stars: 0 | 1 | 2 | 3 = 0
     if (won) {
-      stars = 1
-      if (purpleCoinCount >= this.stage.starThresholds.purpleCoinCount) stars = (stars + 1) as 1 | 2
-      if (starPieceCount >= this.stage.starThresholds.starPieceCount) stars = (stars + 1) as 1 | 2 | 3
+      if (this.stage.starConditions) {
+        for (const c of this.stage.starConditions) {
+          if (!this.checkStarCondition(c)) break
+          stars = (stars + 1) as 0 | 1 | 2 | 3
+        }
+      } else {
+        stars = 1
+        if (purpleCoinCount >= (this.stage.starThresholds?.purpleCoinCount ?? Infinity)) stars = (stars + 1) as 1 | 2
+        if (starPieceCount >= (this.stage.starThresholds?.starPieceCount ?? Infinity)) stars = (stars + 1) as 1 | 2 | 3
+      }
     }
     const questCompleted = this.stage.quests.every(q => this.questsCompleted.has(q.id))
     this.finalResult = {
@@ -1146,6 +1295,7 @@ export class AdventureGame {
       partyHeroIds: this.partyHeroIds,
       playerHp: this.player.hp,
       playerMaxHp: this.player.maxHp,
+      buildLevel: this.stage.inStageBuild ? this.buildLevel : 0,
     }
     this.onHudChange(hud)
   }

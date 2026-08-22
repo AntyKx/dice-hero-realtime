@@ -115,22 +115,22 @@ export const FOREST_CAMPAIGN_ENEMIES: Record<string, EnemyTypeDef> = {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// 雪原（snowfield_wastes）+ 魔王城（demon_king_castle）固定式主線關卡專用敵人
-// （2026-08-16）。這批完全沒有專屬美術（給的素材只有地圖總覽圖，沒有逐幀
-// 怪物圖），全部用 placeholderSpriteId 借用既有 22 個資料夾的圖頂著——優先借
-// 視覺調性接近的（冰甲騎士/冰霜女巫/骷髏本來就偏白骨/雪原哥布林借舊版
-// goblin 圓潤造型），等有真的美術再逐一換掉，數值/AI 邏輯不受影響。
-// 借森林 12 隻真圖其中之一時要複製對方的 anchorRatio（腳底對齊比例），借
-// 舊版 10 隻圓形回合制素材（goblin/skeleton/orc/slimeking/mimic/dark_knight/
-// golem/ice_witch/lightning_lancer/dragon）則不用，那批圖本來就是置中裁切。
+// 雪原（snowfield_wastes）固定式主線關卡專用敵人（2026-08-16 建立、
+// 2026-08-22 換上真圖）。這批原本完全沒有專屬美術，全部用 placeholderSpriteId
+// 借別的敵人圖頂著；ASTERVOW 雪原怪物 v2 素材包（14 隻怪各 20 幀，
+// idle×4/move×5/attack×5/skill×3/hurt×1/death×2，畫布 1024x1024）到位後
+// 已經換成真圖（`/assets/frames/enemies/{id}/`，不再需要 placeholderSpriteId），
+// anchorRatio 直接採用素材包 manifest 給的 pivot 比例：小型地面
+// (0.5,0.8)／中型地面 (0.5,0.85)／大型首領 (0.5,0.875)。ice_crystal_totem
+// （破壞用圖騰，不是真的怪物）不在這批素材內，繼續借用 golem 頂著。
 // ══════════════════════════════════════════════════════════════════════════
-const ICE_GOBLIN: EnemyTypeDef      = { id: 'ice_goblin', name: '冰原哥布林', hpMult: 1.05, speedMult: 1.0, damageMult: 1.0, spriteHeight: 70, weight: 0, minMinute: 0, aiType: 'chase', placeholderSpriteId: 'goblin' }
-const FROST_SKELETON: EnemyTypeDef  = { id: 'frost_skeleton', name: '寒冰骷髏兵', hpMult: 0.8, speedMult: 1.4, damageMult: 0.85, spriteHeight: 72, weight: 0, minMinute: 0, aiType: 'skirmisher', placeholderSpriteId: 'skeleton' }
-const FROST_ARCHER: EnemyTypeDef    = { id: 'frost_archer', name: '冰霜弓手', hpMult: 0.75, speedMult: 1.0, damageMult: 0.95, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'ranged', placeholderSpriteId: 'goblin_archer', anchorRatio: { x: 0.423, y: 0.698 } }
-const ICE_SHAMAN: EnemyTypeDef      = { id: 'ice_shaman', name: '冰霜薩滿', hpMult: 0.9, speedMult: 0.9, damageMult: 0.55, spriteHeight: 106, weight: 0, minMinute: 0, aiType: 'support', placeholderSpriteId: 'forest_shaman', anchorRatio: { x: 0.409, y: 0.791 } }
-const FROST_WOLF: EnemyTypeDef      = { id: 'frost_wolf', name: '寒冰狼', hpMult: 1.2, speedMult: 1.35, damageMult: 1.3, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'charge', placeholderSpriteId: 'thorn_wolf', anchorRatio: { x: 0.526, y: 0.694 } }
-const YETI_BRUTE: EnemyTypeDef      = { id: 'yeti_brute', name: '雪怪蠻兵', hpMult: 2.1, speedMult: 0.7, damageMult: 1.4, spriteHeight: 76, weight: 0, minMinute: 0, aiType: 'charge', placeholderSpriteId: 'orc' }
-const SNOW_TROLL: EnemyTypeDef      = { id: 'snow_troll', name: '雪原巨魔', hpMult: 2.6, speedMult: 0.5, damageMult: 1.2, spriteHeight: 127, weight: 0, minMinute: 0, aiType: 'heavy', placeholderSpriteId: 'orc_warrior', anchorRatio: { x: 0.5, y: 0.756 } }
+const ICE_GOBLIN: EnemyTypeDef      = { id: 'ice_goblin', name: '冰原哥布林', hpMult: 1.05, speedMult: 1.0, damageMult: 1.0, spriteHeight: 70, weight: 0, minMinute: 0, aiType: 'chase', anchorRatio: { x: 0.5, y: 0.8 } }
+const FROST_SKELETON: EnemyTypeDef  = { id: 'frost_skeleton', name: '寒冰骷髏兵', hpMult: 0.8, speedMult: 1.4, damageMult: 0.85, spriteHeight: 72, weight: 0, minMinute: 0, aiType: 'skirmisher', anchorRatio: { x: 0.5, y: 0.8 } }
+const FROST_ARCHER: EnemyTypeDef    = { id: 'frost_archer', name: '冰霜弓手', hpMult: 0.75, speedMult: 1.0, damageMult: 0.95, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'ranged', anchorRatio: { x: 0.5, y: 0.8 } }
+const ICE_SHAMAN: EnemyTypeDef      = { id: 'ice_shaman', name: '冰霜薩滿', hpMult: 0.9, speedMult: 0.9, damageMult: 0.55, spriteHeight: 106, weight: 0, minMinute: 0, aiType: 'support', anchorRatio: { x: 0.5, y: 0.8 } }
+const FROST_WOLF: EnemyTypeDef      = { id: 'frost_wolf', name: '寒冰狼', hpMult: 1.2, speedMult: 1.35, damageMult: 1.3, spriteHeight: 109, weight: 0, minMinute: 0, aiType: 'charge', anchorRatio: { x: 0.5, y: 0.85 } }
+const YETI_BRUTE: EnemyTypeDef      = { id: 'yeti_brute', name: '雪怪蠻兵', hpMult: 2.1, speedMult: 0.7, damageMult: 1.4, spriteHeight: 76, weight: 0, minMinute: 0, aiType: 'charge', anchorRatio: { x: 0.5, y: 0.85 } }
+const SNOW_TROLL: EnemyTypeDef      = { id: 'snow_troll', name: '雪原巨魔', hpMult: 2.6, speedMult: 0.5, damageMult: 1.2, spriteHeight: 127, weight: 0, minMinute: 0, aiType: 'heavy', anchorRatio: { x: 0.5, y: 0.875 } }
 // 1-4 對應：雪原篇的圖騰型破壞目標（完全靜止、無攻擊）。
 const ICE_CRYSTAL_TOTEM: EnemyTypeDef = { id: 'ice_crystal_totem', name: '冰晶法陣', hpMult: 1.0, speedMult: 0, damageMult: 0, spriteHeight: 96, weight: 0, minMinute: 0, aiType: 'totem', placeholderSpriteId: 'golem' }
 
@@ -147,10 +147,13 @@ const LAVA_TOTEM: EnemyTypeDef      = { id: 'lava_totem', name: '熔岩法陣', 
 // Boss（雪原 4 隻 + 魔王城 4 隻，1-18/2-18/3-18 雙王關直接把 5 關 Boss 複製一份
 // count:2，跟森林 1-18 雙獸人隊長同一招，不用另外設計第 5 個 Boss id）。
 // hpMult 比照森林同一序位 Boss 再往上抬 10~20%，反映後續篇章難度遞增。
-const FROST_KNIGHT_CAPTAIN: EnemyTypeDef = { id: 'frost_knight_captain', name: '霜甲騎士長', hpMult: 68, speedMult: 0.62, damageMult: 1.9, spriteHeight: 150, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'lightning_lancer' }
-const ICE_GOLEM_COLOSSUS: EnemyTypeDef   = { id: 'ice_golem_colossus', name: '冰封巨像', hpMult: 88, speedMult: 0.42, damageMult: 1.7, spriteHeight: 190, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'golem' }
-const FROST_QUEEN: EnemyTypeDef          = { id: 'frost_queen', name: '冰霜女王', hpMult: 95, speedMult: 0.8, damageMult: 2.0, spriteHeight: 155, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'ice_witch' }
-const ICE_DRAGON: EnemyTypeDef           = { id: 'ice_dragon', name: '冰霜巨龍', hpMult: 165, speedMult: 0.55, damageMult: 2.6, spriteHeight: 220, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dragon' }
+// frost_knight_captain 在素材包 manifest 裡歸類成「中型地面」(0.5,0.85)，
+// 不是「大型首領」——單純是身形比例分類，跟這裡 isBoss:true 的戰鬤數值
+// 意義無關，兩邊各自獨立。
+const FROST_KNIGHT_CAPTAIN: EnemyTypeDef = { id: 'frost_knight_captain', name: '霜甲騎士長', hpMult: 68, speedMult: 0.62, damageMult: 1.9, spriteHeight: 150, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', anchorRatio: { x: 0.5, y: 0.85 } }
+const ICE_GOLEM_COLOSSUS: EnemyTypeDef   = { id: 'ice_golem_colossus', name: '冰封巨像', hpMult: 88, speedMult: 0.42, damageMult: 1.7, spriteHeight: 190, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', anchorRatio: { x: 0.5, y: 0.875 } }
+const FROST_QUEEN: EnemyTypeDef          = { id: 'frost_queen', name: '冰霜女王', hpMult: 95, speedMult: 0.8, damageMult: 2.0, spriteHeight: 155, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', anchorRatio: { x: 0.5, y: 0.875 } }
+const ICE_DRAGON: EnemyTypeDef           = { id: 'ice_dragon', name: '冰霜巨龍', hpMult: 165, speedMult: 0.55, damageMult: 2.6, spriteHeight: 220, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', anchorRatio: { x: 0.5, y: 0.875 } }
 
 const DEMON_KNIGHT: EnemyTypeDef      = { id: 'demon_knight', name: '煉獄騎士', hpMult: 72, speedMult: 0.62, damageMult: 2.0, spriteHeight: 150, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'dark_knight' }
 const LAVA_GOLEM: EnemyTypeDef        = { id: 'lava_golem', name: '熔岩巨像', hpMult: 92, speedMult: 0.42, damageMult: 1.8, spriteHeight: 195, weight: 0, minMinute: 0, isBoss: true, aiType: 'heavy', placeholderSpriteId: 'golem' }

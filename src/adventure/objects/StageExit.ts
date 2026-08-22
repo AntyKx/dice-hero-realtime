@@ -9,9 +9,15 @@ export function createExitGraphic(radius: number): Graphics {
     .circle(0, 0, radius).stroke({ color: 0xffe089, width: 2 })
 }
 
-const FINAL_ROOM_ID = 'room_09'
 // room_09 上方門框需要提前提示，避免手機搖桿難以對準實際結算圈。
 const PROMPT_RADIUS_PADDING = 120
+
+/** 2026-08-21：新關卡（雪原篇 2-1 起）在 ExitDef 上直接給 roomId，不用再
+ * 改這個檔案；forest_1_1 沒給這個欄位時退回原本寫死的 'room_09'，行為完全
+ * 不變。 */
+function finalRoomId(game: AdventureGame): string {
+  return game.stage.exit.roomId ?? 'room_09'
+}
 
 /**
  * 2026-08-20：room_09 的 stage exit 改成兩段式 proximity 流程（原本是走進
@@ -28,7 +34,7 @@ const PROMPT_RADIUS_PADDING = 120
  */
 export function updateExitCheck(game: AdventureGame): string | null {
   if (game.state !== 'explore') return null
-  if (game.roomSystem.activeRoomId !== FINAL_ROOM_ID) return null
+  if (game.roomSystem.activeRoomId !== finalRoomId(game)) return null
   if (game.isFinalizingStage) return null
 
   const { exit } = game.stage
@@ -42,7 +48,7 @@ export function updateExitCheck(game: AdventureGame): string | null {
 }
 
 export function getStageExitPrompt(game: AdventureGame): string | null {
-  if (game.roomSystem.activeRoomId !== FINAL_ROOM_ID || game.state !== 'explore') return null
+  if (game.roomSystem.activeRoomId !== finalRoomId(game) || game.state !== 'explore') return null
   const { exit } = game.stage
   const distance = dist(game.player.x, game.player.y, exit.x, exit.y)
   return distance <= exit.radius + PROMPT_RADIUS_PADDING ? '終點出口｜再靠近即可結算' : null

@@ -406,7 +406,172 @@ y 超過之後換玩家蓋住物件（走到物件前面）——這樣才會隨
 
 ---
 
-## 十、部署與版號
+## 十、第二個 Room Transition 關卡（snowfield_2_1，2026-08-21）新增了什麼
+
+forest_1_1 是第一個 Adventure 關卡，很多系統（NPC/謎題/秘密/收集品/紫幣
+星片星級）都是照著它一次到位。雪原 2-1「雪線之外」是第二個，資料來源是
+外部交付包（含 `room_cut_spec.json`/`entrance_exit_table.json`/
+`story_triggers.json`/`encounters.json`/`hazards.json`/`star_conditions.json`
+＋正式房間圖），過程中暴露出幾個原本只服務 forest_1_1、沒有真的通用化的
+地方，這裡記錄下來，第三個關卡不用重新踩一次：
+
+- **`MiniMapHud.tsx` 原本整個檔案寫死 import `FOREST_RUINS_01_STAGE`**，
+  房間幾何/走廊/標籤全部是模組層級常數，只有森林遺跡能用。改成吃
+  `stage: AdventureStageDef` prop，內部用 `useMemo` 依 stage 重新算；
+  `ROOM_LABELS`/`STAGE_MAP_TITLES` 改成 `Record<stageId, Record<roomId,label>>`
+  兩層——不同關卡的房間 id 很可能撞名（兩關都有 `room_01`/`room_02`），
+  不拆命名空間會互相蓋掉短標籤。`AdventureStageScreen.tsx` 用
+  `getAdventureStageDef(config.stageId)` 解出 stage 物件傳進去。
+- **`StageExit.ts` 原本把最終房間 id 寫死成 `FINAL_ROOM_ID = 'room_09'`**
+  （forest_1_1 專用）。改成 `ExitDef.roomId?: string`，省略時 fallback
+  回 `'room_09'`（forest_1_1 完全不用改），新關卡在 `exit` 裡直接給
+  `roomId` 就好。
+- **星級判定原本整個綁死紫幣/星片門檻**（`stage.starThresholds`）。新增
+  `AdventureStageDef.starConditions?: [StarCondition,StarCondition,StarCondition]`
+  ——直接複用 `campaignTypes.ts` 既有的 `StarConditionType`（跟舊
+  ArenaGame 那套星星共用同一份型別／同一份 UI 顯示文字來源，不用另外發明
+  一組），`AdventureGame.commitStageFinish()` 有 `starConditions` 就優先
+  用它（依序檢查，中途沒過就停，跟 CampaignStage 星星「後面建立在前面」
+  同一套邏輯），目前只認得 `clear`/`hp_above`/`avoid_skill` 三種 type，
+  其餘 type 一律視為通過（不會反而卡關，只是還沒接判定邏輯）。
+- **新增環境危害系統**（`HazardZoneDef`，room-local 座標，只在
+  `AdventureGame.getActiveHazardZone()` 查詢時加一次 atlasOrigin，跟
+  `terrainCollidersLocal` 同一套原則）。目前只實作了 `ice_floor`
+  （`MovementSystem.ts` 用速度緩慢趨近目標值取代瞬間貼齊，做出滑行手感，
+  `params.slideStrength` 控制回應速度）。設計文件列了 8 種 Hazard，**故意
+  不要一次把型別聯集全加上去**——每種語意都不一樣，沒有真的關卡用到就先
+  空殼擺著，之後變成沒人維護的死型別，等真的有關卡用到再照這個模式擴充。
+- **新增房間 local 座標版的劇情觸發**（`StoryTriggerDef` + 新檔案
+  `StoryTriggerSystem.ts`），取代 forest_1_1 用的舊 `TriggerDef`（那個
+  `area` 是手動算好的 atlas 世界座標，森林遺跡沿用的舊模式）。新系統只
+  檢查目前 `activeRoom`，`roomId` 對不上直接跳過，有 `area` 才比對範圍
+  （沒有 `area` 代表「進這個房間就算觸發」）。實際對話內容還是沿用既有
+  `stage.dialogues`（id 跟 `StoryTriggerDef.id` 相同）＋
+  `DialogueController`，不是重新發明播放機制。
+- **新增關卡內 EXP→升級→三選一 Build**（`AdventureStageDef.inStageBuild`）。
+  直接複用 Roguelite 既有的 `src/arena/cards.ts`（`ArenaCard`/
+  `ArenaCardEffect`/`pickThreeCards`）跟 `DiceUpgradeOverlay.tsx`——那個
+  UI 元件本身就是純 React、自己擲骰自己生三張卡，跟 `ArenaGame` 沒有耦合，
+  直接搬進 `AdventureStageScreen.tsx` 用，不用重寫一份選卡 UI。
+  `AdventureGame.onEnemyKilled()` 累積 `buildExp`，達門檻就把 `state` 切成
+  新增的 `'build_pick'`（跟 dialogue/cutscene 一樣會鎖住 movement/combat
+  tick），選完卡呼叫 `chooseBuildCard()` 套用 `bonusDamage`/
+  `atkCooldownMult`/`moveSpeedMult`/maxHp 加成、切回原本的 state，並馬上
+  再檢查一次有沒有下一級要選（避免一次擊殺跨兩級漏算）。
+- **新增精英詞綴 + 專屬技能**（`CombatWaveDef.isElite`）。精英只是體型/
+  血量倍率＋金色 tint，不需要專屬美術；`frost_wolf` 精英額外解鎖 leap
+  技能狀態機（cooldown→telegraph 原地蓄力紅光預警→lunge 高速衝刺，命中
+  才算數），命中時呼叫 `AdventureGame.recordSkillHit(skillId)`，給
+  `avoid_skill` 星星條件讀取次數用。
+- **交付包給的 `walkableBoundsLocal` 沒有跟南/北 transition zone 重疊，中間
+  留了 70~100 單位真空帶**（東西向剛好压線通過，南北向明顯漏檢查）——這正是
+  第九節「自動化重疊檢查腳本」要抓的那種問題，外部交付包不會自動幫你驗過。
+  這次改成整個房間統一收窄成「四邊留 60 單位視覺餘裕」的滿版可走範圍
+  （反正 v1 美術包本身也還沒有逐房终形碰撞資料，沒有精細邊界可對齊），
+  之後有真正的地形碰撞美術再細分縮小。**任何外部關卡設計包，就算裡面已經
+  附了「已驗證」的 checklist，也要照第九節的腳本自己重跑一次再寫進
+  程式碼**，不能因為包裝得很正式（JSON schema 工整、附了 Claude Code 專用
+  指令文件）就跳過驗證。
+
+---
+
+## 十一、只有 Room 圖、沒有 room_cut_spec.json 時怎麼做（snowfield_2_2，2026-08-21）
+
+2-2「失聯哨站」這次交付只有 8 張正式 Room 圖，沒有附精確座標 JSON——房間
+拓撲/連接方向/劇情/戰鬤/Hazard/星星條件全部只能從主線設計文件（純文字
+表格＋敘述，沒有 x/y 數字）取得。做法：
+
+- **連接方向照文件表格，實際 local 座標套用 snowfield_2_1 已經驗證過的
+  標準模板**（`EAST`/`WEST`/`NORTH`/`SOUTH` 四個固定 zone 矩形＋對應的
+  `targetSpawnLocal`），不用每個房間重新發明一組數字。`walkableBoundsLocal`
+  直接沿用上一節修好的「四邊留 60 單位」滿版可走範圍，不會重演真空帶問題。
+- **同一個房間往同一個方位有兩個不同出口時**（這次 room_04 的東側同時通往
+  room_06 跟 room_04a；room_06 的西側同時通往 room_04 跟 room_05），改用
+  `EAST_UPPER`/`EAST_LOWER`（或 `WEST_UPPER`/`WEST_LOWER`）把同一側切成
+  上下兩個獨立 zone，**不能讓兩個出口共用同一個矩形**——`RoomSystem.update()`
+  是線性掃過 `room.transitions` 陣列，同矩形時永遠只吃到陣列裡先出現的
+  那個，另一個出口會變成走不進去、但也不會報錯，很容易忽略掉，一定要在
+  自動化驗證腳本裡加一條「同房間 transitions 兩兩之間不能互相 overlap」
+  的檢查（見這次跑的腳本）。
+- **atlas 位置（world 座標）就單純排成規律 grid**（這次是 4x2），不用刻意
+  排成「Y 型」——atlas 排版跟玩家實際移動方向完全無關（第五節已經講過），
+  刻意排成 Y 字形只是白費工夫。
+- **新的 Hazard kind（`falling_icicle`）需要獨立計時器/Pixi 視覺物件時，
+  獨立成一個新 System**（`HazardSystem.ts`），不要塞進 `MovementSystem.ts`
+  ——`ice_floor` 只是移動修正，沒有自己的物件；`falling_icicle` 有預警圈
+  的生命週期（每幀 tick、超時判定命中、銷毀），語意上是完全不同的一類
+  行為，硬塞在一起會讓 `MovementSystem` 職責混亂。
+- **星星條件不夠用時，優先看能不能借用既有 `StarConditionType`**——
+  「找到隱藏房間」直接借用既有的 `'custom'` type + `targetId` 存房間 id
+  （`AdventureGame.checkStarCondition()` 判斷 `areasDiscovered.has(targetId)`），
+  「時限內通關」借用既有的 `'time_under'` type + `this.elapsed`，都不用新增
+  `StarConditionType` 成員。
+
+---
+
+## 十二、雪原篇全 10 關完成（snowfield_2_3～2_10，2026-08-21）新增了什麼
+
+使用者事後提供了重新繪製、跟官方 `room_cut_spec.json` 拓樸正確對應的整批
+90 張 Room 圖（含 2-1/2-2 的重繪版），一次把 2-3～2-10 全部補齊，雪原篇
+10 關全數轉成 Adventure。這輪規模最大，記錄下來的教訓也最多：
+
+- **同檔名覆蓋舊圖內容時，一定要加版號 query string**——雪原篇這次是拿
+  「內容變了但檔名完全沒變」的新圖去覆蓋 `public/assets/adventure/
+  snowfield_2_X/rooms/roomXX.webp`（跟 forest_1_1 每次改圖就換資料夾名稱
+  的慣例不同）。這正好是先前修過的 Cloudflare 邊緣快取問題
+  （`feedback_dicehero_cdn_edge_cache_frames`）的同一個成因：`Assets.load()`
+  跟後續 `this.tex(room.background)` 查表都要用 `versionedAsset()` 包過的
+  字串，兩邊必須用同一個字串當 key，只加在其中一邊會找不到材質。
+- **同一個房間往同一方位有兩個出口的情況比想像中常見**——這次 10 關裡
+  room_04/room_05/room_06 這類「匯口」房間出現了 6 次以上的 dual-same-rect
+  衝突（2-3 room_04、2-6 room_05、2-8 room_04、2-10 room_05…），全部用
+  `EAST_UPPER`/`EAST_LOWER`/`WEST_UPPER`/`WEST_LOWER`（上下各留 360 高度）
+  分帶解決，是目前最穩定可重複套用的手法。
+- **官方資料裡沒給的 skillId／hazardId 可以自己補**——`hits_under`
+  （2-7「被重砸技能命中」）、`avoid_hazard`（2-6/2-8）這幾個 star
+  condition 官方 JSON 只給了 value 跟 description，沒給 skillId/hazardId，
+  是因為那個技能/危害本身也是這次才設計出來的（官方文件本來就沒有實作
+  細節）。只要跟 `AdventureCombatController.ts`/`HazardSystem.ts` 實際用的
+  key 對上，這種「文件留白、實作端自己訂 key」是合理的補完，不是瞎猜。
+- **精英技能不是每個都適合用同一種「衝刺」動作**——frost_wolf 的 leap／
+  frost_knight_captain 的 ice_charge 是位移型（`updateEliteChargeSkill`），
+  但 snow_troll 的「重砸」是原地 AOE、ice_dragon 的「冰息」是原地扇形，
+  兩者都不該讓 Boss 移動位置。抽成 `ELITE_SKILL_CONFIG: Record<typeId,
+  {skillId, kind}>`，`kind: 'charge'|'aoe'|'cone'` 三選一分派，比每個 Boss
+  各寫一份幾乎一樣的狀態機好維護。
+- **story_triggers.json 的 `combat_clear`／`boss_clear` type 不能套用
+  既有的「進房間就播」邏輯**——那是「戰鬤清空後才播」，跟 room_enter/
+  area_enter/boss_enter 語意不同。加了 `StoryTriggerDef.
+  requiresCombatCleared?: string`（存對應 CombatZoneDef.id），
+  `StoryTriggerSystem` 多檢查一次 `g.clearedCombatZones.has(...)`，不用另外
+  發明新的觸發系統。
+- **speaker 前綴解析抓不到就直接寫死中文**——`npc_<enemyId>`/
+  `boss_<enemyId>` 這個慣例（`DialogueController.resolveSpeaker()`）假設
+  `<enemyId>` 對得上 `enemies.ts` 的真實 id，但 2-8 官方資料用的是
+  `boss_frozen_general`，實際 Boss 是複用的 `frost_knight_captain`，兩者
+  對不上。與其硬凹規則相容，直接在對話資料裡把 speaker 寫成字面中文
+  「冰封將軍」（resolveSpeaker 對非 npc_/boss_ 前綴的字串會原樣顯示），
+  比為了單一個特例改動共用解析邏輯更乾淨。
+- **純視覺、沒有星星條件依賴的 Hazard（whiteout）可以大膽簡化**——先確認
+  `star_conditions.json` 有沒有引用這個 hazard 再決定實作精細度；whiteout
+  沒有任何星星條件用到它，所以視覺效果用四個矩形拼出方形暗角（不是真正
+  的圓形漸層遮罩）完全足夠，不用為了視覺精緻度另外做 canvas 漸層貼圖。
+- **`AdventureStageDef.spawn` 一定要是世界座標，不是 room_01 的 local
+  座標**——這是這批上線後使用者實測才抓到的真事故（2026-08-21）：10 關
+  裡全部寫成 `{ x: 540, y: 1640 }`（room_01.spawnLocal 的原始值），只有
+  room_01.atlasOrigin 剛好是 `{0,0}` 的關卡（local 恰好等於 world）沒事，
+  其餘 6 關 room_01 貼在 atlas 上不是原點，玩家一開場的世界座標就落在
+  `updateRoomMask()` 裁切範圍外，整個玩家 sprite 被 mask 蓋掉、完全看不到
+  ——症狀是「英雄沒有出現」，很容易誤判成碰撞或圖片問題，但其實跟兩者都
+  無關。**正確算法是 `spawn = room_01.atlasOrigin + room_01.spawnLocal`**，
+  寫完關卡後務必手動核對這一個值（不要照抄其他關卡的 `{540,1640}`），
+  而且要記得這個值不會被本文件第三節的自動化重疊驗證腳本抓到——那組腳本
+  只驗證房間之間的 local 幾何關係，沒有單獨驗證 stage.spawn 是否等於
+  room_01 的世界座標，這是腳本本身的已知缺口，之後應該補上這一條檢查。
+
+---
+
+## 十三、部署與版號
 
 照 `CLAUDE.md` 既有規則：改動前先 bump `package.json` 的 `version`
 （patch/minor/major 對應小修正/新功能/重大架構變動），`npx tsc -b` 過、
